@@ -11,6 +11,7 @@ import "./GameState.Test.js";
 import "./ContentIntegrity.Test.js";
 import "./Topology.Test.js";
 import "./RateSolver.Test.js";
+import "./Tick.Test.js";
 
 // Optional substring filter: `node Tests/RunAll.js Clock` runs only suites whose label contains "Clock".
 run(process.argv[2]);
