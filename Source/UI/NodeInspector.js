@@ -95,8 +95,7 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
       {
         class: "ni-upgrade " + affordClass(node.canAfford),
         disabled: !node.canAfford,
-        onclick: () =>
-          dispatch({ type: INTENT.UpgradeNode, nodeId: node.id }),
+        onclick: () => dispatch({ type: INTENT.UpgradeNode, nodeId: node.id }),
       },
       `Upgrade → ${fmtCost(node.upgradeCost, "gold")}`,
     ),

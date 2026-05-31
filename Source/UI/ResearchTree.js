@@ -88,8 +88,7 @@ export function ResearchTree(snap, dispatch) {
         {
           class: "res-buy " + affordClass(canBuy),
           disabled: !canBuy,
-          onclick: () =>
-            dispatch({ type: INTENT.BuyResearch, nodeId: r.id }),
+          onclick: () => dispatch({ type: INTENT.BuyResearch, nodeId: r.id }),
         },
         r.status === "owned" ? "Owned" : "Research",
       ),

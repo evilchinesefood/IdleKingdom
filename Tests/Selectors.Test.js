@@ -63,9 +63,9 @@ describe("Selectors.expeditionCardStatus", () => {
     isNext: true,
   };
   it("maps engine status straight through when not next-active", () => {
-    expect(expeditionCardStatus({ ...terr, status: "reclaimed" }, null, 40)).toBe(
-      "reclaimed",
-    );
+    expect(
+      expeditionCardStatus({ ...terr, status: "reclaimed" }, null, 40),
+    ).toBe("reclaimed");
     expect(expeditionCardStatus({ ...terr, status: "locked" }, null, 40)).toBe(
       "locked",
     );

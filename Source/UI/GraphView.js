@@ -222,14 +222,8 @@ export class GraphView {
       if (from) {
         const fp = this._pos(from);
         const a = graphToScreen(v, fp.x + NODE_W, fp.y + NODE_H / 2);
-        const b = graphToScreen(
-          v,
-          this._pendingLink.gx,
-          this._pendingLink.gy,
-        );
-        linkEls.push(
-          svg("path", { class: "link-pending", d: linkPath(a, b) }),
-        );
+        const b = graphToScreen(v, this._pendingLink.gx, this._pendingLink.gy);
+        linkEls.push(svg("path", { class: "link-pending", d: linkPath(a, b) }));
       }
     }
     this._replace(this.layerLinks, linkEls);

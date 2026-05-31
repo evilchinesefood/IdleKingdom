@@ -24,7 +24,8 @@ export function BuildMenu(snap, dispatch, ui) {
     h(
       "button",
       {
-        class: "bm-machine" + (ui.selectedPaletteKind === kind ? " selected" : ""),
+        class:
+          "bm-machine" + (ui.selectedPaletteKind === kind ? " selected" : ""),
         onclick: () => ui.setPalette(kind),
       },
       kind,

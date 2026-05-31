@@ -18,11 +18,7 @@ export function ExpeditionBoard(snap, dispatch) {
         { class: "exp-power" },
         `Power ${fmtNum(heroPower)} / ${fmtNum(t.requiredPower)}`,
       ),
-      h(
-        "div",
-        { class: "exp-dur" },
-        `Duration ${fmtCountdown(t.durationMs)}`,
-      ),
+      h("div", { class: "exp-dur" }, `Duration ${fmtCountdown(t.durationMs)}`),
       h(
         "div",
         { class: "exp-reward" },
@@ -33,7 +29,11 @@ export function ExpeditionBoard(snap, dispatch) {
     if (status === "active") {
       const rem = exp ? exp.timeRemainingMs : 0;
       parts.push(
-        h("div", { class: "exp-countdown" }, `In progress — ${fmtCountdown(rem)}`),
+        h(
+          "div",
+          { class: "exp-countdown" },
+          `In progress — ${fmtCountdown(rem)}`,
+        ),
       );
     } else if (status === "ready") {
       parts.push(
@@ -64,7 +64,11 @@ export function ExpeditionBoard(snap, dispatch) {
         ),
       );
       parts.push(
-        h("div", { class: "exp-nudge" }, launchNudge(heroPower, t.requiredPower)),
+        h(
+          "div",
+          { class: "exp-nudge" },
+          launchNudge(heroPower, t.requiredPower),
+        ),
       );
     } else if (status === "busy") {
       parts.push(
@@ -91,5 +95,9 @@ export function ExpeditionBoard(snap, dispatch) {
     );
   });
 
-  return h("div", { class: "expedition-board", id: "ExpeditionBoard" }, ...cards);
+  return h(
+    "div",
+    { class: "expedition-board", id: "ExpeditionBoard" },
+    ...cards,
+  );
 }

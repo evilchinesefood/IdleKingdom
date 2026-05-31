@@ -156,9 +156,7 @@ export function build(state, solved, content, lastError = null) {
       placeableMachines: state.unlocks.machinesUnlocked.slice(),
       unlockedRecipes: state.unlocks.recipesUnlocked.slice(),
       gathererResources: ["iron_ore"].concat(
-        (state.unlocks.gathererResources || []).filter(
-          (r) => r !== "iron_ore",
-        ),
+        (state.unlocks.gathererResources || []).filter((r) => r !== "iron_ore"),
       ),
     },
     gearTiers: state.unlocks.gearTiersUnlocked.map((g) => ({
