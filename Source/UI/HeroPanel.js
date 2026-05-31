@@ -1,6 +1,6 @@
 import { h } from "./Render/Dom.js";
 import { fmtNum, fmtCost, affordClass } from "./Format/Format.js";
-import { EQUIPMENT } from "../Engine/Content/Equipment.js";
+import { RESOURCES } from "../Engine/Content/Resources.js";
 import { HEROES } from "../Engine/Content/Heroes.js";
 import { INTENT } from "../Engine/Intents.js";
 
@@ -18,13 +18,13 @@ export function HeroPanel(snap, dispatch) {
   const heroCards = heroes.map((hero) => {
     const slots = ["weapon", "armor", "accessory"].map((slot) => {
       const itemId = SLOT_ITEM[slot];
-      const item = EQUIPMENT[itemId];
+      const res = RESOURCES[itemId];
       const equipped = hero.equipped[slot]; // {itemId,tier} | null
       const tierOpts = tiersFor(snap, itemId).map((tier) =>
         h(
           "option",
           { value: String(tier), selected: equipped && equipped.tier === tier },
-          `${item.display} T${tier}`,
+          `${res.icon} ${res.display} T${tier}`,
         ),
       );
       return h(

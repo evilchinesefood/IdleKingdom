@@ -35,7 +35,7 @@ export const RESEARCH_NODES = {
     prereqs: ["res_scholar"],
     requiresTerritory: null,
     effects: [
-      { type: "unlockMachine", kind: "gatherer" },
+      { type: "enableGathererResource", resourceId: "timber" },
       { type: "unlockRecipe", recipeId: "r_plank" },
     ],
     flavor:
@@ -49,7 +49,7 @@ export const RESEARCH_NODES = {
     prereqs: ["res_scholar"],
     requiresTerritory: null,
     effects: [
-      { type: "unlockMachine", kind: "gatherer" },
+      { type: "enableGathererResource", resourceId: "hide" },
       { type: "unlockRecipe", recipeId: "r_leather" },
     ],
     flavor: "Boar-hide cures hard, but it cures fast.",
