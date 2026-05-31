@@ -1,6 +1,16 @@
 import { Router } from "./Router.js";
 import { Hud } from "./Hud.js";
 import { GraphView } from "./GraphView.js";
+import { patch } from "./Render/Dom.js";
+import { BuildMenu } from "./BuildMenu.js";
+import { NodeInspector } from "./NodeInspector.js";
+import { ResearchTree } from "./ResearchTree.js";
+import { ExpeditionBoard } from "./ExpeditionBoard.js";
+import { HeroPanel } from "./HeroPanel.js";
+import { OfflineSummary } from "./OfflineSummary.js";
+import { Tooltip } from "./Tooltip.js";
+import { Victory } from "./Victory.js";
+import { victoryReady } from "./Logic/Selectors.js";
 
 export const App = {
   mount(rootEl, game) {
@@ -20,11 +30,17 @@ class AppInstance {
     this.root = rootEl;
     this.game = game;
     this.router = new Router();
+    this.dispatch = (intent) => this.game.dispatch(intent);
 
     this.hudEl = document.createElement("header");
     this.hudEl.className = "hud";
+    this.hudEl.id = "Hud";
     this.screenEl = document.createElement("main");
     this.screenEl.className = "screen";
+    this.panelEl = document.createElement("aside"); // factory side-panels host
+    this.panelEl.className = "factory-panels";
+    this.overlayEl = document.createElement("div"); // tooltip + modal layer
+    this.overlayEl.className = "overlay-layer";
     this.errorEl = document.createElement("div");
     this.errorEl.className = "hud-error";
     this.errorEl.style.display = "none";
@@ -32,6 +48,7 @@ class AppInstance {
     this.root.innerHTML = "";
     this.root.appendChild(this.hudEl);
     this.root.appendChild(this.screenEl);
+    this.root.appendChild(this.overlayEl);
     this.root.appendChild(this.errorEl);
 
     this.hud = new Hud(this.hudEl, this.router);
@@ -39,6 +56,23 @@ class AppInstance {
     this.lastSnap = null;
     this.activeScreen = null;
     this._errorTimer = null;
+
+    this.selectedNodeId = null;
+    this.buildUi = {
+      selectedPaletteKind: null,
+      setPalette: (k) => {
+        this.buildUi.selectedPaletteKind = k;
+        this.renderNow();
+      },
+      spawnPos: () =>
+        this.graphView && this.graphView.centerGraphPos
+          ? this.graphView.centerGraphPos()
+          : { x: 300, y: 320 },
+    };
+
+    this.pendingOfflineSummary = null;
+    this.victoryShown = false;
+    this.showVictory = false;
   }
 
   start() {
@@ -51,25 +85,34 @@ class AppInstance {
   _mountScreen() {
     const route = this.router.current;
     if (this.activeScreen === route) {
-      // already mounted; just refresh the HUD active-tab state
       this.hud.render(this.lastSnap || this._emptySnap());
       return;
     }
     this.activeScreen = route;
     this.screenEl.innerHTML = "";
     this.graphView = null;
+    this.selectedNodeId = null;
 
     if (route === "factory") {
-      this.graphView = new GraphView(this.screenEl, this.game, {
-        onSelect: () => {},
+      const canvas = document.createElement("div");
+      canvas.className = "graph-host";
+      this.screenEl.appendChild(canvas);
+      this.screenEl.appendChild(this.panelEl);
+      this.panelEl.innerHTML = "";
+      this.graphView = new GraphView(canvas, this.game, {
+        onSelect: (id) => {
+          this.selectedNodeId = id;
+          this.renderNow();
+        },
       });
     } else {
-      const ph = document.createElement("div");
-      ph.className = "panel";
-      ph.style.cssText = "position:static;margin:1rem;";
-      ph.textContent = `${route} screen — built in a later phase`;
-      this.screenEl.appendChild(ph);
+      // route-owned panel host
+      const host = document.createElement("div");
+      host.className = "panel-host";
+      this.screenEl.appendChild(host);
+      this._routeHost = host;
     }
+
     const snap = this.lastSnap || this._emptySnap();
     this.hud.render(snap);
     if (this.lastSnap) this._renderScreen(this.lastSnap);
@@ -77,14 +120,63 @@ class AppInstance {
 
   _onSnapshot(snap) {
     this.lastSnap = snap;
+    if (victoryReady(snap) && !this.victoryShown) {
+      this.victoryShown = true;
+      this.showVictory = true;
+    }
     this.hud.render(snap);
     this._renderScreen(snap);
+    this._renderOverlay(snap);
     if (snap.lastError) this._flashError(snap.lastError);
   }
 
+  // Re-render the active screen + overlay from the last snapshot (used by UI-state changes).
+  renderNow() {
+    const snap = this.lastSnap || this._emptySnap();
+    this._renderScreen(snap);
+    this._renderOverlay(snap);
+  }
+
   _renderScreen(snap) {
-    if (this.activeScreen === "factory" && this.graphView)
-      this.graphView.render(snap);
+    const route = this.activeScreen;
+    if (route === "factory") {
+      if (this.graphView) this.graphView.render(snap);
+      patch(this.panelEl, [
+        BuildMenu(snap, this.dispatch, this.buildUi),
+        NodeInspector(snap, this.dispatch, this.selectedNodeId),
+      ]);
+      return;
+    }
+    if (!this._routeHost) return;
+    let vnode = null;
+    if (route === "research") vnode = ResearchTree(snap, this.dispatch);
+    else if (route === "expeditions")
+      vnode = ExpeditionBoard(snap, this.dispatch);
+    else if (route === "heroes") vnode = HeroPanel(snap, this.dispatch);
+    patch(this._routeHost, vnode ? [vnode] : []);
+  }
+
+  _renderOverlay(snap) {
+    const children = [];
+    if (this.pendingOfflineSummary) {
+      children.push(
+        OfflineSummary(this.pendingOfflineSummary, () => {
+          this.pendingOfflineSummary = null;
+          this.renderNow();
+        }),
+      );
+    }
+    if (this.showVictory) {
+      children.push(
+        Victory(() => {
+          this.showVictory = false;
+          this.renderNow();
+        }),
+      );
+    }
+    const tip = Tooltip(snap, this.dispatch);
+    if (tip) children.push(tip);
+    patch(this.overlayEl, children);
   }
 
   _flashError(msg) {
@@ -97,26 +189,8 @@ class AppInstance {
   }
 
   showOfflineSummary(summary) {
-    const g = summary.gained || { gold: 0, research: 0, renown: 0 };
-    const modal = document.createElement("div");
-    modal.className = "panel";
-    modal.style.cssText =
-      "position:fixed;inset:auto;left:50%;top:30%;transform:translateX(-50%);z-index:60;min-width:240px;";
-    const exp =
-      (summary.expeditionsResolved || [])
-        .map((e) => e.territoryId)
-        .join(", ") || "none";
-    modal.innerHTML =
-      `<h3>While you were away</h3>` +
-      `<p>🪙 ${g.gold.toFixed(0)} · 📜 ${g.research.toFixed(0)} · 🛡️ ${g.renown.toFixed(0)}</p>` +
-      `<p class="muted">Expeditions resolved: ${exp}</p>`;
-    const close = document.createElement("button");
-    close.textContent = "Onward";
-    close.style.cssText =
-      "min-height:44px;margin-top:0.5rem;border:1px solid var(--line);border-radius:8px;padding:0 1rem;background:var(--gold);";
-    close.onclick = () => modal.remove();
-    modal.appendChild(close);
-    this.root.appendChild(modal);
+    this.pendingOfflineSummary = summary;
+    this.renderNow();
   }
 
   _emptySnap() {
@@ -124,6 +198,21 @@ class AppInstance {
       currencies: { gold: 0, research: 0, renown: 0 },
       rates: { goldRate: 0, researchRate: 0 },
       save: { status: "ok" },
+      nodes: [],
+      links: [],
+      research: [],
+      heroes: [],
+      territories: [],
+      expedition: null,
+      buildMenu: {
+        placeableMachines: [],
+        unlockedRecipes: [],
+        gathererResources: [],
+      },
+      gearTiers: [],
+      recruitable: [],
+      tutorial: { flags: {} },
+      meta: { won: false },
     };
   }
 }

@@ -100,3 +100,330 @@
     width: 100%;
   }
 }
+
+/* ---- Phase 6 panels ---- */
+
+/* Factory: graph canvas fills the screen; panels dock on the right (wide). */
+.graph-host {
+  position: absolute;
+  inset: 0;
+}
+.factory-panels {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  z-index: 30;
+  pointer-events: none;
+}
+.factory-panels > * {
+  pointer-events: auto;
+}
+
+.build-menu,
+.node-inspector,
+.hero-panel,
+.research-tree,
+.expedition-board {
+  position: relative;
+}
+.build-menu,
+.node-inspector {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.6rem;
+}
+.bm-title,
+.ni-title {
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+}
+.bm-machines {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.bm-machine,
+.bm-place,
+.ni-upgrade,
+.ni-sell,
+.res-buy,
+.exp-launch,
+.hp-levelup,
+.hp-recruit {
+  min-height: var(--tap);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--parchment-dk);
+  color: var(--ink);
+  padding: 0 0.6rem;
+  cursor: pointer;
+}
+.bm-machine.selected {
+  background: var(--gold);
+}
+.bm-detail {
+  margin-top: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.bm-detail-title,
+.hp-slot-label {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+.ni-line,
+.ni-stock {
+  font-size: 0.85rem;
+  margin: 0.15rem 0;
+}
+.ni-sell {
+  margin-left: 0.4rem;
+  min-height: 32px;
+}
+.ni-recipe,
+.hp-equip {
+  min-height: var(--tap);
+  margin: 0.25rem 0;
+  width: 100%;
+}
+.affordable {
+  background: var(--gold);
+}
+.locked {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Research tree */
+.research-tree {
+  margin: 1rem;
+}
+.res-edges {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+.res-edge {
+  stroke: var(--line);
+  stroke-width: 2;
+  fill: none;
+}
+.res-node {
+  background: var(--panel);
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.4rem;
+  box-shadow: var(--shadow);
+}
+.res-node.owned {
+  border-color: var(--good);
+}
+.res-node.available {
+  border-color: var(--gold);
+}
+.res-node.locked {
+  opacity: 0.6;
+}
+.res-name {
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.res-cost {
+  font-size: 0.8rem;
+}
+.res-eff {
+  font-size: 0.7rem;
+  color: var(--ink-soft);
+}
+
+/* Expedition board */
+.expedition-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.75rem;
+  padding: 1rem;
+  overflow-y: auto;
+  height: 100%;
+}
+.exp-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.6rem;
+}
+.exp-card.victory {
+  border-color: var(--gold);
+}
+.exp-name {
+  font-weight: 700;
+}
+.exp-flavor {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  margin: 0.25rem 0;
+}
+.exp-nudge {
+  font-size: 0.78rem;
+  color: var(--bad);
+  margin-top: 0.25rem;
+}
+
+/* Hero panel */
+.hero-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.75rem;
+  padding: 1rem;
+  overflow-y: auto;
+  height: 100%;
+}
+.hero-card,
+.recruit-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.6rem;
+}
+.hp-name {
+  font-weight: 700;
+}
+.hp-slot {
+  margin: 0.25rem 0;
+}
+
+/* Overlay layer (tooltip + modals) */
+.overlay-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 70;
+}
+.overlay-layer > * {
+  pointer-events: auto;
+}
+.tooltip-layer {
+  position: fixed;
+  left: 50%;
+  bottom: 1.5rem;
+  transform: translateX(-50%);
+}
+.tooltip {
+  background: var(--ink);
+  color: var(--parchment);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.6rem 0.9rem;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.tip-dismiss,
+.os-close,
+.victory-close {
+  min-height: var(--tap);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--gold);
+  color: var(--ink);
+  cursor: pointer;
+}
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 14, 8, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.25rem;
+  max-width: 420px;
+  width: calc(100% - 2rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.os-title,
+.victory-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+.victory-text {
+  line-height: 1.45;
+}
+.victory-sub {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+/* Narrow (mobile): panels become bottom-sheets */
+@media (max-width: 720px) {
+  .factory-panels {
+    position: static;
+    width: auto;
+    pointer-events: auto;
+  }
+  .build-menu,
+  .node-inspector {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 45vh;
+    overflow-y: auto;
+    border-top: 2px solid var(--iron);
+    background: var(--parchment);
+    box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.3);
+    z-index: 40;
+    border-radius: 0;
+  }
+  .node-inspector {
+    bottom: 0;
+  }
+  .build-menu {
+    bottom: 45vh;
+  }
+  .hero-panel {
+    padding-bottom: 56px;
+  }
+
+  /* >=44px touch targets for every actionable control */
+  .bm-machine,
+  .bm-place,
+  .ni-upgrade,
+  .ni-sell,
+  .res-buy,
+  .exp-launch,
+  .hp-levelup,
+  .hp-recruit,
+  .hp-equip,
+  .ni-recipe,
+  .tip-dismiss,
+  .os-close,
+  .victory-close {
+    min-height: 44px;
+    min-width: 44px;
+    font-size: 16px;
+  }
+
+  /* HUD collapses to a compact bar */
+  .hud {
+    font-size: 14px;
+    gap: 6px;
+  }
+}

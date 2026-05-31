@@ -47,10 +47,30 @@ export class GraphView {
       hitNode: (gx, gy) => this._hitNode(gx, gy),
       onNodeDrag: (id, gx, gy) => this._dragNode(id, gx, gy),
       onConnect: (from, to) => this._connect(from, to),
+      onConnectMove: (fromId, gx, gy) => this._connectMove(fromId, gx, gy),
+      onConnectEnd: () => this._connectEnd(),
       onTapPort: (nodeId, dir) => this._tapPort(nodeId, dir),
       onSelect: (id) => this._select(id),
       onViewChange: () => this._draw(),
     });
+    this._pendingLink = null; // {fromId, gx, gy} live mouse drag-connect preview
+  }
+
+  // Graph-space coordinate near the center of the current viewport (for BuildMenu spawnPos).
+  centerGraphPos() {
+    const r = this.svgEl.getBoundingClientRect();
+    const g = screenToGraph(this.view, r.width / 2, r.height / 2);
+    return { x: Math.round(g.x), y: Math.round(g.y) };
+  }
+
+  _connectMove(fromId, gx, gy) {
+    this._pendingLink = { fromId, gx, gy };
+    this._draw();
+  }
+
+  _connectEnd() {
+    this._pendingLink = null;
+    this._draw();
   }
 
   render(snap) {
@@ -118,6 +138,7 @@ export class GraphView {
       resourceId,
     });
     this.armedPort = null;
+    this._pendingLink = null;
   }
 
   // touch: first tap-out arms; second tap-in completes
@@ -194,6 +215,23 @@ export class GraphView {
         return g;
       })
       .filter(Boolean);
+
+    // pending drag-connect preview: source output port -> live pointer
+    if (this._pendingLink) {
+      const from = this._nodeAt(this._pendingLink.fromId);
+      if (from) {
+        const fp = this._pos(from);
+        const a = graphToScreen(v, fp.x + NODE_W, fp.y + NODE_H / 2);
+        const b = graphToScreen(
+          v,
+          this._pendingLink.gx,
+          this._pendingLink.gy,
+        );
+        linkEls.push(
+          svg("path", { class: "link-pending", d: linkPath(a, b) }),
+        );
+      }
+    }
     this._replace(this.layerLinks, linkEls);
 
     // nodes

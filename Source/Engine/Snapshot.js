@@ -1,5 +1,10 @@
 import { upgradeCost } from "./Systems/EconomySystem.js";
-import { heroPower, levelCost, canLevelUp } from "./Systems/HeroSystem.js";
+import {
+  heroPower,
+  levelCost,
+  canLevelUp,
+  canRecruit,
+} from "./Systems/HeroSystem.js";
 import { researchStatus, canBuyResearch } from "./Systems/ResearchSystem.js";
 import { nextTerritory, timeRemaining } from "./Systems/ExpeditionSystem.js";
 
@@ -112,6 +117,7 @@ export function build(state, solved, content, lastError = null) {
         status,
         flavor: t.flavor || "",
         isNext: t.id === nextId,
+        isVictory: !!t.isVictory,
       };
     });
 
@@ -149,7 +155,20 @@ export function build(state, solved, content, lastError = null) {
     buildMenu: {
       placeableMachines: state.unlocks.machinesUnlocked.slice(),
       unlockedRecipes: state.unlocks.recipesUnlocked.slice(),
+      gathererResources: ["iron_ore"].concat(
+        (state.unlocks.gathererResources || []).filter(
+          (r) => r !== "iron_ore",
+        ),
+      ),
     },
+    gearTiers: state.unlocks.gearTiersUnlocked.map((g) => ({
+      itemId: g.itemId,
+      tier: g.tier,
+    })),
+    recruitable: Object.keys(content.heroes).map((tpl) => ({
+      templateId: tpl,
+      canRecruit: canRecruit(state, content, tpl),
+    })),
     save: {
       status: (state.meta && state.meta._saveStatus) || "ok",
       lastSavedAt: state.savedAt || null,
