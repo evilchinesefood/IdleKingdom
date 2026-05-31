@@ -1,8 +1,17 @@
 import { describe, it, expect } from "./Runner.js";
 import { NewGame } from "../Source/Engine/GameState.js";
 import { FakeClock } from "../Source/Engine/Clock.js";
-import { serialize, deserialize, SAVE_VERSION, SAVE_KEY } from "../Source/Engine/Persistence/SaveManager.js";
-import { migrate1to2, migrate2to3, MIGRATIONS } from "../Source/Engine/Persistence/Migrations.js";
+import {
+  serialize,
+  deserialize,
+  SAVE_VERSION,
+  SAVE_KEY,
+} from "../Source/Engine/Persistence/SaveManager.js";
+import {
+  migrate1to2,
+  migrate2to3,
+  MIGRATIONS,
+} from "../Source/Engine/Persistence/Migrations.js";
 import SaveV1 from "./Fixtures/SaveV1.json" with { type: "json" };
 
 describe("SaveManager.serialize", () => {
@@ -19,6 +28,49 @@ describe("SaveManager.serialize", () => {
     expect(typeof blob.lastSeen).toBe("number");
     expect(blob._solved).toBe(undefined);
     expect(blob.currencies.gold).toBe(25.0);
+  });
+});
+
+describe("SaveManager.serialize lastSeen (B1 no-phantom-offline)", () => {
+  it("stamps both savedAt and lastSeen to the passed nowMs", () => {
+    const clock = new FakeClock(0);
+    const state = NewGame(clock);
+    state.savedAt = 1000; // stale prior stamp
+    state.lastSeen = 1000;
+    const T = 42_000;
+    const blob = JSON.parse(serialize(state, T));
+    expect(blob.savedAt).toBe(T);
+    expect(blob.lastSeen).toBe(T);
+  });
+
+  it("immediate reload (tiny elapsed) credits ~0 gold and yields no offline summary modal", async () => {
+    const { content } = await import("../Source/Engine/Content/Content.js");
+    const { applyOffline } =
+      await import("../Source/Engine/Simulation/Offline.js");
+    const clock = new FakeClock(0);
+    const state = NewGame(clock);
+    // foreground play then a save at T stamps lastSeen=T (the B1 fix)
+    const T = 100_000;
+    const saved = deserialize(serialize(state, T), clock);
+    expect(saved.lastSeen).toBe(T);
+    // reload 5s later
+    const summary = applyOffline(saved, content, T + 5_000);
+    expect(summary.gained.gold).toBeCloseTo(10, 1e-6); // 2/s * 5s, NOT a phantom whole session
+    // Main.js only shows the modal when appliedMs > 60_000
+    expect(summary.appliedMs > 60_000).toBe(false);
+  });
+
+  it(">60s elapsed credits real gold and would show the offline summary", async () => {
+    const { content } = await import("../Source/Engine/Content/Content.js");
+    const { applyOffline } =
+      await import("../Source/Engine/Simulation/Offline.js");
+    const clock = new FakeClock(0);
+    const state = NewGame(clock);
+    const T = 100_000;
+    const saved = deserialize(serialize(state, T), clock);
+    const summary = applyOffline(saved, content, T + 5 * 60_000); // 5 min away
+    expect(summary.gained.gold).toBeCloseTo(2 * 300, 1e-6); // 2/s * 300s
+    expect(summary.appliedMs > 60_000).toBe(true);
   });
 });
 
@@ -94,7 +146,10 @@ describe("SaveManager.deserialize", () => {
 
   it("falls back to NewGame when validate fails (missing currencies)", () => {
     const clock = new FakeClock(9000);
-    const broken = JSON.stringify({ version: 3, graph: { nodes: [], links: [] } });
+    const broken = JSON.stringify({
+      version: 3,
+      graph: { nodes: [], links: [] },
+    });
     const state = deserialize(broken, clock);
     expect(state.version).toBe(SAVE_VERSION);
     expect(state.currencies.gold).toBe(25.0);

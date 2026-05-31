@@ -24,7 +24,7 @@ let lastSavedAt = 0;
 function doSave() {
   saveTimer = null;
   try {
-    storage.set(SAVE_KEY, serialize(game.getState()));
+    storage.set(SAVE_KEY, serialize(game.getState(), clock.now()));
     saveStatus = "ok";
     lastSavedAt = clock.now();
   } catch (err) {
