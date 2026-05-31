@@ -8,16 +8,28 @@ import { EQUIPMENT } from "../Source/Engine/Content/Equipment.js";
 import { HEROES } from "../Source/Engine/Content/Heroes.js";
 import { NewGame } from "../Source/Engine/GameState.js";
 import { FakeClock } from "../Source/Engine/Clock.js";
-import { heroPower, equip, levelUp } from "../Source/Engine/Systems/HeroSystem.js";
+import {
+  heroPower,
+  equip,
+  levelUp,
+} from "../Source/Engine/Systems/HeroSystem.js";
 import { reclaim } from "../Source/Engine/Systems/ProgressionSystem.js";
 import {
-  nextTerritory, canStart, startExpedition, tryResolve, timeRemaining,
+  nextTerritory,
+  canStart,
+  startExpedition,
+  tryResolve,
+  timeRemaining,
 } from "../Source/Engine/Systems/ExpeditionSystem.js";
 
 const content = {
-  resources: RESOURCES, machines: MACHINES, recipes: RECIPES,
-  researchNodes: RESEARCH_NODES, territories: TERRITORIES,
-  equipment: EQUIPMENT, heroes: HEROES,
+  resources: RESOURCES,
+  machines: MACHINES,
+  recipes: RECIPES,
+  researchNodes: RESEARCH_NODES,
+  territories: TERRITORIES,
+  equipment: EQUIPMENT,
+  heroes: HEROES,
 };
 
 describe("ExpeditionSystem", () => {
@@ -64,7 +76,9 @@ describe("ExpeditionSystem", () => {
     expect(timeRemaining(s, 1000)).toBe(120000); // durationMs
     expect(timeRemaining(s, 61000)).toBe(60000);
     expect(tryResolve(s, content, 100000)).toBe(null); // not yet
-    const gold0 = s.currencies.gold, research0 = s.currencies.research, renown0 = s.currencies.renown;
+    const gold0 = s.currencies.gold,
+      research0 = s.currencies.research,
+      renown0 = s.currencies.renown;
     const resolved = tryResolve(s, content, 1000 + 120000);
     expect(resolved.territoryId).toBe("t_gatehouse");
     expect(s.currencies.gold).toBeCloseTo(gold0 + 50, 1e-9);
@@ -81,12 +95,12 @@ describe("ExpeditionSystem", () => {
     // Each row uses ONLY gear unlocked by reclaims strictly BEFORE that attempt.
     const rows = [
       // attempt territory, [swordTier, armorTier, shieldTier], heroLevel, expectedTotal
-      { id: "t_gatehouse",  gear: [1, 1, 1], level: 1, total: 35,  req: 30 },
-      { id: "t_smithyward", gear: [1, 1, 1], level: 2, total: 40,  req: 38 },
-      { id: "t_oldmarket",  gear: [2, 1, 2], level: 3, total: 63,  req: 50 },
-      { id: "t_ironreach",  gear: [2, 2, 2], level: 4, total: 80,  req: 65 },
-      { id: "t_highwall",   gear: [3, 2, 3], level: 5, total: 103, req: 85 },
-      { id: "t_blackkeep",  gear: [3, 3, 3], level: 6, total: 120, req: 110 },
+      { id: "t_gatehouse", gear: [1, 1, 1], level: 1, total: 35, req: 30 },
+      { id: "t_smithyward", gear: [1, 1, 1], level: 2, total: 40, req: 38 },
+      { id: "t_oldmarket", gear: [2, 1, 2], level: 3, total: 63, req: 50 },
+      { id: "t_ironreach", gear: [2, 2, 2], level: 4, total: 80, req: 65 },
+      { id: "t_highwall", gear: [3, 2, 3], level: 5, total: 103, req: 85 },
+      { id: "t_blackkeep", gear: [3, 3, 3], level: 6, total: 120, req: 110 },
     ];
 
     // Track which gear tiers are unlocked as we reclaim in order. Start = T1 of all (NewGame seed).
@@ -114,7 +128,8 @@ describe("ExpeditionSystem", () => {
 
       // Now reclaim row.id and fold ITS gear-tier unlocks into `unlocked` for the next attempt.
       reclaim(s, content, row.id);
-      for (const g of s.unlocks.gearTiersUnlocked) unlocked.add(g.itemId + ":" + g.tier);
+      for (const g of s.unlocks.gearTiersUnlocked)
+        unlocked.add(g.itemId + ":" + g.tier);
     }
     expect(s.meta.won).toBe(true);
   });

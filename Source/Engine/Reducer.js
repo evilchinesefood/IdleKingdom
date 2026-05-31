@@ -26,12 +26,14 @@ export function reduce(state, intent, content) {
 
   // Work on a clone; only return it if the intent is accepted.
   const next = clone(state);
-  const nowMs = typeof intent._nowMs === "number" ? intent._nowMs : state.lastSeen;
+  const nowMs =
+    typeof intent._nowMs === "number" ? intent._nowMs : state.lastSeen;
   let structural = false;
 
   switch (intent.type) {
     case "UpgradeNode": {
-      if (!Economy.canUpgrade(next, content, intent.nodeId)) return reject(state, "cannot upgrade");
+      if (!Economy.canUpgrade(next, content, intent.nodeId))
+        return reject(state, "cannot upgrade");
       Economy.applyUpgrade(next, content, intent.nodeId);
       structural = true;
       break;
@@ -39,39 +41,68 @@ export function reduce(state, intent, content) {
     case "SellFromStockpile": {
       const node = nodeById(next, intent.nodeId);
       if (!node) return reject(state, "no such node");
-      if (!Economy.isListed(next, content, intent.resId)) return reject(state, "resource not listed");
-      if ((node.stockpile[intent.resId] || 0) <= 0) return reject(state, "empty stockpile");
+      if (!Economy.isListed(next, content, intent.resId))
+        return reject(state, "resource not listed");
+      if ((node.stockpile[intent.resId] || 0) <= 0)
+        return reject(state, "empty stockpile");
       Economy.sellFromStockpile(next, content, intent.nodeId, intent.resId);
       break;
     }
     case "BuyResearch": {
-      if (!Research.canBuyResearch(next, content, intent.nodeId)) return reject(state, "cannot buy research");
+      if (!Research.canBuyResearch(next, content, intent.nodeId))
+        return reject(state, "cannot buy research");
       Research.buyResearch(next, content, intent.nodeId);
       structural = true;
       break;
     }
     case "EquipItem": {
-      if (!Hero.canEquip(next, content, intent.heroId, intent.slot, intent.itemId, intent.tier)) {
+      if (
+        !Hero.canEquip(
+          next,
+          content,
+          intent.heroId,
+          intent.slot,
+          intent.itemId,
+          intent.tier,
+        )
+      ) {
         return reject(state, "cannot equip");
       }
-      Hero.equip(next, content, intent.heroId, intent.slot, intent.itemId, intent.tier);
+      Hero.equip(
+        next,
+        content,
+        intent.heroId,
+        intent.slot,
+        intent.itemId,
+        intent.tier,
+      );
       break;
     }
     case "LevelUpHero": {
-      if (!Hero.canLevelUp(next, content, intent.heroId)) return reject(state, "cannot level up");
+      if (!Hero.canLevelUp(next, content, intent.heroId))
+        return reject(state, "cannot level up");
       Hero.levelUp(next, content, intent.heroId);
       break;
     }
     case "RecruitHero": {
-      if (!Hero.canRecruit(next, content, intent.templateId)) return reject(state, "cannot recruit");
+      if (!Hero.canRecruit(next, content, intent.templateId))
+        return reject(state, "cannot recruit");
       Hero.recruit(next, content, intent.templateId);
       break;
     }
     case "StartExpedition": {
-      if (!Expedition.canStart(next, content, intent.territoryId, intent.heroId)) {
+      if (
+        !Expedition.canStart(next, content, intent.territoryId, intent.heroId)
+      ) {
         return reject(state, "cannot start expedition");
       }
-      Expedition.startExpedition(next, content, intent.territoryId, intent.heroId, nowMs);
+      Expedition.startExpedition(
+        next,
+        content,
+        intent.territoryId,
+        intent.heroId,
+        nowMs,
+      );
       break;
     }
     case "PlaceNode": {
@@ -91,14 +122,28 @@ export function reduce(state, intent, content) {
       break;
     }
     case "ConnectLink": {
-      if (!isValidLink(next, content, intent.from, intent.to, intent.resourceId)) {
+      if (
+        !isValidLink(next, content, intent.from, intent.to, intent.resourceId)
+      ) {
         return reject(state, "invalid link");
       }
-      if (!wouldStayAcyclic(next.graph.nodes, next.graph.links, intent.from, intent.to)) {
+      if (
+        !wouldStayAcyclic(
+          next.graph.nodes,
+          next.graph.links,
+          intent.from,
+          intent.to,
+        )
+      ) {
         return reject(state, "cycle");
       }
       const seq = next.graph.nextLinkSeq;
-      next.graph.links.push({ id: "l_" + seq, from: intent.from, to: intent.to, resourceId: intent.resourceId });
+      next.graph.links.push({
+        id: "l_" + seq,
+        from: intent.from,
+        to: intent.to,
+        resourceId: intent.resourceId,
+      });
       next.graph.nextLinkSeq = seq + 1;
       structural = true;
       break;
@@ -106,19 +151,27 @@ export function reduce(state, intent, content) {
     case "SetRecipe": {
       const node = nodeById(next, intent.nodeId);
       if (!node) return reject(state, "no such node");
-      if (node.kind !== "smelter" && node.kind !== "workshop") return reject(state, "not a crafter");
-      if (!next.unlocks.recipesUnlocked.includes(intent.recipeId)) return reject(state, "recipe locked");
+      if (node.kind !== "smelter" && node.kind !== "workshop")
+        return reject(state, "not a crafter");
+      if (!next.unlocks.recipesUnlocked.includes(intent.recipeId))
+        return reject(state, "recipe locked");
       const recipe = content.recipes[intent.recipeId];
-      if (!recipe || recipe.crafterKind !== node.kind) return reject(state, "recipe/crafter mismatch");
+      if (!recipe || recipe.crafterKind !== node.kind)
+        return reject(state, "recipe/crafter mismatch");
       node.recipeId = intent.recipeId;
       structural = true;
       break;
     }
     case "SetGathererResource": {
       const node = nodeById(next, intent.nodeId);
-      if (!node || node.kind !== "gatherer") return reject(state, "not a gatherer");
-      const enabled = (next.unlocks.gathererResources || []).includes(intent.resourceId);
-      const startable = STARTABLE_GATHERER_RESOURCES.includes(intent.resourceId);
+      if (!node || node.kind !== "gatherer")
+        return reject(state, "not a gatherer");
+      const enabled = (next.unlocks.gathererResources || []).includes(
+        intent.resourceId,
+      );
+      const startable = STARTABLE_GATHERER_RESOURCES.includes(
+        intent.resourceId,
+      );
       if (!enabled && !startable) return reject(state, "resource not enabled");
       node.resourceId = intent.resourceId;
       structural = true;
@@ -128,7 +181,9 @@ export function reduce(state, intent, content) {
       const node = nodeById(next, intent.nodeId);
       if (!node) return reject(state, "no such node");
       next.graph.nodes = next.graph.nodes.filter((n) => n.id !== intent.nodeId);
-      next.graph.links = next.graph.links.filter((l) => l.from !== intent.nodeId && l.to !== intent.nodeId);
+      next.graph.links = next.graph.links.filter(
+        (l) => l.from !== intent.nodeId && l.to !== intent.nodeId,
+      );
       structural = true;
       break;
     }

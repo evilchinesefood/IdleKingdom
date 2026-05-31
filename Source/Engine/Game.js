@@ -33,9 +33,10 @@ export class Game {
   }
 
   dispatch(intent) {
-    const withTime = (intent && typeof intent === "object")
-      ? { ...intent, _nowMs: this.clock.now() }
-      : intent;
+    const withTime =
+      intent && typeof intent === "object"
+        ? { ...intent, _nowMs: this.clock.now() }
+        : intent;
     const out = reduce(this.state, withTime, this.content);
     if (out.error !== undefined) {
       return { ok: false, error: out.error };

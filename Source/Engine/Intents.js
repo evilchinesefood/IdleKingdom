@@ -25,7 +25,8 @@ const SHAPES = {
   UpgradeNode: (i) => isStr(i.nodeId),
   SetRecipe: (i) => isStr(i.nodeId) && isStr(i.recipeId),
   BuyResearch: (i) => isStr(i.nodeId),
-  EquipItem: (i) => isStr(i.heroId) && isStr(i.slot) && isStr(i.itemId) && isNum(i.tier),
+  EquipItem: (i) =>
+    isStr(i.heroId) && isStr(i.slot) && isStr(i.itemId) && isNum(i.tier),
   StartExpedition: (i) => isStr(i.territoryId) && isStr(i.heroId),
   SellFromStockpile: (i) => isStr(i.nodeId) && isStr(i.resId),
   LevelUpHero: (i) => isStr(i.heroId),
@@ -37,9 +38,12 @@ const SHAPES = {
 };
 
 export function validate(intent) {
-  if (!intent || typeof intent !== "object") return { ok: false, error: "intent must be an object" };
+  if (!intent || typeof intent !== "object")
+    return { ok: false, error: "intent must be an object" };
   const shape = SHAPES[intent.type];
-  if (!shape) return { ok: false, error: "unknown intent type: " + intent.type };
-  if (!shape(intent)) return { ok: false, error: "malformed " + intent.type + " intent" };
+  if (!shape)
+    return { ok: false, error: "unknown intent type: " + intent.type };
+  if (!shape(intent))
+    return { ok: false, error: "malformed " + intent.type + " intent" };
   return { ok: true };
 }

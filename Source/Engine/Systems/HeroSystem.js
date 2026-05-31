@@ -39,7 +39,9 @@ export function canEquip(state, content, heroId, slot, itemId, tier) {
   if (!hero) return false;
   const item = content.equipment[itemId];
   if (!item || item.slot !== slot) return false;
-  return state.unlocks.gearTiersUnlocked.some((g) => g.itemId === itemId && g.tier === tier);
+  return state.unlocks.gearTiersUnlocked.some(
+    (g) => g.itemId === itemId && g.tier === tier,
+  );
 }
 
 export function equip(state, content, heroId, slot, itemId, tier) {
@@ -53,7 +55,11 @@ export function canRecruit(state, content, templateId) {
   if (!tmpl) return false;
   if (state.heroes.some((h) => h.templateId === templateId)) return false;
   if (state.heroes.length >= state.unlocks.heroSlots) return false;
-  if (tmpl.unlockTerritory && !state.territories.reclaimed.includes(tmpl.unlockTerritory)) return false;
+  if (
+    tmpl.unlockTerritory &&
+    !state.territories.reclaimed.includes(tmpl.unlockTerritory)
+  )
+    return false;
   return state.currencies.renown >= tmpl.unlockRenownCost;
 }
 
@@ -62,5 +68,10 @@ export function recruit(state, content, templateId) {
   const tmpl = content.heroes[templateId];
   state.currencies.renown -= tmpl.unlockRenownCost;
   const id = "h_" + state.heroes.length;
-  state.heroes.push({ id, templateId, level: 1, equipped: { weapon: null, armor: null, accessory: null } });
+  state.heroes.push({
+    id,
+    templateId,
+    level: 1,
+    equipped: { weapon: null, armor: null, accessory: null },
+  });
 }

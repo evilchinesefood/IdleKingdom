@@ -12,9 +12,13 @@ import { solve } from "../Source/Engine/Simulation/RateSolver.js";
 import { build } from "../Source/Engine/Snapshot.js";
 
 const content = {
-  resources: RESOURCES, machines: MACHINES, recipes: RECIPES,
-  researchNodes: RESEARCH_NODES, territories: TERRITORIES,
-  equipment: EQUIPMENT, heroes: HEROES,
+  resources: RESOURCES,
+  machines: MACHINES,
+  recipes: RECIPES,
+  researchNodes: RESEARCH_NODES,
+  territories: TERRITORIES,
+  equipment: EQUIPMENT,
+  heroes: HEROES,
 };
 
 describe("Snapshot", () => {
@@ -26,7 +30,7 @@ describe("Snapshot", () => {
     expect(snap.currencies.gold).toBeCloseTo(25, 1e-9);
     // seed steady state: goldRate 2.0, researchRate 0.10 (§7 baseline)
     expect(snap.rates.goldRate).toBeCloseTo(2.0, 1e-9);
-    expect(snap.rates.researchRate).toBeCloseTo(0.10, 1e-9);
+    expect(snap.rates.researchRate).toBeCloseTo(0.1, 1e-9);
   });
 
   it("node rows carry upgradeCost, canAfford, capacity, effectiveRate", () => {
@@ -49,7 +53,11 @@ describe("Snapshot", () => {
     const scholar = snap.research.find((r) => r.id === "res_scholar");
     expect(scholar.status).toBe("available");
     expect(scholar.affordable).toBe(true);
-    expect(scholar.name).toBe(content.researchNodes.res_scholar ? RESEARCH_NODES.res_scholar.name || "Found the Scholars' Guild" : "");
+    expect(scholar.name).toBe(
+      content.researchNodes.res_scholar
+        ? RESEARCH_NODES.res_scholar.name || "Found the Scholars' Guild"
+        : "",
+    );
   });
 
   it("hero rows carry power + powerBreakdown + levelCost", () => {

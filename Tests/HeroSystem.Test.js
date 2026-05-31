@@ -4,8 +4,14 @@ import { HEROES } from "../Source/Engine/Content/Heroes.js";
 import { NewGame } from "../Source/Engine/GameState.js";
 import { FakeClock } from "../Source/Engine/Clock.js";
 import {
-  heroPower, levelCost, canLevelUp, levelUp,
-  canEquip, equip, canRecruit, recruit,
+  heroPower,
+  levelCost,
+  canLevelUp,
+  levelUp,
+  canEquip,
+  equip,
+  canRecruit,
+  recruit,
 } from "../Source/Engine/Systems/HeroSystem.js";
 
 const content = { equipment: EQUIPMENT, heroes: HEROES };
@@ -19,8 +25,8 @@ describe("HeroSystem", () => {
 
   it("full T1 loadout on L1 hero = 35 power (clears t_gatehouse req 30)", () => {
     const s = NewGame(new FakeClock(0));
-    equip(s, content, "h_0", "weapon", "sword", 1);   // 10
-    equip(s, content, "h_0", "armor", "armor", 1);     // 12
+    equip(s, content, "h_0", "weapon", "sword", 1); // 10
+    equip(s, content, "h_0", "armor", "armor", 1); // 12
     equip(s, content, "h_0", "accessory", "shield", 1); // 8
     expect(heroPower(s, content, "h_0")).toBeCloseTo(10 + 12 + 8 + 5, 1e-9); // 35
   });
@@ -45,7 +51,7 @@ describe("HeroSystem", () => {
     // NewGame unlocks only tier 1 of each item.
     expect(canEquip(s, content, "h_0", "weapon", "sword", 1)).toBe(true);
     expect(canEquip(s, content, "h_0", "weapon", "sword", 2)).toBe(false); // T2 not unlocked
-    expect(canEquip(s, content, "h_0", "armor", "sword", 1)).toBe(false);  // wrong slot
+    expect(canEquip(s, content, "h_0", "armor", "sword", 1)).toBe(false); // wrong slot
   });
 
   it("recruit gated by renown + unlockTerritory + heroSlots; pushes a new hero", () => {

@@ -4,7 +4,11 @@ export function migrate1to2(blob) {
   const next = { ...blob, version: 2 };
   if (!next.meta) next.meta = {};
   if (!next.meta.tutorialFlags) {
-    next.meta.tutorialFlags = { seenGoldTip: false, seenUpgradeTip: false, seenConnectTip: false };
+    next.meta.tutorialFlags = {
+      seenGoldTip: false,
+      seenUpgradeTip: false,
+      seenConnectTip: false,
+    };
   }
   return next;
 }
@@ -19,7 +23,13 @@ export function migrate2to3(blob) {
   }
   delete u.offlineCap;
   if (!u.productionBonuses) {
-    u.productionBonuses = { gatherer: 1.0, smelter: 1.0, workshop: 1.0, market: 1.0, scholar: 1.0 };
+    u.productionBonuses = {
+      gatherer: 1.0,
+      smelter: 1.0,
+      workshop: 1.0,
+      market: 1.0,
+      scholar: 1.0,
+    };
   }
   return next;
 }

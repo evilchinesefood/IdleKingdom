@@ -27,10 +27,14 @@ export function build(state, solved, content) {
     const effectiveRate = Object.values(out).reduce((a, b) => a + b, 0);
     const cost = upgradeCost(node.kind, node.level, content);
     return {
-      id: node.id, kind: node.kind, level: node.level,
-      resourceId: node.resourceId, recipeId: node.recipeId,
+      id: node.id,
+      kind: node.kind,
+      level: node.level,
+      resourceId: node.resourceId,
+      recipeId: node.recipeId,
       pos: { x: node.pos.x, y: node.pos.y },
-      capacity: cap, effectiveRate,
+      capacity: cap,
+      effectiveRate,
       capacityPct: cap > 0 ? effectiveRate / cap : 0,
       draw: (solved.perNodeDraw && solved.perNodeDraw[node.id]) || {},
       surplus: (solved.surplusRate && solved.surplusRate[node.id]) || {},
@@ -42,15 +46,27 @@ export function build(state, solved, content) {
 
   const links = state.graph.links.map((l) => {
     const flow = (solved.linkFlow && solved.linkFlow[l.id]) || 0;
-    return { id: l.id, from: l.from, to: l.to, resourceId: l.resourceId, flow, fedPct: 0 };
+    return {
+      id: l.id,
+      from: l.from,
+      to: l.to,
+      resourceId: l.resourceId,
+      flow,
+      fedPct: 0,
+    };
   });
 
   const research = Object.values(content.researchNodes).map((rn) => {
     const status = researchStatus(state, content, rn.id);
     return {
-      id: rn.id, name: rn.name, cost: rn.cost, currency: rn.currency,
+      id: rn.id,
+      name: rn.name,
+      cost: rn.cost,
+      currency: rn.currency,
       status,
-      prereqsMet: rn.prereqs.every((p) => state.unlocks.researchOwned.includes(p)),
+      prereqsMet: rn.prereqs.every((p) =>
+        state.unlocks.researchOwned.includes(p),
+      ),
       affordable: canBuyResearch(state, content, rn.id),
       effectsText: rn.flavor || "",
     };
@@ -60,11 +76,16 @@ export function build(state, solved, content) {
     const tmpl = content.heroes[h.templateId];
     const power = heroPower(state, content, h.id);
     return {
-      id: h.id, templateId: h.templateId, name: tmpl ? tmpl.name : h.templateId,
-      level: h.level, power,
+      id: h.id,
+      templateId: h.templateId,
+      name: tmpl ? tmpl.name : h.templateId,
+      level: h.level,
+      power,
       powerBreakdown: { gear: power - h.level * 5, level: h.level * 5 },
       equipped: {
-        weapon: h.equipped.weapon, armor: h.equipped.armor, accessory: h.equipped.accessory,
+        weapon: h.equipped.weapon,
+        armor: h.equipped.armor,
+        accessory: h.equipped.accessory,
       },
       levelCost: levelCost(h.level),
       canLevel: canLevelUp(state, content, h.id),
@@ -82,9 +103,14 @@ export function build(state, solved, content) {
       else if (state.territories.available.includes(t.id)) status = "available";
       else status = "locked";
       return {
-        id: t.id, name: t.name, order: t.order,
-        requiredPower: t.requiredPower, durationMs: t.durationMs,
-        rewards: { ...t.rewards }, status, flavor: t.flavor || "",
+        id: t.id,
+        name: t.name,
+        order: t.order,
+        requiredPower: t.requiredPower,
+        durationMs: t.durationMs,
+        rewards: { ...t.rewards },
+        status,
+        flavor: t.flavor || "",
         isNext: t.id === nextId,
       };
     });
@@ -92,20 +118,34 @@ export function build(state, solved, content) {
   const nowMs = state.lastSeen;
   const expedition = active
     ? {
-        active: true, territoryId: active.territoryId,
+        active: true,
+        territoryId: active.territoryId,
         timeRemainingMs: timeRemaining(state, nowMs),
-        durationMs: active.durationMs, heroId: active.heroId,
+        durationMs: active.durationMs,
+        heroId: active.heroId,
       }
     : null;
 
   const snap = {
-    currencies: { gold: state.currencies.gold, research: state.currencies.research, renown: state.currencies.renown },
+    currencies: {
+      gold: state.currencies.gold,
+      research: state.currencies.research,
+      renown: state.currencies.renown,
+    },
     rates: { goldRate, researchRate },
     currencyStrings: {
-      gold: fmt(state.currencies.gold), research: fmt(state.currencies.research),
-      renown: fmt(state.currencies.renown), goldRate: fmt(goldRate), researchRate: fmt(researchRate),
+      gold: fmt(state.currencies.gold),
+      research: fmt(state.currencies.research),
+      renown: fmt(state.currencies.renown),
+      goldRate: fmt(goldRate),
+      researchRate: fmt(researchRate),
     },
-    nodes, links, research, heroes, territories, expedition,
+    nodes,
+    links,
+    research,
+    heroes,
+    territories,
+    expedition,
     buildMenu: {
       placeableMachines: state.unlocks.machinesUnlocked.slice(),
       unlockedRecipes: state.unlocks.recipesUnlocked.slice(),

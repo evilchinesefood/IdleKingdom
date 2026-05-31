@@ -5,24 +5,45 @@ import { RESOURCES } from "../Source/Engine/Content/Resources.js";
 import { NewGame } from "../Source/Engine/GameState.js";
 import { FakeClock } from "../Source/Engine/Clock.js";
 import {
-  upgradeCost, canUpgrade, applyUpgrade, isListed, sellFromStockpile,
+  upgradeCost,
+  canUpgrade,
+  applyUpgrade,
+  isListed,
+  sellFromStockpile,
 } from "../Source/Engine/Systems/EconomySystem.js";
 
 const content = {
-  resources: RESOURCES, machines: MACHINES, recipes: RECIPES,
+  resources: RESOURCES,
+  machines: MACHINES,
+  recipes: RECIPES,
 };
 
 describe("EconomySystem", () => {
   it("upgradeCost = base * 1.15^level (exact floats)", () => {
     // gatherer upgradeBase = 15
-    expect(upgradeCost("gatherer", 1, content)).toBeCloseTo(15 * Math.pow(1.15, 1), 1e-9);
-    expect(upgradeCost("gatherer", 5, content)).toBeCloseTo(15 * Math.pow(1.15, 5), 1e-9);
+    expect(upgradeCost("gatherer", 1, content)).toBeCloseTo(
+      15 * Math.pow(1.15, 1),
+      1e-9,
+    );
+    expect(upgradeCost("gatherer", 5, content)).toBeCloseTo(
+      15 * Math.pow(1.15, 5),
+      1e-9,
+    );
     // smelter upgradeBase = 25
-    expect(upgradeCost("smelter", 3, content)).toBeCloseTo(25 * Math.pow(1.15, 3), 1e-9);
+    expect(upgradeCost("smelter", 3, content)).toBeCloseTo(
+      25 * Math.pow(1.15, 3),
+      1e-9,
+    );
     // market upgradeBase = 30
-    expect(upgradeCost("market", 0, content)).toBeCloseTo(30 * Math.pow(1.15, 0), 1e-9);
+    expect(upgradeCost("market", 0, content)).toBeCloseTo(
+      30 * Math.pow(1.15, 0),
+      1e-9,
+    );
     // scholar upgradeBase = 35
-    expect(upgradeCost("scholar", 4, content)).toBeCloseTo(35 * Math.pow(1.15, 4), 1e-9);
+    expect(upgradeCost("scholar", 4, content)).toBeCloseTo(
+      35 * Math.pow(1.15, 4),
+      1e-9,
+    );
   });
 
   it("canUpgrade reflects gold on hand; applyUpgrade spends + increments level", () => {
@@ -39,7 +60,7 @@ describe("EconomySystem", () => {
   it("isListed honors marketListings AND non-null basePrice", () => {
     const s = NewGame(new FakeClock(0));
     expect(isListed(s, content, "iron_bar")).toBe(true); // listed at start
-    expect(isListed(s, content, "steel")).toBe(false);    // not in NewGame listings
+    expect(isListed(s, content, "steel")).toBe(false); // not in NewGame listings
     expect(isListed(s, content, "parchment")).toBe(false); // listed never; basePrice null
   });
 
@@ -68,5 +89,18 @@ describe("EconomySystem", () => {
       if (outPrice == null) continue;
       expect(outPrice > inCost).toBeTruthy();
     }
+  });
+
+  it("sales tithe is 0.05, then 0.07 after raising titheRate", () => {
+    const s = NewGame(new FakeClock(0));
+    const node = s.graph.nodes.find((n) => n.id === "n_smelter_0");
+    node.stockpile.iron_bar = 100;
+    sellFromStockpile(s, content, "n_smelter_0", "iron_bar");
+    expect(s.currencies.research).toBeCloseTo(20, 1e-9);
+    s.unlocks.titheRate = 0.07;
+    node.stockpile.iron_bar = 100;
+    const research0 = s.currencies.research;
+    sellFromStockpile(s, content, "n_smelter_0", "iron_bar");
+    expect(s.currencies.research - research0).toBeCloseTo(28, 1e-9);
   });
 });

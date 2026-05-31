@@ -12,9 +12,14 @@ import { MemoryStorageAdapter } from "../Source/Engine/Persistence/MemoryStorage
 import { Game } from "../Source/Engine/Game.js";
 
 const content = {
-  resources: RESOURCES, machines: MACHINES, recipes: RECIPES,
-  researchNodes: RESEARCH_NODES, territories: TERRITORIES,
-  equipment: EQUIPMENT, heroes: HEROES, startState: START_STATE,
+  resources: RESOURCES,
+  machines: MACHINES,
+  recipes: RECIPES,
+  researchNodes: RESEARCH_NODES,
+  territories: TERRITORIES,
+  equipment: EQUIPMENT,
+  heroes: HEROES,
+  startState: START_STATE,
 };
 
 function makeGame(clock) {
@@ -35,7 +40,9 @@ describe("Game facade", () => {
     g.bootstrap(new MemoryStorageAdapter());
     const ok = g.dispatch({ type: "UpgradeNode", nodeId: "n_miner_0" });
     expect(ok.ok).toBe(true);
-    expect(g.getState().graph.nodes.find((n) => n.id === "n_miner_0").level).toBe(2);
+    expect(
+      g.getState().graph.nodes.find((n) => n.id === "n_miner_0").level,
+    ).toBe(2);
     // drain gold then reject
     g.getState().currencies.gold = 0;
     const bad = g.dispatch({ type: "UpgradeNode", nodeId: "n_miner_0" });
@@ -47,7 +54,9 @@ describe("Game facade", () => {
     const g = makeGame(new FakeClock(0));
     g.bootstrap(new MemoryStorageAdapter());
     let last = null;
-    const off = g.onSnapshot((snap) => { last = snap; });
+    const off = g.onSnapshot((snap) => {
+      last = snap;
+    });
     g.dispatch({ type: "UpgradeNode", nodeId: "n_miner_0" });
     expect(last !== null).toBe(true);
     expect(Object.isFrozen(last)).toBe(true);
@@ -62,7 +71,9 @@ describe("Game facade", () => {
     const g = makeGame(new FakeClock(0));
     g.bootstrap(new MemoryStorageAdapter());
     let emits = 0;
-    g.onSnapshot(() => { emits++; });
+    g.onSnapshot(() => {
+      emits++;
+    });
     const gold0 = g.getState().currencies.gold;
     g.tick(10); // 10 seconds at 2.0 gold/s -> +20 gold
     expect(g.getState().currencies.gold).toBeCloseTo(gold0 + 20, 1e-9);
@@ -76,16 +87,40 @@ describe("Game facade", () => {
     const g = makeGame(clock);
     g.bootstrap(new MemoryStorageAdapter());
     // equip + start via dispatch
-    g.dispatch({ type: "EquipItem", heroId: "h_0", slot: "weapon", itemId: "sword", tier: 1 });
-    g.dispatch({ type: "EquipItem", heroId: "h_0", slot: "armor", itemId: "armor", tier: 1 });
-    g.dispatch({ type: "EquipItem", heroId: "h_0", slot: "accessory", itemId: "shield", tier: 1 });
-    g.dispatch({ type: "StartExpedition", territoryId: "t_gatehouse", heroId: "h_0" });
+    g.dispatch({
+      type: "EquipItem",
+      heroId: "h_0",
+      slot: "weapon",
+      itemId: "sword",
+      tier: 1,
+    });
+    g.dispatch({
+      type: "EquipItem",
+      heroId: "h_0",
+      slot: "armor",
+      itemId: "armor",
+      tier: 1,
+    });
+    g.dispatch({
+      type: "EquipItem",
+      heroId: "h_0",
+      slot: "accessory",
+      itemId: "shield",
+      tier: 1,
+    });
+    g.dispatch({
+      type: "StartExpedition",
+      territoryId: "t_gatehouse",
+      heroId: "h_0",
+    });
     expect(g.getState().expeditions.active.territoryId).toBe("t_gatehouse");
     // advance clock past 120s and tick
     clock.advance(125000);
     g.tick(125); // dt seconds; facade reads clock.now() for resolution timestamp
     expect(g.getState().expeditions.active).toBe(null);
-    expect(g.getState().territories.reclaimed.includes("t_gatehouse")).toBe(true);
+    expect(g.getState().territories.reclaimed.includes("t_gatehouse")).toBe(
+      true,
+    );
   });
 
   it("getState returns the live raw state for autosave (has version, no frozen)", () => {

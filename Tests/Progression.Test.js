@@ -8,15 +8,29 @@ import { EQUIPMENT } from "../Source/Engine/Content/Equipment.js";
 import { HEROES } from "../Source/Engine/Content/Heroes.js";
 import { NewGame } from "../Source/Engine/GameState.js";
 import { FakeClock } from "../Source/Engine/Clock.js";
-import { reclaim, checkWin } from "../Source/Engine/Systems/ProgressionSystem.js";
+import {
+  reclaim,
+  checkWin,
+} from "../Source/Engine/Systems/ProgressionSystem.js";
 
 const content = {
-  resources: RESOURCES, machines: MACHINES, recipes: RECIPES,
-  researchNodes: RESEARCH_NODES, territories: TERRITORIES,
-  equipment: EQUIPMENT, heroes: HEROES,
+  resources: RESOURCES,
+  machines: MACHINES,
+  recipes: RECIPES,
+  researchNodes: RESEARCH_NODES,
+  territories: TERRITORIES,
+  equipment: EQUIPMENT,
+  heroes: HEROES,
 };
 
-const ORDER = ["t_gatehouse", "t_smithyward", "t_oldmarket", "t_ironreach", "t_highwall", "t_blackkeep"];
+const ORDER = [
+  "t_gatehouse",
+  "t_smithyward",
+  "t_oldmarket",
+  "t_ironreach",
+  "t_highwall",
+  "t_blackkeep",
+];
 
 describe("ProgressionSystem", () => {
   it("reclaim moves territory to reclaimed, advances available, applies unlocks", () => {
@@ -26,7 +40,7 @@ describe("ProgressionSystem", () => {
     expect(s.territories.available.includes("t_gatehouse")).toBe(false);
     expect(s.territories.available.includes("t_smithyward")).toBe(true);
     // t_gatehouse unlock: gatherer bonus 1.10
-    expect(s.unlocks.productionBonuses.gatherer).toBeCloseTo(1.10, 1e-9);
+    expect(s.unlocks.productionBonuses.gatherer).toBeCloseTo(1.1, 1e-9);
   });
 
   it("t_gatehouse grants hero_warden only if not already present (seed already has it)", () => {
@@ -39,8 +53,12 @@ describe("ProgressionSystem", () => {
   it("t_smithyward unlocks T2 sword/shield gear tier", () => {
     const s = NewGame(new FakeClock(0));
     reclaim(s, content, "t_smithyward");
-    const swordT2 = s.unlocks.gearTiersUnlocked.some((g) => g.itemId === "sword" && g.tier === 2);
-    const shieldT2 = s.unlocks.gearTiersUnlocked.some((g) => g.itemId === "shield" && g.tier === 2);
+    const swordT2 = s.unlocks.gearTiersUnlocked.some(
+      (g) => g.itemId === "sword" && g.tier === 2,
+    );
+    const shieldT2 = s.unlocks.gearTiersUnlocked.some(
+      (g) => g.itemId === "shield" && g.tier === 2,
+    );
     expect(swordT2).toBe(true);
     expect(shieldT2).toBe(true);
   });
@@ -62,7 +80,10 @@ describe("ProgressionSystem", () => {
     const gathererBonus = s.unlocks.productionBonuses.gatherer;
     reclaim(s, content, "t_gatehouse"); // already reclaimed -> no-op
     expect(s.territories.reclaimed.length).toBe(reclaimedCount);
-    expect(s.unlocks.productionBonuses.gatherer).toBeCloseTo(gathererBonus, 1e-9);
+    expect(s.unlocks.productionBonuses.gatherer).toBeCloseTo(
+      gathererBonus,
+      1e-9,
+    );
     expect(checkWin(s, content)).toBe(true);
   });
 });

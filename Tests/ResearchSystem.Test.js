@@ -6,11 +6,17 @@ import { RESEARCH_NODES } from "../Source/Engine/Content/ResearchNodes.js";
 import { NewGame } from "../Source/Engine/GameState.js";
 import { FakeClock } from "../Source/Engine/Clock.js";
 import {
-  canBuyResearch, buyResearch, applyEffects, researchStatus,
+  canBuyResearch,
+  buyResearch,
+  applyEffects,
+  researchStatus,
 } from "../Source/Engine/Systems/ResearchSystem.js";
 
 const content = {
-  resources: RESOURCES, machines: MACHINES, recipes: RECIPES, researchNodes: RESEARCH_NODES,
+  resources: RESOURCES,
+  machines: MACHINES,
+  recipes: RECIPES,
+  researchNodes: RESEARCH_NODES,
 };
 
 // Buy a chain of research nodes by directly granting currency, ignoring prereq order helper.
@@ -71,9 +77,14 @@ describe("ResearchSystem", () => {
     const s = NewGame(new FakeClock(0));
     s.currencies.research = 100000;
     s.currencies.renown = 100000;
-    own(s, "res_scholar"); own(s, "res_lumber"); own(s, "res_tannery");
-    own(s, "res_coalworks"); own(s, "res_steelmaking");
-    own(s, "res_smithing"); own(s, "res_fittings"); own(s, "res_armory");
+    own(s, "res_scholar");
+    own(s, "res_lumber");
+    own(s, "res_tannery");
+    own(s, "res_coalworks");
+    own(s, "res_steelmaking");
+    own(s, "res_smithing");
+    own(s, "res_fittings");
+    own(s, "res_armory");
     // prereq (res_armory) owned + renown plenty, but t_smithyward not reclaimed:
     expect(canBuyResearch(s, content, "res_war_college")).toBe(false);
     s.territories.reclaimed.push("t_gatehouse", "t_smithyward");
@@ -86,27 +97,35 @@ describe("ResearchSystem", () => {
     expect(s.unlocks.titheRate).toBeCloseTo(0.07, 1e-9);
     applyEffects(s, content, [{ type: "offlineCapHours", value: 24 }]);
     expect(s.unlocks.offlineCapHours).toBe(24);
-    applyEffects(s, content, [{ type: "productionBonus", kind: "smelter", mult: 1.25 }]);
+    applyEffects(s, content, [
+      { type: "productionBonus", kind: "smelter", mult: 1.25 },
+    ]);
     expect(s.unlocks.productionBonuses.smelter).toBeCloseTo(1.25, 1e-9);
-    applyEffects(s, content, [{ type: "globalRateBonus", mult: 1.10 }]);
-    expect(s.unlocks.productionBonuses.gatherer).toBeCloseTo(1.10, 1e-9);
-    expect(s.unlocks.productionBonuses.smelter).toBeCloseTo(1.25 * 1.10, 1e-9);
-    expect(s.unlocks.productionBonuses.workshop).toBeCloseTo(1.10, 1e-9);
+    applyEffects(s, content, [{ type: "globalRateBonus", mult: 1.1 }]);
+    expect(s.unlocks.productionBonuses.gatherer).toBeCloseTo(1.1, 1e-9);
+    expect(s.unlocks.productionBonuses.smelter).toBeCloseTo(1.25 * 1.1, 1e-9);
+    expect(s.unlocks.productionBonuses.workshop).toBeCloseTo(1.1, 1e-9);
   });
 
   it("applyEffects: marketCapacityBonus, enableGathererResource, heroSlot, autoSell, unlockGearTier", () => {
     const s = NewGame(new FakeClock(0));
-    applyEffects(s, content, [{ type: "marketCapacityBonus", mult: 1.30 }]);
-    expect(s.unlocks.productionBonuses.market).toBeCloseTo(1.30, 1e-9);
-    applyEffects(s, content, [{ type: "enableGathererResource", resourceId: "coal_raw" }]);
+    applyEffects(s, content, [{ type: "marketCapacityBonus", mult: 1.3 }]);
+    expect(s.unlocks.productionBonuses.market).toBeCloseTo(1.3, 1e-9);
+    applyEffects(s, content, [
+      { type: "enableGathererResource", resourceId: "coal_raw" },
+    ]);
     expect(s.unlocks.gathererResources.includes("coal_raw")).toBe(true);
     const slots0 = s.unlocks.heroSlots;
     applyEffects(s, content, [{ type: "heroSlot", count: 1 }]);
     expect(s.unlocks.heroSlots).toBe(slots0 + 1);
     applyEffects(s, content, [{ type: "autoSell", enabled: true }]);
     expect(s.unlocks.autoSell).toBe(true);
-    applyEffects(s, content, [{ type: "unlockGearTier", itemIds: ["sword", "shield"], tier: 2 }]);
-    const hasSwordT2 = s.unlocks.gearTiersUnlocked.some((g) => g.itemId === "sword" && g.tier === 2);
+    applyEffects(s, content, [
+      { type: "unlockGearTier", itemIds: ["sword", "shield"], tier: 2 },
+    ]);
+    const hasSwordT2 = s.unlocks.gearTiersUnlocked.some(
+      (g) => g.itemId === "sword" && g.tier === 2,
+    );
     expect(hasSwordT2).toBe(true);
   });
 });

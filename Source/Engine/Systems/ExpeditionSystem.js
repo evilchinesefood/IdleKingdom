@@ -22,7 +22,10 @@ export function startExpedition(state, content, territoryId, heroId, nowMs) {
   if (!canStart(state, content, territoryId, heroId)) return;
   const terr = content.territories[territoryId];
   state.expeditions.active = {
-    territoryId, startedAt: nowMs, durationMs: terr.durationMs, heroId,
+    territoryId,
+    startedAt: nowMs,
+    durationMs: terr.durationMs,
+    heroId,
   };
 }
 
@@ -42,7 +45,10 @@ export function tryResolve(state, content, nowMs) {
   state.currencies.research += terr.rewards.research;
   state.currencies.renown += terr.rewards.renown;
   reclaim(state, content, a.territoryId);
-  state.expeditions.completed.push({ territoryId: a.territoryId, completedAt: nowMs });
+  state.expeditions.completed.push({
+    territoryId: a.territoryId,
+    completedAt: nowMs,
+  });
   state.expeditions.active = null;
   return { territoryId: terr.id, rewards: terr.rewards };
 }
