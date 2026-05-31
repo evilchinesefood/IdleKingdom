@@ -1,0 +1,32 @@
+:root {
+  --parchment: #f4e8cf;
+  --parchment-dk: #e6d4ab;
+  --ink: #2b211a;
+  --ink-soft: #5a4a39;
+  --iron: #3a3f44;
+  --iron-lt: #565d63;
+  --gold: #c9a227;
+  --gold-lt: #e3c354;
+  --good: #4a7c44;
+  --bad: #9c3b2e;
+  --line: #b8a173;
+  --panel: #fbf3df;
+  --shadow: 0 2px 6px rgba(43, 33, 26, 0.25);
+  --radius: 8px;
+  --tap: 44px;
+  --font: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+}
+body {
+  background: var(--parchment);
+  color: var(--ink);
+  font-family: var(--font);
+}
+.muted {
+  color: var(--ink-soft);
+}
+.good {
+  color: var(--good);
+}
+.bad {
+  color: var(--bad);
+}

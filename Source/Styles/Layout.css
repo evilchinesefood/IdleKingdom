@@ -1,0 +1,102 @@
+#App {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* HUD */
+.hud {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--iron);
+  color: var(--parchment);
+  box-shadow: var(--shadow);
+  flex-wrap: wrap;
+}
+.hud-currencies {
+  display: flex;
+  gap: 1rem;
+  flex: 1;
+  min-width: 0;
+}
+.hud-cur {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+.hud-cur .val {
+  font-weight: 700;
+}
+.hud-cur .rate {
+  font-size: 0.75rem;
+  color: var(--gold-lt);
+}
+.hud-tabs {
+  display: flex;
+  gap: 0.25rem;
+}
+.hud-tabs a {
+  min-height: var(--tap);
+  min-width: var(--tap);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.75rem;
+  color: var(--parchment-dk);
+  text-decoration: none;
+  border-radius: var(--radius);
+}
+.hud-tabs a.active {
+  background: var(--gold);
+  color: var(--ink);
+}
+.hud-save {
+  font-size: 0.75rem;
+}
+.hud-save.failed {
+  color: var(--bad);
+}
+.hud-error {
+  position: fixed;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bad);
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  z-index: 50;
+}
+
+/* Screen host */
+.screen {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Panels (Inspector / BuildMenu host slots used by later phases) */
+.panel {
+  position: absolute;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.75rem;
+}
+
+/* Mobile-first: tabs become a bottom bar on narrow screens */
+@media (max-width: 640px) {
+  .hud {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .hud-tabs {
+    order: 3;
+    justify-content: space-around;
+    width: 100%;
+  }
+}

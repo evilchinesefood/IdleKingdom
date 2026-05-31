@@ -1,0 +1,87 @@
+.graph-svg {
+  width: 100%;
+  height: 100%;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 39px,
+      rgba(184, 161, 115, 0.25) 40px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 39px,
+      rgba(184, 161, 115, 0.25) 40px
+    ),
+    var(--parchment);
+  touch-action: none; /* we own pan/pinch */
+  cursor: grab;
+}
+.graph-svg.panning {
+  cursor: grabbing;
+}
+
+.node-card {
+  cursor: move;
+}
+.node-card .node-box {
+  fill: var(--panel);
+  stroke: var(--iron);
+  stroke-width: 2;
+  rx: 8;
+}
+.node-card.selected .node-box {
+  stroke: var(--gold);
+  stroke-width: 3;
+}
+.node-card .node-label {
+  fill: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+.node-card .node-sub {
+  fill: var(--ink-soft);
+  font-size: 11px;
+}
+
+/* capacity bar */
+.cap-bg {
+  fill: var(--parchment-dk);
+}
+.cap-fill {
+  fill: var(--good);
+}
+
+/* ports — >=44px hit area via transparent halo */
+.port {
+  fill: var(--iron);
+  stroke: var(--parchment);
+  stroke-width: 2;
+}
+.port-hit {
+  fill: transparent;
+} /* r >= 22 so the tap target is >=44px */
+.port.armed {
+  fill: var(--gold);
+} /* tap-port-then-port: first port chosen */
+
+.link-path {
+  fill: none;
+  stroke: var(--iron-lt);
+  stroke-width: 3;
+}
+.link-path.starved {
+  stroke: var(--bad);
+  stroke-dasharray: 6 4;
+}
+.link-label {
+  fill: var(--ink-soft);
+  font-size: 10px;
+}
+.link-pending {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 3;
+  stroke-dasharray: 5 4;
+}
