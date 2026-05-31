@@ -106,6 +106,11 @@ export function reduce(state, intent, content) {
       break;
     }
     case "PlaceNode": {
+      if (
+        !content.machines[intent.kind] ||
+        !next.unlocks.machinesUnlocked.includes(intent.kind)
+      )
+        return reject(state, "machine not placeable");
       const seq = next.graph.nextNodeSeq;
       const id = "n_" + intent.kind + "_" + seq;
       next.graph.nodes.push({

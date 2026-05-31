@@ -228,4 +228,45 @@ describe("Reducer", () => {
       accTimber.state.graph.nodes.find((n) => n.id === "n_miner_0").resourceId,
     ).toBe("timber");
   });
+
+  it("PlaceNode rejects an unknown/cosmetic machine kind cleanly (no throw, state unchanged)", () => {
+    const s = NewGame(new FakeClock(0));
+    const nodeCount0 = s.graph.nodes.length;
+    // "forester" is a cosmetic gatherer label, NOT an engine machine kind.
+    const out = reduce(
+      s,
+      { type: "PlaceNode", kind: "forester", pos: { x: 10, y: 20 } },
+      content,
+    );
+    expect(out.error !== undefined).toBe(true);
+    expect(out.state).toBe(s);
+    expect(s.graph.nodes.length).toBe(nodeCount0); // nothing pushed
+  });
+
+  it("PlaceNode rejects a real-but-locked machine kind (scholar before res_scholar)", () => {
+    const s = NewGame(new FakeClock(0));
+    // "scholar" is a valid engine kind but not in NewGame machinesUnlocked.
+    expect(s.unlocks.machinesUnlocked.includes("scholar")).toBe(false);
+    const out = reduce(
+      s,
+      { type: "PlaceNode", kind: "scholar", pos: { x: 10, y: 20 } },
+      content,
+    );
+    expect(out.error !== undefined).toBe(true);
+    expect(out.state).toBe(s);
+  });
+
+  it("PlaceNode accepts an unlocked kind (smelter) — legitimate path still works", () => {
+    const s = NewGame(new FakeClock(0));
+    const nodeCount0 = s.graph.nodes.length;
+    const out = reduce(
+      s,
+      { type: "PlaceNode", kind: "smelter", pos: { x: 480, y: 300 } },
+      content,
+    );
+    expect(out.error).toBe(undefined);
+    expect(out.state.graph.nodes.length).toBe(nodeCount0 + 1);
+    const placed = out.state.graph.nodes[out.state.graph.nodes.length - 1];
+    expect(placed.kind).toBe("smelter");
+  });
 });

@@ -23,6 +23,7 @@ export function applyOffline(state, content, nowMs) {
 
   const expeditionsResolved = [];
   // Deterministically resolve the in-flight expedition if it finished within the catch-up window.
+  // Expeditions resolve by real elapsed time (uncapped); the offline cap limits only passive production (spec §4.4).
   const resolved = tryResolve(state, content, nowMs);
   if (resolved) expeditionsResolved.push(resolved);
 
