@@ -81,11 +81,31 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
       ),
     );
   } else if (node.kind === "gatherer") {
-    const res = RESOURCES[node.resourceId];
-    if (res)
-      rows.push(
-        h("div", { class: "ni-line" }, `Mining ${res.icon} ${res.display}`),
+    const raws = (snap.buildMenu ? snap.buildMenu.gathererResources : []) || [];
+    const opts = raws
+      .filter((rid) => RESOURCES[rid])
+      .map((rid) =>
+        h(
+          "option",
+          { value: rid, selected: rid === node.resourceId },
+          `${RESOURCES[rid].icon} ${RESOURCES[rid].display}`,
+        ),
       );
+    rows.push(
+      h(
+        "select",
+        {
+          class: "ni-gatherer",
+          onchange: (e) =>
+            dispatch({
+              type: INTENT.SetGathererResource,
+              nodeId: node.id,
+              resourceId: e.target.value,
+            }),
+        },
+        ...opts,
+      ),
+    );
   }
 
   // Upgrade
@@ -98,6 +118,18 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
         onclick: () => dispatch({ type: INTENT.UpgradeNode, nodeId: node.id }),
       },
       `Upgrade → ${fmtCost(node.upgradeCost, "gold")}`,
+    ),
+  );
+
+  // Remove
+  rows.push(
+    h(
+      "button",
+      {
+        class: "ni-remove",
+        onclick: () => dispatch({ type: INTENT.RemoveNode, nodeId: node.id }),
+      },
+      "Remove",
     ),
   );
 

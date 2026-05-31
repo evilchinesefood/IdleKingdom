@@ -126,6 +126,11 @@ export class GraphInput {
       : 0;
     this.pointers.delete(e.pointerId);
 
+    if (wasMode === "dragNode" && this.dragNodeId) {
+      const g = this._toGraph(e);
+      if (this.cb.onNodeDrop) this.cb.onNodeDrop(this.dragNodeId, g.x, g.y);
+    }
+
     if (wasMode === "connect" && this.connectFrom) {
       const g = this._toGraph(e);
       const target = this.cb.hitPort(g.x, g.y);

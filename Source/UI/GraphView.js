@@ -46,6 +46,7 @@ export class GraphView {
       hitPort: (gx, gy) => this._hitPort(gx, gy),
       hitNode: (gx, gy) => this._hitNode(gx, gy),
       onNodeDrag: (id, gx, gy) => this._dragNode(id, gx, gy),
+      onNodeDrop: (id, gx, gy) => this._dropNode(id, gx, gy),
       onConnect: (from, to) => this._connect(from, to),
       onConnectMove: (fromId, gx, gy) => this._connectMove(fromId, gx, gy),
       onConnectEnd: () => this._connectEnd(),
@@ -117,12 +118,22 @@ export class GraphView {
   _dragNode(id, gx, gy) {
     const n = this._nodeAt(id);
     if (n) {
-      // snapshot nodes are frozen; nudge a local override for live redraw only
+      // snapshot nodes are frozen; nudge a local override for smooth live redraw
       this._dragPos = this._dragPos || {};
       this._dragPos[id] = { x: gx - NODE_W / 2, y: gy - NODE_H / 2 };
       this._draw();
     }
-    // Note: drag is a view-only nudge in MVP; persistent pos moves are a SetNodePos intent (Phase 6).
+  }
+
+  // On drag pointer-up: persist the new pos via SetNodePos, then clear the local
+  // override so draw + hit-test both read the (now updated) snapshot n.pos.
+  _dropNode(id, gx, gy) {
+    const pos = (this._dragPos && this._dragPos[id]) || {
+      x: gx - NODE_W / 2,
+      y: gy - NODE_H / 2,
+    };
+    this.game.dispatch({ type: INTENT.SetNodePos, nodeId: id, pos });
+    if (this._dragPos) delete this._dragPos[id];
   }
 
   _connect(fromId, toId) {
@@ -212,6 +223,34 @@ export class GraphView {
             [`${l.resourceId} ${(l.flow ?? 0).toFixed(2)}/s`],
           ),
         );
+        // link-delete affordance: a small ✕ at the midpoint (its own hit target so
+        // it doesn't interfere with the port drag-connect gesture).
+        const del = svg("g", { class: "link-delete-g" });
+        del.appendChild(
+          svg("circle", {
+            class: "link-delete-hit",
+            cx: mid.x,
+            cy: mid.y + 12,
+            r: 10,
+            onclick: () =>
+              this.game.dispatch({ type: INTENT.RemoveLink, linkId: l.id }),
+          }),
+        );
+        del.appendChild(
+          svg(
+            "text",
+            {
+              class: "link-delete",
+              x: mid.x,
+              y: mid.y + 16,
+              "text-anchor": "middle",
+              onclick: () =>
+                this.game.dispatch({ type: INTENT.RemoveLink, linkId: l.id }),
+            },
+            ["✕"],
+          ),
+        );
+        g.appendChild(del);
         return g;
       })
       .filter(Boolean);
