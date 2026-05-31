@@ -19,6 +19,7 @@ import "./Progression.Test.js";
 import "./ExpeditionSystem.Test.js";
 import "./Intents.Test.js";
 import "./Reducer.Test.js";
+import "./Snapshot.Test.js";
 
 // Optional substring filter: `node Tests/RunAll.js Clock` runs only suites whose label contains "Clock".
 run(process.argv[2]);
