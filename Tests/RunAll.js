@@ -11,6 +11,8 @@ import "./GameState.Test.js";
 import "./ContentIntegrity.Test.js";
 import "./Topology.Test.js";
 import "./RateSolver.Test.js";
+import "./SaveManager.Test.js";
+import "./Offline.Test.js";
 import "./Tick.Test.js";
 import "./Economy.Test.js";
 import "./ResearchSystem.Test.js";
