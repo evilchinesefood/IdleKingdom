@@ -73,6 +73,21 @@ describe("Dom.h", () => {
     expect(node.children[0].tag).toBe("li");
     expect(node.children[1].tag).toBe("li");
   });
+  it("captures variadic positional children (the form panels use)", () => {
+    const node = h(
+      "div",
+      { class: "x" },
+      h("div", {}, "a"),
+      h("div", {}, "b"),
+      h("div", {}, "c"),
+    );
+    expect(node.children.length).toBe(3);
+  });
+  it("captures spread-array children passed positionally", () => {
+    const rows = [h("div", {}, "r1"), h("div", {}, "r2"), h("div", {}, "r3")];
+    const node = h("div", { class: "x" }, ...rows);
+    expect(node.children.length).toBe(3);
+  });
 });
 
 describe("Dom.patch keyed reconciliation", () => {

@@ -12,7 +12,7 @@ const flat = (children) => {
   return out;
 };
 
-export function h(tag, props = {}, children = []) {
+export function h(tag, props = {}, ...children) {
   const key = props.key != null ? String(props.key) : null;
   return { tag, props, key, children: flat(children) };
 }
