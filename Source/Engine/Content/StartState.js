@@ -1,0 +1,38 @@
+/** NewGame seed: pre-placed Miner -> Smelter(r_iron_bar) -> Market; 25 gold; iron_bar listed.
+ *  Brand-new game has expeditions.active === null. */
+export const START_STATE = {
+  currencies: { gold: 25.0, research: 0.0, renown: 0.0 },
+  graph: {
+    nodes: [
+      { id: "n_miner_0", kind: "gatherer", level: 1, resourceId: "iron_ore", recipeId: null, stockpile: { iron_ore: 0.0 }, pos: { x: 120, y: 200 } },
+      { id: "n_smelter_0", kind: "smelter", level: 1, resourceId: null, recipeId: "r_iron_bar", stockpile: { iron_bar: 0.0 }, pos: { x: 360, y: 200 } },
+      { id: "n_market_0", kind: "market", level: 1, resourceId: null, recipeId: null, stockpile: {}, pos: { x: 600, y: 200 } },
+    ],
+    links: [
+      { id: "l_0", from: "n_miner_0", to: "n_smelter_0", resourceId: "iron_ore" },
+      { id: "l_1", from: "n_smelter_0", to: "n_market_0", resourceId: "iron_bar" },
+    ],
+    nextNodeSeq: 1,
+    nextLinkSeq: 2,
+  },
+  unlocks: {
+    researchOwned: [],
+    recipesUnlocked: ["r_iron_bar"],
+    machinesUnlocked: ["gatherer", "smelter", "market"],
+    marketListings: ["iron_ore", "timber", "hide", "coal_raw", "gemstone", "iron_bar"],
+    titheRate: 0.05,
+    offlineCapHours: 8,
+    productionBonuses: { gatherer: 1.0, smelter: 1.0, workshop: 1.0, market: 1.0, scholar: 1.0 },
+    gearTiersUnlocked: [
+      { itemId: "sword", tier: 1 },
+      { itemId: "armor", tier: 1 },
+      { itemId: "shield", tier: 1 },
+    ],
+    autoSell: false,
+    heroSlots: 1,
+  },
+  heroes: [{ id: "h_0", templateId: "hero_warden", level: 1, equipped: { weapon: null, armor: null, accessory: null } }],
+  expeditions: { active: null, completed: [] },
+  territories: { reclaimed: [], available: ["t_gatehouse"] },
+  meta: { tutorialFlags: { seenGoldTip: false, seenUpgradeTip: false, seenConnectTip: false }, won: false, createdAt: 0, playtimeMs: 0 },
+};
