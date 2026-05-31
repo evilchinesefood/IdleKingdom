@@ -1,5 +1,5 @@
 import { describe, it, expect } from "./Runner.js";
-import { seedGraph, bottleneckGraph, steelGraph, surplusGraph, marketOverflowGraph, content } from "./Fixtures/KnownGraph.js";
+import { seedGraph, bottleneckGraph, steelGraph, surplusGraph, marketOverflowGraph, content, cycleGraph } from "./Fixtures/KnownGraph.js";
 import { solve, capacity } from "../Source/Engine/Simulation/RateSolver.js";
 
 describe("KnownGraph fixtures load", () => {
@@ -162,5 +162,64 @@ describe("RateSolver — Scholar", () => {
     };
     const solved = solve(state, content());
     expect(solved.researchRate).toBeCloseTo(0.5, 1e-9); // clamped to cap, not 1.0
+  });
+});
+
+describe("RateSolver — Pass 2 surplus & backpressure", () => {
+  it("a gatherer with no consumer accrues full output to its own surplus", () => {
+    const { state, content, expected } = surplusGraph();
+    const solved = solve(state, content);
+    expect(solved.surplusRate["m"]["iron_ore"]).toBeCloseTo(expected.surplusOre, 1e-9); // 1.0
+  });
+  it("seed graph: miner has zero surplus (smelter consumes all 1.0 ore as 0.5 bar needs 1.0 ore)", () => {
+    const { state, content } = seedGraph();
+    const solved = solve(state, content);
+    // smelter draws iron_ore = out*2 = 0.5*2 = 1.0 ; miner produces exactly 1.0 -> no surplus.
+    const minerSurplus = (solved.surplusRate["n_miner_0"] && solved.surplusRate["n_miner_0"]["iron_ore"]) || 0;
+    expect(minerSurplus).toBeCloseTo(0.0, 1e-9);
+  });
+  it("seed graph: smelter accrues its iron_bar surplus only if market underdraws (here market sells all)", () => {
+    const { state, content } = seedGraph();
+    const solved = solve(state, content);
+    // market sells the full 0.5 bar/s (cap 5 >> 0.5) -> smelter surplus 0.
+    const smSurplus = (solved.surplusRate["n_smelter_0"] && solved.surplusRate["n_smelter_0"]["iron_bar"]) || 0;
+    expect(smSurplus).toBeCloseTo(0.0, 1e-9);
+  });
+  it("over-supplied smelter accrues iron_bar surplus when market cap binds", () => {
+    const big = [
+      { id: "ga", kind: "gatherer", level: 7, resourceId: "iron_bar", recipeId: null, stockpile: {}, pos: { x: 0, y: 0 } }, // 4.0 bar/s
+      { id: "gb", kind: "gatherer", level: 7, resourceId: "iron_ore", recipeId: null, stockpile: {}, pos: { x: 0, y: 1 } }, // 4.0 ore/s
+      { id: "mk", kind: "market", level: 1, resourceId: null, recipeId: null, stockpile: {}, pos: { x: 1, y: 0 } }, // cap 5
+    ];
+    const links = [
+      { id: "l0", from: "ga", to: "mk", resourceId: "iron_bar" },
+      { id: "l1", from: "gb", to: "mk", resourceId: "iron_ore" },
+    ];
+    const state = {
+      currencies: { gold: 0, research: 0, renown: 0 },
+      graph: { nodes: big, links, nextNodeSeq: 3, nextLinkSeq: 2 },
+      unlocks: {
+        researchOwned: [], recipesUnlocked: [],
+        machinesUnlocked: ["gatherer", "market"],
+        marketListings: ["iron_ore", "iron_bar"], titheRate: 0.05, offlineCapHours: 8,
+        productionBonuses: { gatherer: 1.0, smelter: 1.0, workshop: 1.0, market: 1.0, scholar: 1.0 },
+        gearTiersUnlocked: [], autoSell: false, heroSlots: 1,
+      },
+    };
+    const solved = solve(state, content());
+    // scale 5/8=0.625 -> market draws iron_bar 2.5, iron_ore 2.5.
+    // ga produces 4.0 bar -> surplus 4.0-2.5 = 1.5 ; gb produces 4.0 ore -> surplus 1.5.
+    expect(solved.surplusRate["ga"]["iron_bar"]).toBeCloseTo(1.5, 1e-9);
+    expect(solved.surplusRate["gb"]["iron_ore"]).toBeCloseTo(1.5, 1e-9);
+    // linkFlow finalized to what the market actually draws.
+    expect(solved.linkFlow["l0"]).toBeCloseTo(2.5, 1e-9);
+    expect(solved.linkFlow["l1"]).toBeCloseTo(2.5, 1e-9);
+  });
+});
+
+describe("RateSolver — cycle rejection", () => {
+  it("solve throws 'cycle' on a looped graph", () => {
+    const { state, content } = cycleGraph();
+    expect(() => solve(state, content)).toThrow("cycle");
   });
 });

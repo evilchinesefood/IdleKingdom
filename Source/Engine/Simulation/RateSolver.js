@@ -102,7 +102,40 @@ export function solve(state, content) {
     }
   }
 
-  // Pass 2 (surplus/backpressure) added in Task 2.6.
+  // --- Pass 2: backpressure (reverse topo) -> decide destination (link vs own stockpile) ---
+  // Total provisional offered per (consumerId,resId) across that consumer's inbound links of that resId.
+  const offeredTo = {}; // `${to}|${resId}` -> total provisional offered
+  for (const l of links) {
+    const off = (availableOut[l.from] && availableOut[l.from][l.resourceId]) || 0;
+    const k = l.to + "|" + l.resourceId;
+    offeredTo[k] = (offeredTo[k] || 0) + off;
+  }
+  // demand[`${producerId}|${resId}`] = units the downstream consumers actually pull from this producer.
+  const demand = {};
+  for (let i = order.length - 1; i >= 0; i--) {
+    const id = order[i];
+    for (const L of outLinks.get(id)) {
+      const consumerDraw = (perNodeDraw[L.to] && perNodeDraw[L.to][L.resourceId]) || 0;
+      const k = L.to + "|" + L.resourceId;
+      const totalOffered = offeredTo[k] || 0;
+      const offHere = (availableOut[L.from] && availableOut[L.from][L.resourceId]) || 0;
+      // Proportional share of the consumer's draw attributable to this inbound link.
+      const wanted = totalOffered > 0 ? consumerDraw * (offHere / totalOffered) : 0;
+      const dk = id + "|" + L.resourceId;
+      demand[dk] = (demand[dk] || 0) + wanted;
+      linkFlow[L.id] = Math.min(linkFlow[L.id] != null ? linkFlow[L.id] : offHere, wanted);
+    }
+    const outs = availableOut[id] || {};
+    for (const resId in outs) {
+      const produced = outs[resId];
+      const taken = demand[id + "|" + resId] || 0;
+      const sr = Math.max(0, produced - taken);
+      if (sr > 0) {
+        if (!surplusRate[id]) surplusRate[id] = {};
+        surplusRate[id][resId] = (surplusRate[id][resId] || 0) + sr;
+      }
+    }
+  }
 
   let goldRate = 0;
   for (const id in goldByNode) goldRate += goldByNode[id];
