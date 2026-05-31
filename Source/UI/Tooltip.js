@@ -1,0 +1,59 @@
+import { h } from "./Render/Dom.js";
+import { nextTutorialStep } from "./Logic/Selectors.js";
+import { INTENT } from "../Engine/Intents.js";
+
+// anchor = a CSS selector for the element this tip points at (cosmetic; used by App to position).
+const TIPS = {
+  gold: {
+    flag: "seenGoldTip",
+    anchor: '.hud-cur[data-key="gold"]',
+    text: "This is your Gold. Sell goods at the Market to earn it.",
+  },
+  upgrade: {
+    flag: "seenUpgradeTip",
+    anchor: "#NodeInspector .ni-upgrade",
+    text: "Tap a node, then Upgrade it to raise its rate.",
+  },
+  connect: {
+    flag: "seenConnectTip",
+    anchor: ".graph-svg",
+    text: "Drag from an output port to an input port to connect machines.",
+  },
+  research: {
+    flag: "seenResearchTip",
+    anchor: '.hud-tabs a[href="#/research"]',
+    text: "Bank Research and open the tree to unlock new machines.",
+  },
+  expedition: {
+    flag: "seenExpeditionTip",
+    anchor: '.hud-tabs a[href="#/expeditions"]',
+    text: "Forge gear, equip a hero, and launch an expedition.",
+  },
+};
+
+export function Tooltip(snap, dispatch) {
+  const flags = (snap.tutorial && snap.tutorial.flags) || {};
+  const step = nextTutorialStep(flags);
+  if (!step) return null;
+  const tip = TIPS[step];
+  if (!tip) return null;
+
+  return h(
+    "div",
+    { class: "tooltip-layer", id: "TooltipLayer", "data-anchor": tip.anchor },
+    h(
+      "div",
+      { class: "tooltip" },
+      h("div", { class: "tip-text" }, tip.text),
+      h(
+        "button",
+        {
+          class: "tip-dismiss",
+          onclick: () =>
+            dispatch({ type: INTENT.DismissTooltip, flag: tip.flag }),
+        },
+        "Got it",
+      ),
+    ),
+  );
+}
