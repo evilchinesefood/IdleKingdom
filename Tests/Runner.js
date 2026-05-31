@@ -16,6 +16,7 @@ export function it(name, fn) {
 function deepEqual(a, b) {
   if (Object.is(a, b)) return true;
   if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
   const ka = Object.keys(a);
   const kb = Object.keys(b);
   if (ka.length !== kb.length) return false;
@@ -80,26 +81,34 @@ export function expect(actual) {
   };
 }
 
-export async function run(filter) {
+// Pure runner over an explicit list of { label, fn }. Logs ok/FAIL per test and
+// returns { passed, failed, total }. Does NOT touch the global registry or process.exitCode.
+export async function runList(tests) {
   let passed = 0;
   let failed = 0;
   let ran = 0;
-  const needle = filter ? String(filter).toLowerCase() : null;
-  for (const t of registry) {
-    const label = [...t.path, t.name].join(" › ");
-    if (needle && !label.toLowerCase().includes(needle)) continue;
+  for (const t of tests) {
     ran++;
     try {
       await t.fn();
       passed++;
-      console.log(`ok   ${label}`);
+      console.log(`ok   ${t.label}`);
     } catch (e) {
       failed++;
-      console.log(`FAIL ${label}`);
+      console.log(`FAIL ${t.label}`);
       console.log(`     ${e && e.message ? e.message : e}`);
     }
   }
-  console.log(`\n${passed} passed, ${failed} failed, ${ran} total${needle ? ` (filter: ${filter})` : ""}`);
-  if (failed > 0) process.exitCode = 1;
   return { passed, failed, total: ran };
+}
+
+export async function run(filter) {
+  const needle = filter ? String(filter).toLowerCase() : null;
+  const tests = registry
+    .map((t) => ({ label: [...t.path, t.name].join(" › "), fn: t.fn }))
+    .filter((t) => !needle || t.label.toLowerCase().includes(needle));
+  const { passed, failed, total } = await runList(tests);
+  console.log(`\n${passed} passed, ${failed} failed, ${total} total${needle ? ` (filter: ${filter})` : ""}`);
+  if (failed > 0) process.exitCode = 1;
+  return { passed, failed, total };
 }

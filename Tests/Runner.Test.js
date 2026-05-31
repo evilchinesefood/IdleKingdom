@@ -1,4 +1,4 @@
-import { describe, it, expect } from "./Runner.js";
+import { describe, it, expect, runList } from "./Runner.js";
 
 describe("Runner matchers", () => {
   it("toBe uses Object.is", () => {
@@ -74,5 +74,21 @@ describe("Runner matchers", () => {
       threw = true;
     }
     expect(threw).toBe(true);
+  });
+
+  it("deepEqual does not conflate arrays with index-keyed objects", () => {
+    expect(() => expect([1, 2]).toEqual({ 0: 1, 1: 2 })).toThrow();
+  });
+});
+
+describe("Runner failure path", () => {
+  it("runList reports failed > 0 when a test throws", async () => {
+    const result = await runList([
+      { label: "x", fn: () => { throw new Error("boom"); } },
+      { label: "y", fn: () => {} },
+    ]);
+    expect(result.failed).toBe(1);
+    expect(result.passed).toBe(1);
+    expect(result.total).toBe(2);
   });
 });
