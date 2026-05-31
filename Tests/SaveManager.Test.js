@@ -108,3 +108,37 @@ describe("SaveManager.deserialize", () => {
     expect(state.territories.available[0]).toBe("t_gatehouse");
   });
 });
+
+describe("SaveManager.deserialize diagnostics", () => {
+  it("warns when a corrupt save triggers the NewGame fallback", () => {
+    const clock = new FakeClock(0);
+    const orig = console.warn;
+    let warned = false;
+    console.warn = () => {
+      warned = true;
+    };
+    try {
+      deserialize("{not valid json", clock);
+    } finally {
+      console.warn = orig;
+    }
+    expect(warned).toBe(true);
+  });
+
+  it("does NOT warn on a valid serialize -> deserialize round-trip", () => {
+    const clock = new FakeClock(0);
+    const state = NewGame(clock);
+    const json = serialize(state);
+    const orig = console.warn;
+    let warned = false;
+    console.warn = () => {
+      warned = true;
+    };
+    try {
+      deserialize(json, clock);
+    } finally {
+      console.warn = orig;
+    }
+    expect(warned).toBe(false);
+  });
+});

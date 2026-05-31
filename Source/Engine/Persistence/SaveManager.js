@@ -14,13 +14,15 @@ export function serialize(state, nowMs) {
 }
 
 /** JSON.parse -> read version (default 1) -> chain migrations to SAVE_VERSION (assert +1 each hop)
- *  -> validate -> on failure return NewGame(). Never throws to caller. */
+ *  -> validate -> on failure logs a warning and returns NewGame(). Never throws to caller.
+ *  A null/absent save (no prior progress) returns NewGame() silently — that is not corruption. */
 export function deserialize(json, clock) {
   if (json == null) return NewGame(clock);
   let blob;
   try {
     blob = JSON.parse(json);
-  } catch {
+  } catch (err) {
+    console.warn("[SaveManager] save unreadable; starting new game", err);
     return NewGame(clock);
   }
   try {
@@ -32,9 +34,13 @@ export function deserialize(json, clock) {
       if (blob.version !== version + 1) break; // each hop must advance exactly +1
       version = blob.version;
     }
-    if (!validate(blob)) return NewGame(clock);
+    if (!validate(blob)) {
+      console.warn("[SaveManager] save failed validation; starting new game");
+      return NewGame(clock);
+    }
     return blob;
-  } catch {
+  } catch (err) {
+    console.warn("[SaveManager] save migration failed; starting new game", err);
     return NewGame(clock);
   }
 }
