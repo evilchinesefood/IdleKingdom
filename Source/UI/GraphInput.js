@@ -109,9 +109,12 @@ export class GraphInput {
       this.cb.onViewChange();
       return;
     }
-    // 'connect' move: GraphView redraws (pending link visual handled there)
-    if (this.mode === "connect") {
-      this.cb.onViewChange();
+    // 'connect' move: report live pointer so GraphView can draw the pending link
+    if (this.mode === "connect" && this.connectFrom) {
+      const g = this._toGraph(e);
+      if (this.cb.onConnectMove)
+        this.cb.onConnectMove(this.connectFrom.nodeId, g.x, g.y);
+      else this.cb.onViewChange();
     }
   }
 
@@ -138,6 +141,8 @@ export class GraphInput {
         // touch tap-port: leave armed; second tap-port (next _down→_up tap) completes
         // via the onTapPort sequence in GraphView.
       }
+      // mouse drag-connect ended (success or miss): clear any pending-link preview
+      if (moved > TAP_MOVE_PX && this.cb.onConnectEnd) this.cb.onConnectEnd();
     }
     if (this.pointers.size < 2 && this.mode === "pinch")
       this.mode = this.pointers.size === 1 ? "pan" : null;
