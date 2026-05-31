@@ -6,6 +6,7 @@ import "./Runner.Test.js";
 import "./Clock.Test.js";
 import "./StorageAdapter.Test.js";
 import "./ContentShapes.Test.js";
+import "./ContentTree.Test.js";
 
 // Optional substring filter: `node Tests/RunAll.js Clock` runs only suites whose label contains "Clock".
 run(process.argv[2]);
