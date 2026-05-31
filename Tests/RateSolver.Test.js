@@ -1,6 +1,7 @@
 import { describe, it, expect } from "./Runner.js";
 import { seedGraph, bottleneckGraph, steelGraph, surplusGraph, marketOverflowGraph, content, cycleGraph } from "./Fixtures/KnownGraph.js";
 import { solve, capacity } from "../Source/Engine/Simulation/RateSolver.js";
+import { isValidLink } from "../Source/Engine/Simulation/Topology.js";
 
 describe("KnownGraph fixtures load", () => {
   it("exposes the five named fixtures with state+content", () => {
@@ -111,6 +112,16 @@ describe("RateSolver — Market sink", () => {
     state.unlocks.titheRate = 0.07;
     const solved = solve(state, content);
     expect(solved.researchRate).toBeCloseTo(2.0 * 0.07, 1e-9); // 0.14
+  });
+  it("re-added market link is rejected by isValidLink, so seed goldRate stays 2.0 (no doubling)", () => {
+    const { state, content } = seedGraph();
+    // The exact seed market triple (n_smelter_0 -> n_market_0, iron_bar) must NOT validate again.
+    expect(isValidLink(state, content, "n_smelter_0", "n_market_0", "iron_bar")).toBe(false);
+    expect(solve(state, content).goldRate).toBeCloseTo(2.0, 1e-9);
+    // If a duplicate link WERE forced into the graph, Pass 1 would sum the same 0.5 bar/s per link
+    // and goldRate would double to 4.0 — which is exactly why the guard above must reject it.
+    state.graph.links.push({ id: "l_dup", from: "n_smelter_0", to: "n_market_0", resourceId: "iron_bar" });
+    expect(solve(state, content).goldRate).toBeCloseTo(4.0, 1e-9);
   });
 });
 

@@ -65,9 +65,10 @@ export function isValidLink(state, content, from, to, resourceId) {
   if (!outputsOf(fromNode, content).includes(resourceId)) return false;
   const accepts = acceptsOf(toNode, content);
   if (accepts !== null && !accepts.includes(resourceId)) return false;
-  // Duplicate guard: a discrete crafter/scholar input port takes one feed per resource.
-  // Market sinks (accepts === null) aggregate feeds, so they're exempt from this guard.
-  if (accepts !== null && links.some((l) => l.from === from && l.to === to && l.resourceId === resourceId)) return false;
+  // Exact-duplicate guard (all kinds incl. markets): never add the same (from,to,resourceId)
+  // triple twice — that would double-count the feed in the solver. Markets may still aggregate
+  // DISTINCT feeds (different source, or different resource); only the exact triple is rejected.
+  if (links.some((l) => l.from === from && l.to === to && l.resourceId === resourceId)) return false;
   return wouldStayAcyclic(nodes, links, from, to);
 }
 
