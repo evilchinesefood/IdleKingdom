@@ -649,6 +649,8 @@ function solve(state, content):
 
 **Key properties:** topo order guarantees upstream is solved first (single O(N+E) forward pass); bottleneck is exactly `min(capacity, min_i(supply_i/inputCost_i))`; backpressure decides *destination* not production, so surplus accrues to the node; Market is the infinite sink (never a supplier, sells listed inputs up to shared capacity scaling proportionally on overflow, emits gold + tithe). The result is cached on a non-persisted `state._solved` and re-run only on structural/level/recipe/unlock changes.
 
+> **Build amendment (as implemented in `RateSolver.js`):** because the recipe graph requires **fan-out** (e.g. `iron_bar` feeds both `r_steel` and `r_fitting`), a producer's output is **conserved** — rationed across its outbound links by **capacity-weighted want** (`want = consumerCapacity × inputCost`; scholar/market `want = capacity`). If `Σwant ≤ output` each link gets its full want and the remainder accrues to the producer's stockpile; otherwise each link gets `output × want/Σwant` (proportional fair share). The sum of a producer's outbound link flows therefore never exceeds its output — no duplication at branch points. **Known MVP simplification:** when producers over-deliver to a single Market beyond its shared sell capacity, the unsold remainder is discarded at the sink (the Market does not back-pressure unsold goods into producer stockpiles); gold/research rates are exact regardless. The synthetic `inputCost === 0` divide is not guarded (all real recipes use positive integer costs and content is static).
+
 ### 9.4 UI ⇄ Engine Boundary
 
 One-way flow, three verbs:
