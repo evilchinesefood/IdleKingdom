@@ -67,8 +67,36 @@ export function solve(state, content) {
       const draw = {};
       for (const inId in r.inputs) draw[inId] = out * r.inputs[inId];
       perNodeDraw[id] = draw;
+    } else if (node.kind === "scholar") {
+      const parch = incoming["parchment"] || 0;
+      const out = Math.min(cap, parch);
+      availableOut[id] = {};
+      perNodeDraw[id] = { parchment: out };
+      researchByNode[id] = out;
+    } else if (node.kind === "market") {
+      const sellable = {};
+      let total = 0;
+      for (const resId in incoming) {
+        const res = content.resources[resId];
+        if (state.unlocks.marketListings.includes(resId) && res && res.basePrice != null) {
+          sellable[resId] = incoming[resId];
+          total += incoming[resId];
+        }
+      }
+      const scale = total > cap && total > 0 ? cap / total : 1.0;
+      const nodeSold = {};
+      let gold = 0;
+      for (const resId in sellable) {
+        const amt = sellable[resId] * scale;
+        nodeSold[resId] = amt;
+        gold += amt * content.resources[resId].basePrice;
+      }
+      sold[id] = nodeSold;
+      goldByNode[id] = gold;
+      researchByNode[id] = gold * state.unlocks.titheRate;
+      availableOut[id] = {};
+      perNodeDraw[id] = nodeSold; // market "draws" what it sells (used by backpressure)
     } else {
-      // market and scholar — implemented in Task 2.5
       availableOut[id] = {};
       perNodeDraw[id] = {};
     }
@@ -76,13 +104,18 @@ export function solve(state, content) {
 
   // Pass 2 (surplus/backpressure) added in Task 2.6.
 
+  let goldRate = 0;
+  for (const id in goldByNode) goldRate += goldByNode[id];
+  let researchRate = 0;
+  for (const id in researchByNode) researchRate += researchByNode[id];
+
   return {
     capacityByNode,
     availableOut,
     linkFlow,
     surplusRate,
-    goldRate: 0,
-    researchRate: 0,
+    goldRate,
+    researchRate,
     perNodeDraw,
   };
 }

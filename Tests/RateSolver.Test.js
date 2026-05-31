@@ -84,3 +84,83 @@ describe("RateSolver Pass 1 — crafter throughput", () => {
     expect(solved.availableOut["st"]["steel"]).toBeCloseTo(0.10, 1e-9);
   });
 });
+
+describe("RateSolver — Market sink", () => {
+  it("seed graph: goldRate 2.0, researchRate 0.10", () => {
+    const { state, content } = seedGraph();
+    const solved = solve(state, content);
+    expect(solved.goldRate).toBeCloseTo(2.0, 1e-9);
+    expect(solved.researchRate).toBeCloseTo(0.1, 1e-9);
+  });
+  it("proportional overflow: 8/s into cap 5/s scales 5/8, goldRate 11.25", () => {
+    const { state, content, expected } = marketOverflowGraph();
+    const solved = solve(state, content);
+    expect(solved.goldRate).toBeCloseTo(expected.goldRate, 1e-9); // 11.25
+    expect(solved.researchRate).toBeCloseTo(expected.researchRate, 1e-9); // 0.5625
+  });
+  it("market does not sell an unlisted resource", () => {
+    const { state, content } = marketOverflowGraph();
+    // Remove iron_bar from listings: only iron_ore (4/s) sells, under cap 5 -> no scaling.
+    state.unlocks.marketListings = ["iron_ore"];
+    const solved = solve(state, content);
+    // sold iron_ore 4.0 @0.5 = 2.0 gold/s (iron_bar ignored, total 4 < cap 5)
+    expect(solved.goldRate).toBeCloseTo(2.0, 1e-9);
+  });
+  it("res_trade_routes tithe 0.07 applies", () => {
+    const { state, content } = seedGraph();
+    state.unlocks.titheRate = 0.07;
+    const solved = solve(state, content);
+    expect(solved.researchRate).toBeCloseTo(2.0 * 0.07, 1e-9); // 0.14
+  });
+});
+
+describe("RateSolver — Scholar", () => {
+  it("scholar converts parchment 1:1 up to capacity", () => {
+    // forester timber -> workshop r_parchment -> scholar
+    const nodes = [
+      { id: "gt", kind: "gatherer", level: 1, resourceId: "timber", recipeId: null, stockpile: {}, pos: { x: 0, y: 0 } }, // 1.0 timber/s
+      { id: "wp", kind: "workshop", level: 1, resourceId: null, recipeId: "r_parchment", stockpile: {}, pos: { x: 1, y: 0 } }, // baseOut 0.5, in timber:1 -> 0.5/s
+      { id: "sc", kind: "scholar", level: 1, resourceId: null, recipeId: null, stockpile: {}, pos: { x: 2, y: 0 } }, // cap 0.5 research/s
+    ];
+    const links = [
+      { id: "l0", from: "gt", to: "wp", resourceId: "timber" },
+      { id: "l1", from: "wp", to: "sc", resourceId: "parchment" },
+    ];
+    const state = {
+      currencies: { gold: 0, research: 0, renown: 0 },
+      graph: { nodes, links, nextNodeSeq: 3, nextLinkSeq: 2 },
+      unlocks: {
+        researchOwned: [], recipesUnlocked: ["r_parchment"],
+        machinesUnlocked: ["gatherer", "smelter", "market", "workshop", "scholar"],
+        marketListings: [], titheRate: 0.05, offlineCapHours: 8,
+        productionBonuses: { gatherer: 1.0, smelter: 1.0, workshop: 1.0, market: 1.0, scholar: 1.0 },
+        gearTiersUnlocked: [], autoSell: false, heroSlots: 1,
+      },
+    };
+    const solved = solve(state, content());
+    // parchment supply 0.5/s, scholar cap 0.5 -> research 0.5/s.
+    expect(solved.researchRate).toBeCloseTo(0.5, 1e-9);
+    expect(solved.perNodeDraw["sc"]["parchment"]).toBeCloseTo(0.5, 1e-9);
+  });
+  it("scholar clamps to capacity when parchment supply exceeds it", () => {
+    // pin parchment supply at 1.0 via a gatherer assigned 'parchment'; scholar cap 0.5 -> research 0.5.
+    const nodes = [
+      { id: "gp", kind: "gatherer", level: 1, resourceId: "parchment", recipeId: null, stockpile: {}, pos: { x: 0, y: 0 } }, // 1.0/s
+      { id: "sc", kind: "scholar", level: 1, resourceId: null, recipeId: null, stockpile: {}, pos: { x: 1, y: 0 } }, // cap 0.5
+    ];
+    const links = [{ id: "l0", from: "gp", to: "sc", resourceId: "parchment" }];
+    const state = {
+      currencies: { gold: 0, research: 0, renown: 0 },
+      graph: { nodes, links, nextNodeSeq: 2, nextLinkSeq: 1 },
+      unlocks: {
+        researchOwned: [], recipesUnlocked: [],
+        machinesUnlocked: ["gatherer", "scholar"], marketListings: [],
+        titheRate: 0.05, offlineCapHours: 8,
+        productionBonuses: { gatherer: 1.0, smelter: 1.0, workshop: 1.0, market: 1.0, scholar: 1.0 },
+        gearTiersUnlocked: [], autoSell: false, heroSlots: 1,
+      },
+    };
+    const solved = solve(state, content());
+    expect(solved.researchRate).toBeCloseTo(0.5, 1e-9); // clamped to cap, not 1.0
+  });
+});
