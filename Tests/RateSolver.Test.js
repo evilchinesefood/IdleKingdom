@@ -113,15 +113,15 @@ describe("RateSolver — Market sink", () => {
     const solved = solve(state, content);
     expect(solved.researchRate).toBeCloseTo(2.0 * 0.07, 1e-9); // 0.14
   });
-  it("re-added market link is rejected by isValidLink, so seed goldRate stays 2.0 (no doubling)", () => {
+  it("re-added market link is rejected by isValidLink, and the solver conserves output anyway", () => {
     const { state, content } = seedGraph();
     // The exact seed market triple (n_smelter_0 -> n_market_0, iron_bar) must NOT validate again.
     expect(isValidLink(state, content, "n_smelter_0", "n_market_0", "iron_bar")).toBe(false);
     expect(solve(state, content).goldRate).toBeCloseTo(2.0, 1e-9);
-    // If a duplicate link WERE forced into the graph, Pass 1 would sum the same 0.5 bar/s per link
-    // and goldRate would double to 4.0 — which is exactly why the guard above must reject it.
+    // Defense-in-depth: even if a duplicate link is forced into the graph, the solver rations the
+    // smelter's single 0.5 bar/s across BOTH outbound links (no duplication) so goldRate stays 2.0.
     state.graph.links.push({ id: "l_dup", from: "n_smelter_0", to: "n_market_0", resourceId: "iron_bar" });
-    expect(solve(state, content).goldRate).toBeCloseTo(4.0, 1e-9);
+    expect(solve(state, content).goldRate).toBeCloseTo(2.0, 1e-9);
   });
 });
 
@@ -196,7 +196,7 @@ describe("RateSolver — Pass 2 surplus & backpressure", () => {
     const smSurplus = (solved.surplusRate["n_smelter_0"] && solved.surplusRate["n_smelter_0"]["iron_bar"]) || 0;
     expect(smSurplus).toBeCloseTo(0.0, 1e-9);
   });
-  it("over-supplied smelter accrues iron_bar surplus when market cap binds", () => {
+  it("gatherers push full output into a market whose sell-cap binds (mass conserved, market overflow scales the sale)", () => {
     const big = [
       { id: "ga", kind: "gatherer", level: 7, resourceId: "iron_bar", recipeId: null, stockpile: {}, pos: { x: 0, y: 0 } }, // 4.0 bar/s
       { id: "gb", kind: "gatherer", level: 7, resourceId: "iron_ore", recipeId: null, stockpile: {}, pos: { x: 0, y: 1 } }, // 4.0 ore/s
@@ -218,13 +218,116 @@ describe("RateSolver — Pass 2 surplus & backpressure", () => {
       },
     };
     const solved = solve(state, content());
-    // scale 5/8=0.625 -> market draws iron_bar 2.5, iron_ore 2.5.
-    // ga produces 4.0 bar -> surplus 4.0-2.5 = 1.5 ; gb produces 4.0 ore -> surplus 1.5.
-    expect(solved.surplusRate["ga"]["iron_bar"]).toBeCloseTo(1.5, 1e-9);
-    expect(solved.surplusRate["gb"]["iron_ore"]).toBeCloseTo(1.5, 1e-9);
-    // linkFlow finalized to what the market actually draws.
-    expect(solved.linkFlow["l0"]).toBeCloseTo(2.5, 1e-9);
-    expect(solved.linkFlow["l1"]).toBeCloseTo(2.5, 1e-9);
+    // Market want per inbound link = market cap (5.0); each gatherer (4.0) < want, so each pushes its
+    // FULL output into its single outbound link — mass conserved, no gatherer surplus.
+    expect(solved.linkFlow["l0"]).toBeCloseTo(4.0, 1e-9);
+    expect(solved.linkFlow["l1"]).toBeCloseTo(4.0, 1e-9);
+    const gaSurplus = (solved.surplusRate["ga"] && solved.surplusRate["ga"]["iron_bar"]) || 0;
+    const gbSurplus = (solved.surplusRate["gb"] && solved.surplusRate["gb"]["iron_ore"]) || 0;
+    expect(gaSurplus).toBeCloseTo(0.0, 1e-9);
+    expect(gbSurplus).toBeCloseTo(0.0, 1e-9);
+    // Market receives 8.0 but sells only cap 5.0 (scale 5/8=0.625): iron_bar 2.5@4.0 + iron_ore 2.5@0.5 = 11.25.
+    expect(solved.goldRate).toBeCloseTo(11.25, 1e-9);
+  });
+});
+
+describe("RateSolver — full-supply steel (cap-bound, no input binds)", () => {
+  it("steelGraph: two pinned 1.0/s intermediate feeds -> steel at cap 0.25/s", () => {
+    const { state, content, expected } = steelGraph();
+    const solved = solve(state, content);
+    // iron_bar 1.0/s (>=0.5 needed) & coal 1.0/s (>=0.25 needed) both exceed the per-input need,
+    // so r_steel runs at its capacity 0.25/s (nothing binds below cap).
+    expect(solved.availableOut["st"]["steel"]).toBeCloseTo(expected.steelOutWithFullSupply, 1e-9); // 0.25
+  });
+});
+
+describe("RateSolver — fan-out conservation", () => {
+  function fanState(nodes, links, over = {}) {
+    return {
+      currencies: { gold: 0, research: 0, renown: 0 },
+      graph: { nodes, links, nextNodeSeq: nodes.length, nextLinkSeq: links.length },
+      unlocks: {
+        researchOwned: [],
+        recipesUnlocked: ["r_iron_bar", "r_steel", "r_fitting"],
+        machinesUnlocked: ["gatherer", "smelter", "workshop", "market"],
+        marketListings: ["iron_ore", "iron_bar"],
+        titheRate: 0.05, offlineCapHours: 8,
+        productionBonuses: { gatherer: 1.0, smelter: 1.0, workshop: 1.0, market: 1.0, scholar: 1.0 },
+        gearTiersUnlocked: [], autoSell: false, heroSlots: 1,
+        ...over,
+      },
+    };
+  }
+
+  it("one gatherer (1.0 ore/s) -> two r_iron_bar smelters: each gets 0.5 ore -> 0.25 bar/s; total ore drawn = 1.0 (not 2.0)", () => {
+    const nodes = [
+      { id: "g", kind: "gatherer", level: 1, resourceId: "iron_ore", recipeId: null, stockpile: {}, pos: { x: 0, y: 0 } }, // 1.0 ore/s
+      { id: "s1", kind: "smelter", level: 1, resourceId: null, recipeId: "r_iron_bar", stockpile: {}, pos: { x: 1, y: 0 } }, // cap 0.5
+      { id: "s2", kind: "smelter", level: 1, resourceId: null, recipeId: "r_iron_bar", stockpile: {}, pos: { x: 1, y: 1 } }, // cap 0.5
+    ];
+    const links = [
+      { id: "l0", from: "g", to: "s1", resourceId: "iron_ore" },
+      { id: "l1", from: "g", to: "s2", resourceId: "iron_ore" },
+    ];
+    const solved = solve(fanState(nodes, links), content());
+    // Each smelter wants 0.5*2 = 1.0 ore; totalWant 2.0 > out 1.0 -> each link gets 1.0*(1.0/2.0)=0.5.
+    expect(solved.linkFlow["l0"]).toBeCloseTo(0.5, 1e-9);
+    expect(solved.linkFlow["l1"]).toBeCloseTo(0.5, 1e-9);
+    // CONSERVATION: total ore leaving the gatherer = 0.5 + 0.5 = 1.0 = its output (not doubled to 2.0).
+    expect(solved.linkFlow["l0"] + solved.linkFlow["l1"]).toBeCloseTo(1.0, 1e-9);
+    const gSurplus = (solved.surplusRate["g"] && solved.surplusRate["g"]["iron_ore"]) || 0;
+    expect(gSurplus).toBeCloseTo(0.0, 1e-9);
+    // Each smelter receives 0.5 ore -> out = min(0.5, 0.5/2=0.25) = 0.25 bar/s.
+    expect(solved.availableOut["s1"]["iron_bar"]).toBeCloseTo(0.25, 1e-9);
+    expect(solved.availableOut["s2"]["iron_bar"]).toBeCloseTo(0.25, 1e-9);
+  });
+
+  it("one iron_bar producer feeding r_steel AND r_fitting: Σ outbound linkFlow = producer output (conserved), surplus accounted", () => {
+    const nodes = [
+      { id: "p", kind: "gatherer", level: 1, resourceId: "iron_bar", recipeId: null, stockpile: {}, pos: { x: 0, y: 0 } }, // bonus 0.6 -> 0.6 bar/s
+      { id: "st", kind: "smelter", level: 1, resourceId: null, recipeId: "r_steel", stockpile: {}, pos: { x: 1, y: 0 } }, // cap 0.25, iron_bar:2
+      { id: "ft", kind: "workshop", level: 1, resourceId: null, recipeId: "r_fitting", stockpile: {}, pos: { x: 1, y: 1 } }, // cap 0.25, iron_bar:1
+    ];
+    const links = [
+      { id: "l0", from: "p", to: "st", resourceId: "iron_bar" },
+      { id: "l1", from: "p", to: "ft", resourceId: "iron_bar" },
+    ];
+    const over = { productionBonuses: { gatherer: 0.6, smelter: 1.0, workshop: 1.0, market: 1.0, scholar: 1.0 } };
+    const solved = solve(fanState(nodes, links, over), content());
+    const out = solved.availableOut["p"]["iron_bar"];
+    expect(out).toBeCloseTo(0.6, 1e-9);
+    // wants: steel 0.25*2=0.5, fitting 0.25*1=0.25; totalWant 0.75 > out 0.6 -> proportional.
+    expect(solved.linkFlow["l0"]).toBeCloseTo(0.6 * (0.5 / 0.75), 1e-9); // 0.4
+    expect(solved.linkFlow["l1"]).toBeCloseTo(0.6 * (0.25 / 0.75), 1e-9); // 0.2
+    // CONSERVATION: Σ outbound flows never exceeds producer output.
+    const sumOut = solved.linkFlow["l0"] + solved.linkFlow["l1"];
+    expect(sumOut <= out + 1e-9).toBeTruthy();
+    expect(sumOut).toBeCloseTo(out, 1e-9); // demand exceeds supply -> all output dispatched, surplus 0
+    const pSurplus = (solved.surplusRate["p"] && solved.surplusRate["p"]["iron_bar"]) || 0;
+    expect(pSurplus).toBeCloseTo(0.0, 1e-9);
+  });
+
+  it("one producer -> two markets: goldRate equals the single-producer value (NOT doubled)", () => {
+    const twoMarkets = [
+      { id: "g", kind: "gatherer", level: 1, resourceId: "iron_bar", recipeId: null, stockpile: {}, pos: { x: 0, y: 0 } }, // bonus 0.5 -> 0.5 bar/s
+      { id: "mA", kind: "market", level: 1, resourceId: null, recipeId: null, stockpile: {}, pos: { x: 1, y: 0 } }, // cap 5
+      { id: "mB", kind: "market", level: 1, resourceId: null, recipeId: null, stockpile: {}, pos: { x: 1, y: 1 } }, // cap 5
+    ];
+    const twoLinks = [
+      { id: "l0", from: "g", to: "mA", resourceId: "iron_bar" },
+      { id: "l1", from: "g", to: "mB", resourceId: "iron_bar" },
+    ];
+    const bonus = { productionBonuses: { gatherer: 0.5, smelter: 1.0, workshop: 1.0, market: 1.0, scholar: 1.0 } };
+    const goldTwo = solve(fanState(twoMarkets, twoLinks, bonus), content()).goldRate;
+    // Single-market baseline: same 0.5 bar/s gatherer -> one market.
+    const oneMarket = [
+      { id: "g", kind: "gatherer", level: 1, resourceId: "iron_bar", recipeId: null, stockpile: {}, pos: { x: 0, y: 0 } },
+      { id: "mA", kind: "market", level: 1, resourceId: null, recipeId: null, stockpile: {}, pos: { x: 1, y: 0 } },
+    ];
+    const oneLink = [{ id: "l0", from: "g", to: "mA", resourceId: "iron_bar" }];
+    const goldOne = solve(fanState(oneMarket, oneLink, bonus), content()).goldRate;
+    expect(goldOne).toBeCloseTo(2.0, 1e-9); // 0.5 bar @4.0
+    expect(goldTwo).toBeCloseTo(goldOne, 1e-9); // 0.5 bar rationed across both markets -> still 2.0, NOT 4.0
   });
 });
 
