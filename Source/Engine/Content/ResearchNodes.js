@@ -21,6 +21,7 @@ export const RESEARCH_NODES = {
     requiresTerritory: null,
     effects: [
       { type: "unlockMachine", kind: "scholar" },
+      { type: "unlockMachine", kind: "workshop" },
       { type: "unlockRecipe", recipeId: "r_parchment" },
     ],
     flavor:
@@ -112,7 +113,6 @@ export const RESEARCH_NODES = {
     prereqs: ["res_steelmaking"],
     requiresTerritory: null,
     effects: [
-      { type: "unlockMachine", kind: "workshop" },
       { type: "unlockRecipe", recipeId: "r_blade" },
       { type: "unlockRecipe", recipeId: "r_plating" },
       { type: "unlockListing", resourceIds: ["blade", "plating"] },

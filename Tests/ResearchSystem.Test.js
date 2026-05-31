@@ -11,6 +11,9 @@ import {
   applyEffects,
   researchStatus,
 } from "../Source/Engine/Systems/ResearchSystem.js";
+import { reduce } from "../Source/Engine/Reducer.js";
+import { solve } from "../Source/Engine/Simulation/RateSolver.js";
+import { content as fullContent } from "../Source/Engine/Content/Content.js";
 
 const content = {
   resources: RESOURCES,
@@ -71,9 +74,93 @@ describe("ResearchSystem", () => {
     expect(s.unlocks.recipesUnlocked.includes("r_sword")).toBe(true);
     expect(s.unlocks.recipesUnlocked.includes("r_armor")).toBe(true);
     expect(s.unlocks.recipesUnlocked.includes("r_shield")).toBe(true);
-    // ...and the workshop machine is placeable (res_smithing unlocks the workshop kind),
-    // so the equipment chain is actually buildable in-game, not just recipe-unlocked.
+    // ...and the workshop machine is placeable (unlocked at res_scholar, the very first
+    // node), so the equipment chain is actually buildable in-game, not just recipe-unlocked.
     expect(s.unlocks.machinesUnlocked.includes("workshop")).toBe(true);
+  });
+
+  it("scholar bootstrap: res_scholar alone unlocks the Workshop so the parchment stream isn't trapped", () => {
+    const s = NewGame(new FakeClock(0));
+    s.currencies.research = 100;
+    own(s, "res_scholar");
+    // The Scholar machine consumes parchment; r_parchment (timber->parchment) is a
+    // WORKSHOP recipe. res_scholar must therefore also unlock the workshop machine,
+    // or the only way to feed the Scholar is locked 8 nodes deep (dead trap).
+    expect(s.unlocks.machinesUnlocked.includes("scholar")).toBe(true);
+    expect(s.unlocks.machinesUnlocked.includes("workshop")).toBe(true);
+    expect(s.unlocks.recipesUnlocked.includes("r_parchment")).toBe(true);
+
+    // PlaceNode {kind:"workshop"} is ACCEPTED by the reducer right after res_scholar.
+    const placeWorkshop = reduce(
+      s,
+      {
+        type: "PlaceNode",
+        kind: "workshop",
+        recipeId: "r_parchment",
+        pos: { x: 200, y: 200 },
+      },
+      fullContent,
+    );
+    expect(placeWorkshop.error).toBe(undefined);
+    expect(
+      placeWorkshop.state.graph.nodes.some((n) => n.kind === "workshop"),
+    ).toBe(true);
+    // ...and a Scholar too, completing the parchment -> research stream.
+    const placeScholar = reduce(
+      placeWorkshop.state,
+      { type: "PlaceNode", kind: "scholar", pos: { x: 360, y: 200 } },
+      fullContent,
+    );
+    expect(placeScholar.error).toBe(undefined);
+  });
+
+  it("scholar bootstrap: a fed Workshop(r_parchment) -> Scholar yields research > 0 via solve", () => {
+    const s = NewGame(new FakeClock(0));
+    s.currencies.research = 100;
+    own(s, "res_scholar");
+    own(s, "res_lumber"); // enables timber gathering so the workshop can actually be fed
+    // timber gatherer -> parchment workshop -> scholar
+    let st = reduce(
+      s,
+      {
+        type: "PlaceNode",
+        kind: "gatherer",
+        resourceId: "timber",
+        pos: { x: 0, y: 0 },
+      },
+      fullContent,
+    ).state;
+    const gid = st.graph.nodes[st.graph.nodes.length - 1].id;
+    st = reduce(
+      st,
+      {
+        type: "PlaceNode",
+        kind: "workshop",
+        recipeId: "r_parchment",
+        pos: { x: 200, y: 0 },
+      },
+      fullContent,
+    ).state;
+    const wid = st.graph.nodes[st.graph.nodes.length - 1].id;
+    st = reduce(
+      st,
+      { type: "PlaceNode", kind: "scholar", pos: { x: 400, y: 0 } },
+      fullContent,
+    ).state;
+    const sid = st.graph.nodes[st.graph.nodes.length - 1].id;
+    st = reduce(
+      st,
+      { type: "ConnectLink", from: gid, to: wid, resourceId: "timber" },
+      fullContent,
+    ).state;
+    st = reduce(
+      st,
+      { type: "ConnectLink", from: wid, to: sid, resourceId: "parchment" },
+      fullContent,
+    ).state;
+
+    const solved = solve(st, fullContent);
+    expect(solved.researchRate > 0).toBeTruthy();
   });
 
   it("territory-gated nodes blocked until reclaim: res_war_college needs t_smithyward", () => {
