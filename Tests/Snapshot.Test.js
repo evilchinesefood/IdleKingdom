@@ -84,6 +84,25 @@ describe("Snapshot", () => {
     expect(snap.meta.won).toBe(false);
   });
 
+  it("rate currency strings carry the /s unit (M1)", () => {
+    const s = NewGame(new FakeClock(0));
+    const solved = solve(s, content);
+    const snap = build(s, solved, content);
+    expect(snap.currencyStrings.goldRate.endsWith("/s")).toBe(true);
+    expect(snap.currencyStrings.researchRate.endsWith("/s")).toBe(true);
+    expect(snap.currencyStrings.goldRate).toBe("2/s");
+  });
+
+  it("surfaces meta.seenVictory (B2); false on a fresh game", () => {
+    const s = NewGame(new FakeClock(0));
+    const snap = build(s, solve(s, content), content);
+    expect(snap.meta.seenVictory).toBe(false);
+    const s2 = NewGame(new FakeClock(0));
+    s2.meta.seenVictory = true;
+    const snap2 = build(s2, solve(s2, content), content);
+    expect(snap2.meta.seenVictory).toBe(true);
+  });
+
   it("snapshot is deeply frozen (nested objects too)", () => {
     const s = NewGame(new FakeClock(0));
     const solved = solve(s, content);

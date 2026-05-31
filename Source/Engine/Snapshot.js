@@ -143,8 +143,8 @@ export function build(state, solved, content, lastError = null) {
       gold: fmt(state.currencies.gold),
       research: fmt(state.currencies.research),
       renown: fmt(state.currencies.renown),
-      goldRate: fmt(goldRate),
-      researchRate: fmt(researchRate),
+      goldRate: fmt(goldRate) + "/s",
+      researchRate: fmt(researchRate) + "/s",
     },
     nodes,
     links,
@@ -172,7 +172,7 @@ export function build(state, solved, content, lastError = null) {
       lastSavedAt: state.savedAt || null,
     },
     tutorial: { flags: { ...state.meta.tutorialFlags } },
-    meta: { won: state.meta.won },
+    meta: { won: state.meta.won, seenVictory: !!state.meta.seenVictory },
     lastError: lastError || null,
   };
 

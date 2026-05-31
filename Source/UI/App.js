@@ -11,6 +11,7 @@ import { OfflineSummary } from "./OfflineSummary.js";
 import { Tooltip } from "./Tooltip.js";
 import { Victory } from "./Victory.js";
 import { victoryReady } from "./Logic/Selectors.js";
+import { INTENT } from "../Engine/Intents.js";
 
 export const App = {
   mount(rootEl, game) {
@@ -120,7 +121,7 @@ class AppInstance {
 
   _onSnapshot(snap) {
     this.lastSnap = snap;
-    if (victoryReady(snap) && !this.victoryShown) {
+    if (victoryReady(snap) && !snap.meta.seenVictory && !this.victoryShown) {
       this.victoryShown = true;
       this.showVictory = true;
     }
@@ -170,6 +171,7 @@ class AppInstance {
       children.push(
         Victory(() => {
           this.showVictory = false;
+          this.dispatch({ type: INTENT.AckVictory });
           this.renderNow();
         }),
       );
@@ -212,7 +214,7 @@ class AppInstance {
       gearTiers: [],
       recruitable: [],
       tutorial: { flags: {} },
-      meta: { won: false },
+      meta: { won: false, seenVictory: false },
     };
   }
 }

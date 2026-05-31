@@ -16,6 +16,8 @@ describe("Intents", () => {
     expect(INTENT.SetGathererResource).toBe("SetGathererResource");
     expect(INTENT.RemoveNode).toBe("RemoveNode");
     expect(INTENT.RemoveLink).toBe("RemoveLink");
+    expect(INTENT.SetNodePos).toBe("SetNodePos");
+    expect(INTENT.AckVictory).toBe("AckVictory");
     expect(INTENT.DismissTooltip).toBe("DismissTooltip");
   });
 
@@ -81,6 +83,10 @@ describe("Intents", () => {
     ).toBe(true);
     expect(validate({ type: "RemoveNode", nodeId: "n_x" }).ok).toBe(true);
     expect(validate({ type: "RemoveLink", linkId: "l_0" }).ok).toBe(true);
+    expect(
+      validate({ type: "SetNodePos", nodeId: "n_x", pos: { x: 1, y: 2 } }).ok,
+    ).toBe(true);
+    expect(validate({ type: "AckVictory" }).ok).toBe(true);
     expect(validate({ type: "DismissTooltip", flag: "seenGoldTip" }).ok).toBe(
       true,
     );
@@ -104,6 +110,13 @@ describe("Intents", () => {
     expect(
       validate({ type: "PlaceNode", kind: "smelter", pos: { x: 1 } }).ok,
     ).toBe(false); // pos.y missing
+    expect(validate({ type: "SetNodePos", nodeId: "n_x" }).ok).toBe(false); // no pos
+    expect(
+      validate({ type: "SetNodePos", nodeId: "n_x", pos: { x: 1 } }).ok,
+    ).toBe(false); // pos.y missing
+    expect(
+      validate({ type: "SetNodePos", nodeId: "n_x", pos: { x: NaN, y: 2 } }).ok,
+    ).toBe(false); // non-finite
     expect(validate(null).ok).toBe(false);
     expect(validate(42).ok).toBe(false);
   });

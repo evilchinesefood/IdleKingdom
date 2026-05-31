@@ -111,6 +111,17 @@ export function reduce(state, intent, content) {
         !next.unlocks.machinesUnlocked.includes(intent.kind)
       )
         return reject(state, "machine not placeable");
+      // Defensive: a gatherer placed with an explicit raw must use an enabled/startable raw.
+      if (intent.kind === "gatherer" && intent.resourceId) {
+        const enabled = (next.unlocks.gathererResources || []).includes(
+          intent.resourceId,
+        );
+        const startable = STARTABLE_GATHERER_RESOURCES.includes(
+          intent.resourceId,
+        );
+        if (!enabled && !startable)
+          return reject(state, "resource not enabled");
+      }
       const seq = next.graph.nextNodeSeq;
       const id = "n_" + intent.kind + "_" + seq;
       next.graph.nodes.push({
@@ -197,6 +208,16 @@ export function reduce(state, intent, content) {
       if (!link) return reject(state, "no such link");
       next.graph.links = next.graph.links.filter((l) => l.id !== intent.linkId);
       structural = true;
+      break;
+    }
+    case "SetNodePos": {
+      const node = nodeById(next, intent.nodeId);
+      if (!node) return reject(state, "no such node");
+      node.pos = { x: intent.pos.x, y: intent.pos.y };
+      break;
+    }
+    case "AckVictory": {
+      next.meta.seenVictory = true;
       break;
     }
     case "DismissTooltip": {

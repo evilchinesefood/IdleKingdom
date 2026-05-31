@@ -74,6 +74,35 @@ describe("SaveManager.serialize lastSeen (B1 no-phantom-offline)", () => {
   });
 });
 
+describe("Victory once-after-ack (B2 seenVictory)", () => {
+  it("AckVictory -> serialize -> deserialize preserves meta.seenVictory; gate suppresses re-fire", async () => {
+    const { content } = await import("../Source/Engine/Content/Content.js");
+    const { reduce } = await import("../Source/Engine/Reducer.js");
+    const { build } = await import("../Source/Engine/Snapshot.js");
+    const { solve } = await import("../Source/Engine/Simulation/RateSolver.js");
+    const { victoryReady } = await import("../Source/UI/Logic/Selectors.js");
+    const clock = new FakeClock(0);
+    const state = NewGame(clock);
+    state.meta.won = true;
+
+    // seeded fresh: seenVictory false -> gate would fire on first win
+    const s0 = build(state, solve(state, content), content, null);
+    expect(s0.meta.seenVictory).toBe(false);
+    expect(victoryReady(s0) && !s0.meta.seenVictory).toBe(true);
+
+    const acked = reduce(state, { type: "AckVictory" }, content).state;
+    expect(acked.meta.seenVictory).toBe(true);
+
+    const back = deserialize(serialize(acked, 0), clock);
+    expect(back.meta.seenVictory).toBe(true);
+
+    // App gate: victoryReady && !seenVictory must now be FALSE post-ack
+    const s1 = build(back, solve(back, content), content, null);
+    expect(victoryReady(s1)).toBe(true); // still won (free-play)
+    expect(victoryReady(s1) && !s1.meta.seenVictory).toBe(false);
+  });
+});
+
 describe("Migrations", () => {
   it("1->2 adds meta.tutorialFlags without touching other fields", () => {
     const v1 = JSON.parse(JSON.stringify(SaveV1));

@@ -9,6 +9,7 @@ import { HEROES } from "../Source/Engine/Content/Heroes.js";
 import { NewGame } from "../Source/Engine/GameState.js";
 import { FakeClock } from "../Source/Engine/Clock.js";
 import { reduce } from "../Source/Engine/Reducer.js";
+import { solve } from "../Source/Engine/Simulation/RateSolver.js";
 
 const content = {
   resources: RESOURCES,
@@ -227,6 +228,80 @@ describe("Reducer", () => {
     expect(
       accTimber.state.graph.nodes.find((n) => n.id === "n_miner_0").resourceId,
     ).toBe("timber");
+  });
+
+  it("AckVictory sets meta.seenVictory; non-structural so rates are unaffected", () => {
+    const s = NewGame(new FakeClock(0));
+    s.meta.won = true;
+    const before = solve(s, content).goldRate;
+    const out = reduce(s, { type: "AckVictory" }, content);
+    expect(out.error).toBe(undefined);
+    expect(out.state.meta.seenVictory).toBe(true);
+    expect(s.meta.seenVictory).toBe(false); // original untouched
+    // non-structural: economy unchanged after the ack
+    expect(solve(out.state, content).goldRate).toBeCloseTo(before, 1e-9);
+  });
+
+  it("SetNodePos updates pos; non-structural so rates are unaffected; original untouched", () => {
+    const s = NewGame(new FakeClock(0));
+    const before = solve(s, content).goldRate;
+    const out = reduce(
+      s,
+      { type: "SetNodePos", nodeId: "n_smelter_0", pos: { x: 999, y: 42 } },
+      content,
+    );
+    expect(out.error).toBe(undefined);
+    const moved = out.state.graph.nodes.find((n) => n.id === "n_smelter_0");
+    expect(moved.pos).toEqual({ x: 999, y: 42 });
+    // pos move does not perturb the economy
+    expect(solve(out.state, content).goldRate).toBeCloseTo(before, 1e-9);
+    // original untouched
+    expect(s.graph.nodes.find((n) => n.id === "n_smelter_0").pos).toEqual({
+      x: 360,
+      y: 200,
+    });
+  });
+
+  it("SetNodePos rejects an unknown node", () => {
+    const s = NewGame(new FakeClock(0));
+    const out = reduce(
+      s,
+      { type: "SetNodePos", nodeId: "n_nope", pos: { x: 1, y: 2 } },
+      content,
+    );
+    expect(out.error !== undefined).toBe(true);
+    expect(out.state).toBe(s);
+  });
+
+  it("PlaceNode rejects a gatherer with a not-yet-enabled raw (defensive minor)", () => {
+    const s = NewGame(new FakeClock(0)); // timber not enabled yet
+    const n0 = s.graph.nodes.length;
+    const out = reduce(
+      s,
+      {
+        type: "PlaceNode",
+        kind: "gatherer",
+        resourceId: "timber",
+        pos: { x: 10, y: 20 },
+      },
+      content,
+    );
+    expect(out.error !== undefined).toBe(true);
+    expect(out.state).toBe(s);
+    expect(s.graph.nodes.length).toBe(n0);
+    // legit path: iron_ore (startable) still works
+    const ok = reduce(
+      s,
+      {
+        type: "PlaceNode",
+        kind: "gatherer",
+        resourceId: "iron_ore",
+        pos: { x: 10, y: 20 },
+      },
+      content,
+    );
+    expect(ok.error).toBe(undefined);
+    expect(ok.state.graph.nodes.length).toBe(n0 + 1);
   });
 
   it("PlaceNode rejects an unknown/cosmetic machine kind cleanly (no throw, state unchanged)", () => {

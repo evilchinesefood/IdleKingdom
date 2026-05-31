@@ -12,6 +12,8 @@ export const INTENT = {
   SetGathererResource: "SetGathererResource",
   RemoveNode: "RemoveNode",
   RemoveLink: "RemoveLink",
+  SetNodePos: "SetNodePos",
+  AckVictory: "AckVictory",
   DismissTooltip: "DismissTooltip",
 };
 
@@ -34,6 +36,12 @@ const SHAPES = {
   SetGathererResource: (i) => isStr(i.nodeId) && isStr(i.resourceId),
   RemoveNode: (i) => isStr(i.nodeId),
   RemoveLink: (i) => isStr(i.linkId),
+  SetNodePos: (i) =>
+    isStr(i.nodeId) &&
+    i.pos &&
+    Number.isFinite(i.pos.x) &&
+    Number.isFinite(i.pos.y),
+  AckVictory: () => true,
   DismissTooltip: (i) => isStr(i.flag),
 };
 
