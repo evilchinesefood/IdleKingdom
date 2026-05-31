@@ -18,9 +18,12 @@ export function h(tag, props = {}, children = []) {
 }
 
 const isText = (c) => typeof c === "string" || typeof c === "number";
+const isPassthrough = (c) =>
+  c && typeof c === "object" && c.el && !("tag" in c);
 
 function create(vnode, doc) {
   if (isText(vnode)) return doc.createTextNode(String(vnode));
+  if (isPassthrough(vnode)) return vnode.el; // prebuilt DOM/SVG node
   const el = doc.createElement(vnode.tag);
   applyProps(el, {}, vnode.props);
   patch(el, vnode.children, doc);
