@@ -24,5 +24,10 @@ import "./Reducer.Test.js";
 import "./Snapshot.Test.js";
 import "./Game.Test.js";
 
+// UI pure-helper suites
+import "./Format.Test.js";
+import "./Dom.Test.js";
+import "./Svg.Test.js";
+
 // Optional substring filter: `node Tests/RunAll.js Clock` runs only suites whose label contains "Clock".
 run(process.argv[2]);
