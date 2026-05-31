@@ -57,7 +57,7 @@ export function build(state, solved, content, lastError = null) {
       to: l.to,
       resourceId: l.resourceId,
       flow,
-      fedPct: 0,
+      fedPct: flow > 0 ? 1 : 0,
     };
   });
 

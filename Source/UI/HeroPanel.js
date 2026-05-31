@@ -10,7 +10,7 @@ function tiersFor(snap, itemId) {
   const list = (snap.gearTiers || [])
     .filter((g) => g.itemId === itemId)
     .map((g) => g.tier);
-  return list.length ? list : [1];
+  return list;
 }
 
 export function HeroPanel(snap, dispatch) {
