@@ -33,12 +33,55 @@ export function wouldStayAcyclic(nodes, links, from, to) {
   }
 }
 
-/** Port validity: structural legality of a candidate link. Filled in Task 2.2. */
-export function isValidLink(state, content, from, to, resourceId) {
-  return false;
+/** Resources a node can emit downstream given its kind/assignment. */
+function outputsOf(node, content) {
+  if (node.kind === "gatherer") return node.resourceId ? [node.resourceId] : [];
+  if (node.kind === "smelter" || node.kind === "workshop") {
+    const r = content.recipes[node.recipeId];
+    return r ? [r.output] : [];
+  }
+  return []; // market and scholar are sinks, never producers
 }
 
-/** Cached topo order keyed off graph structure. Filled in Task 2.2. */
+/** Resources a node can consume as input given its kind/assignment. */
+function acceptsOf(node, content) {
+  if (node.kind === "smelter" || node.kind === "workshop") {
+    const r = content.recipes[node.recipeId];
+    return r ? Object.keys(r.inputs) : [];
+  }
+  if (node.kind === "scholar") return ["parchment"];
+  if (node.kind === "market") return null; // market accepts any listed resource (checked at solve time)
+  return []; // gatherer takes no inputs
+}
+
+/** Port validity: a candidate link from->to carrying resourceId is structurally legal. */
+export function isValidLink(state, content, from, to, resourceId) {
+  if (from === to) return false;
+  const nodes = state.graph.nodes;
+  const links = state.graph.links;
+  const fromNode = nodes.find((n) => n.id === from);
+  const toNode = nodes.find((n) => n.id === to);
+  if (!fromNode || !toNode) return false;
+  if (!outputsOf(fromNode, content).includes(resourceId)) return false;
+  const accepts = acceptsOf(toNode, content);
+  if (accepts !== null && !accepts.includes(resourceId)) return false;
+  // Duplicate guard: a discrete crafter/scholar input port takes one feed per resource.
+  // Market sinks (accepts === null) aggregate feeds, so they're exempt from this guard.
+  if (accepts !== null && links.some((l) => l.from === from && l.to === to && l.resourceId === resourceId)) return false;
+  return wouldStayAcyclic(nodes, links, from, to);
+}
+
+/** Cheap structural signature: node ids + link endpoints. */
+function graphSig(state) {
+  const g = state.graph;
+  return g.nodes.map((n) => n.id).join(",") + "|" + g.links.map((l) => l.from + ">" + l.to).join(",");
+}
+
+/** Cached topo order keyed off graph structure (rebuilt when topology changes). */
 export function orderFor(state) {
-  return topoSort(state.graph.nodes, state.graph.links);
+  const sig = graphSig(state);
+  if (!state._topo || state._topo.sig !== sig) {
+    state._topo = { sig, order: topoSort(state.graph.nodes, state.graph.links) };
+  }
+  return state._topo.order;
 }
