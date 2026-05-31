@@ -141,11 +141,9 @@ export class GraphView {
 
   _inferResource(fromNode) {
     if (fromNode.resourceId) return fromNode.resourceId; // gatherer
-    if (fromNode.recipeId && this.snap.recipeOutputs)
-      return this.snap.recipeOutputs[fromNode.recipeId];
-    // fall back to the node's primary surplus/stockpile key
-    const keys = Object.keys(fromNode.surplus || fromNode.stockpile || {});
-    return keys[0] || null;
+    if (fromNode.recipeId)
+      return this.game.content.recipes[fromNode.recipeId]?.output ?? null;
+    return null;
   }
 
   _select(id) {

@@ -17,7 +17,7 @@ function deepFreeze(obj) {
   return obj;
 }
 
-export function build(state, solved, content) {
+export function build(state, solved, content, lastError = null) {
   const goldRate = solved.goldRate || 0;
   const researchRate = solved.researchRate || 0;
 
@@ -150,10 +150,13 @@ export function build(state, solved, content) {
       placeableMachines: state.unlocks.machinesUnlocked.slice(),
       unlockedRecipes: state.unlocks.recipesUnlocked.slice(),
     },
-    save: { status: "ok", lastSavedAt: state.savedAt },
+    save: {
+      status: (state.meta && state.meta._saveStatus) || "ok",
+      lastSavedAt: state.savedAt || null,
+    },
     tutorial: { flags: { ...state.meta.tutorialFlags } },
     meta: { won: state.meta.won },
-    lastError: null,
+    lastError: lastError || null,
   };
 
   return deepFreeze(snap);

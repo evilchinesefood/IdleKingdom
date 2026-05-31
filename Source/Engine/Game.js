@@ -13,6 +13,7 @@ export class Game {
     this.state = null;
     this.storage = null;
     this.listeners = new Set();
+    this._pendingError = null;
   }
 
   _ensureSolved() {
@@ -39,6 +40,9 @@ export class Game {
         : intent;
     const out = reduce(this.state, withTime, this.content);
     if (out.error !== undefined) {
+      // keep old state; surface the error on the next emitted snapshot (flash-once)
+      this._pendingError = out.error;
+      this._emit();
       return { ok: false, error: out.error };
     }
     this.state = out.state;
@@ -67,7 +71,14 @@ export class Game {
   }
 
   _emit() {
-    const snap = buildSnapshot(this.state, this._ensureSolved(), this.content);
+    const err = this._pendingError;
+    this._pendingError = null; // flash-once: surfaced for exactly one snapshot
+    const snap = buildSnapshot(
+      this.state,
+      this._ensureSolved(),
+      this.content,
+      err,
+    );
     for (const fn of this.listeners) fn(snap);
   }
 

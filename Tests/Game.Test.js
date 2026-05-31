@@ -67,6 +67,24 @@ describe("Game facade", () => {
     expect(last).toBe(null); // unsubscribed
   });
 
+  it("surfaces a rejected dispatch as lastError for exactly one snapshot (flash-once)", () => {
+    const g = makeGame(new FakeClock(0));
+    g.bootstrap(new MemoryStorageAdapter());
+    let last = null;
+    g.onSnapshot((snap) => {
+      last = snap;
+    });
+    // make an UpgradeNode unaffordable so the reducer rejects it
+    g.getState().currencies.gold = 0;
+    const bad = g.dispatch({ type: "UpgradeNode", nodeId: "n_miner_0" });
+    expect(bad.ok).toBe(false);
+    // the rejected dispatch still emits a snapshot, carrying the error
+    expect(typeof last.lastError === "string").toBe(true);
+    // the very next emitted snapshot clears it
+    g.emitSnapshotForFrame();
+    expect(last.lastError).toBe(null);
+  });
+
   it("tick integrates rates over dt without emitting per call", () => {
     const g = makeGame(new FakeClock(0));
     g.bootstrap(new MemoryStorageAdapter());
