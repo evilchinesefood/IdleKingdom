@@ -28,6 +28,7 @@ const EFFECTS = {
     },
   ],
   res_smithing: [
+    { type: "unlockMachine", kind: "workshop" },
     { type: "unlockRecipe", recipeId: "r_blade" },
     { type: "unlockRecipe", recipeId: "r_plating" },
     { type: "unlockListing", resourceIds: ["blade", "plating"] },

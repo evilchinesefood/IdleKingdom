@@ -71,6 +71,9 @@ describe("ResearchSystem", () => {
     expect(s.unlocks.recipesUnlocked.includes("r_sword")).toBe(true);
     expect(s.unlocks.recipesUnlocked.includes("r_armor")).toBe(true);
     expect(s.unlocks.recipesUnlocked.includes("r_shield")).toBe(true);
+    // ...and the workshop machine is placeable (res_smithing unlocks the workshop kind),
+    // so the equipment chain is actually buildable in-game, not just recipe-unlocked.
+    expect(s.unlocks.machinesUnlocked.includes("workshop")).toBe(true);
   });
 
   it("territory-gated nodes blocked until reclaim: res_war_college needs t_smithyward", () => {
