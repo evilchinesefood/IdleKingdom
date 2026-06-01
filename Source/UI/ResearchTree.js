@@ -15,7 +15,7 @@ function depthOf(id, memo) {
 }
 
 const COL_W = 200,
-  ROW_H = 110,
+  ROW_H = 160,
   PAD = 24,
   CARD_W = 160,
   CARD_H = 88;

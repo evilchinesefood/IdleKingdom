@@ -218,6 +218,13 @@
   cursor: not-allowed;
 }
 
+/* Route host for research / expeditions / heroes */
+.panel-host {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+}
+
 /* Research tree */
 .research-tree {
   margin: 1rem;
@@ -259,6 +266,13 @@
 .res-eff {
   font-size: 0.7rem;
   color: var(--ink-soft);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.res-node:hover {
+  z-index: 2;
 }
 
 /* Expedition board */
