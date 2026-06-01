@@ -1,4 +1,4 @@
-const CACHE = "idlekingdom-v3";
+const CACHE = "idlekingdom-v4";
 const SHELL = [
   "./",
   "./Index.html",
@@ -6,8 +6,14 @@ const SHELL = [
   "./Source/Main.js",
   "./Source/Styles/Reset.css",
   "./Source/Styles/Theme.css",
+  "./Source/Styles/WaTheme.css",
   "./Source/Styles/Layout.css",
   "./Source/Styles/Graph.css",
+  "./Source/Vendor/WebAwesome/webawesome.loader.js",
+  "./Source/Vendor/WebAwesome/styles/webawesome.css",
+  "./Source/Vendor/FontAwesome/css/fontawesome.css",
+  "./Source/Vendor/FontAwesome/css/duotone.css",
+  "./Source/Vendor/FontAwesome/webfonts/fa-duotone-900.woff2",
 ];
 
 self.addEventListener("install", (e) => {
