@@ -13,3 +13,6 @@ node_modules/
 
 # OMC orchestration state (not part of the game)
 .omc/
+
+# Font Awesome / Web Awesome private registry auth (never commit)
+.npmrc
