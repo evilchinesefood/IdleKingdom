@@ -30,8 +30,34 @@ function create(vnode, doc) {
   return el;
 }
 
+function waEventName(propKey) {
+  return propKey
+    .slice(2)
+    .replace(/^./, (c) => c.toLowerCase())
+    .replace(/[A-Z]/g, (c) => "-" + c.toLowerCase());
+}
+const isWaListenerProp = (k) => /^onWa[A-Z]/.test(k);
+
 function applyProps(el, oldProps, newProps) {
   for (const k in oldProps) {
+    if (isWaListenerProp(k)) {
+      if (!(k in newProps)) {
+        const reg = el.__waEvents && el.__waEvents[k];
+        if (reg) {
+          el.removeEventListener(reg.name, reg.fn);
+          delete el.__waEvents[k];
+        }
+      }
+      continue;
+    }
+    if (k.startsWith("prop:")) {
+      if (!(k in newProps)) {
+        try {
+          el[k.slice(5)] = undefined;
+        } catch {}
+      }
+      continue;
+    }
     if (!(k in newProps)) {
       if (k.startsWith("on")) el[k.toLowerCase()] = null;
       else el.removeAttribute(k === "key" ? "data-key" : k);
@@ -41,6 +67,24 @@ function applyProps(el, oldProps, newProps) {
     const v = newProps[k];
     if (k === "key") {
       el.setAttribute("data-key", v);
+      continue;
+    }
+    if (isWaListenerProp(k)) {
+      if (typeof v === "function") {
+        el.__waEvents = el.__waEvents || {};
+        const prev = el.__waEvents[k];
+        if (!prev || prev.fn !== v) {
+          if (prev) el.removeEventListener(prev.name, prev.fn);
+          const name = waEventName(k);
+          el.addEventListener(name, v);
+          el.__waEvents[k] = { name, fn: v };
+        }
+      }
+      continue;
+    }
+    if (k.startsWith("prop:")) {
+      const name = k.slice(5);
+      if (el[name] !== v) el[name] = v;
       continue;
     }
     if (k.startsWith("on") && typeof v === "function") {
