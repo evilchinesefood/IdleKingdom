@@ -490,9 +490,20 @@ step(
       hudEl.querySelectorAll(".hud-cur").length === 3,
       `HUD rendered ${hudEl.querySelectorAll(".hud-cur").length} currency cells (expected 3 — first-child-only regression?)`,
     );
+    // Tabs are now wa-tab[panel] inside the wa-tab-group (no <a>, no wa-tab-panel).
     assert(
-      hudEl.querySelectorAll(".hud-tabs a").length === 4,
-      `HUD rendered ${hudEl.querySelectorAll(".hud-tabs a").length} tabs (expected 4)`,
+      hudEl.querySelectorAll(".hud-tabs wa-tab").length === 4,
+      `HUD rendered ${hudEl.querySelectorAll(".hud-tabs wa-tab").length} tabs (expected 4 wa-tab)`,
+    );
+    for (const route of ["factory", "research", "expeditions", "heroes"]) {
+      assert(
+        hudEl.querySelector(`wa-tab[panel="${route}"]`),
+        `HUD missing wa-tab for route "${route}"`,
+      );
+    }
+    assert(
+      hudEl.querySelectorAll("wa-tab-panel").length === 0,
+      `HUD emitted ${hudEl.querySelectorAll("wa-tab-panel").length} wa-tab-panel (expected 0)`,
     );
 
     // The freshly-built chain sells iron_bar at the §7 baseline: 2.0 gold/s.
