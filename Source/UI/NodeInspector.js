@@ -45,7 +45,7 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
 
   const rows = [
     h("div", { class: "ni-title" }, ...headerKids),
-    h("wa-tag", { class: "ni-level", size: "small" }, `Level ${node.level}`),
+    h("wa-tag", { class: "ni-level", size: "s" }, `Level ${node.level}`),
     h(
       "div",
       { class: "ni-line" },
@@ -74,7 +74,7 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
               {
                 key: "ni-sell-" + resId,
                 class: "ni-sell",
-                size: "small",
+                size: "s",
                 appearance: "outlined",
                 onclick: () =>
                   dispatch({

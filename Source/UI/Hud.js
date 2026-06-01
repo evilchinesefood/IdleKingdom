@@ -23,7 +23,7 @@ function currencyTag(key, concept, value, rate) {
       class: "hud-cur",
       variant: "neutral",
       appearance: "filled",
-      size: "large",
+      size: "l",
       pill: true,
     },
     [

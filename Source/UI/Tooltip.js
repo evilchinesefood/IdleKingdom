@@ -51,7 +51,7 @@ export function Tooltip(snap, dispatch) {
         "wa-button",
         {
           class: "tip-dismiss",
-          size: "small",
+          size: "s",
           appearance: "plain",
           onclick: () =>
             dispatch({ type: INTENT.DismissTooltip, flag: tip.flag }),
