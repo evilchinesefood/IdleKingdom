@@ -491,3 +491,36 @@
     gap: 6px;
   }
 }
+
+/* P3: NodeInspector progress bar + MAX/starved badge */
+.node-inspector .ni-cap {
+  --track-height: 6px;
+  margin: 4px 0;
+}
+.node-inspector .ni-cap.starved::part(indicator) {
+  background-color: var(--bad);
+}
+.node-inspector .ni-badge {
+  margin-inline-start: 8px;
+  vertical-align: middle;
+}
+.node-inspector .ni-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.node-inspector .ni-stock {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.node-inspector wa-button,
+.build-menu wa-button {
+  display: block;
+  width: 100%;
+  margin: 4px 0;
+}
+.build-menu .bm-machines wa-button {
+  display: inline-flex;
+  width: auto;
+}
