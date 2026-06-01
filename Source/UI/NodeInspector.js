@@ -141,6 +141,7 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
           key: "gatherer-" + node.id,
           class: "ni-gatherer",
           label: "Gather",
+          appearance: "filled",
           "prop:value": node.resourceId || "",
           onchange: (e) =>
             dispatch({

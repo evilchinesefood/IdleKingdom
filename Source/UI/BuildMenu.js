@@ -70,6 +70,7 @@ export function BuildMenu(snap, dispatch, ui) {
       const recipe = RECIPES[r];
       if (!recipe || recipe.crafterKind !== kind) continue;
       const out = RESOURCES[recipe.output];
+      if (!out) continue;
       detail.push(
         h(
           "wa-button",
