@@ -1,4 +1,5 @@
 import { h } from "./Render/Dom.js";
+import { icon } from "./Icons.js";
 
 const EPILOGUE =
   "The last door of the Black Keep falls. The Usurer-Lord who bought the King's death " +
@@ -7,23 +8,31 @@ const EPILOGUE =
 
 export function Victory(onClose) {
   return h(
-    "div",
-    { class: "modal-backdrop victory-backdrop", id: "Victory" },
+    "wa-dialog",
+    { id: "Victory", key: "victory", "prop:open": true, onWaHide: onClose },
     h(
       "div",
-      { class: "modal victory-modal" },
-      h("div", { class: "victory-title" }, "Yensburg Reclaimed"),
-      h("div", { class: "victory-text" }, EPILOGUE),
-      h(
-        "div",
-        { class: "victory-sub" },
-        "Free-play continues — all content remains unlocked.",
-      ),
-      h(
-        "button",
-        { class: "victory-close", onclick: onClose },
-        "Continue the Reign",
-      ),
+      { slot: "label", class: "victory-title" },
+      icon("victory"),
+      " Yensburg Reclaimed",
+    ),
+    h("div", { class: "victory-text modal-text" }, EPILOGUE),
+    h(
+      "div",
+      { class: "victory-sub" },
+      "Free-play continues — all content remains unlocked.",
+    ),
+    h(
+      "wa-button",
+      {
+        class: "victory-close",
+        slot: "footer",
+        variant: "brand",
+        appearance: "accent",
+        onclick: onClose,
+      },
+      icon("victory"),
+      " Continue the Reign",
     ),
   );
 }
