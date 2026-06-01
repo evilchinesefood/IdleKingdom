@@ -1165,10 +1165,16 @@ step(
       text.includes("While you were away"),
       "OfflineSummary missing title",
     );
-    // P1 replaced the 🪙 emoji with a FA duotone icon; assert the icon + a "+amount".
+    // gained currencies render as .os-gain wa-tags with FA duotone icons (no emoji).
+    const goldTag = host.querySelector(".os-gain");
+    assert(goldTag, "OfflineSummary rendered no .os-gain currency tag");
     assert(
-      /\+/.test(text) && host.querySelector("i.fa-coins"),
-      `OfflineSummary did not render gained amounts; text="${text}"`,
+      goldTag.querySelector("i.fa-coins"),
+      "OfflineSummary gold tag has no FA coins icon",
+    );
+    assert(
+      /\+/.test(text),
+      `OfflineSummary did not render a gained amount; text="${text}"`,
     );
     // It must show the actual gold gained.
     const goldShown = Math.round(summary.gained.gold);
