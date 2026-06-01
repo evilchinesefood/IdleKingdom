@@ -47,7 +47,17 @@ class FakeEl {
     if (k === "data-key") delete this.dataset.key;
   }
   addEventListener(t, fn) {
-    this._listeners[t] = fn;
+    (this._listeners[t] ||= []).push(fn);
+  }
+  removeEventListener(t, fn) {
+    const a = this._listeners[t];
+    if (a) {
+      const i = a.indexOf(fn);
+      if (i >= 0) a.splice(i, 1);
+    }
+  }
+  dispatch(t, ev) {
+    (this._listeners[t] || []).slice().forEach((fn) => fn(ev));
   }
   _detach(n) {
     const i = this.childNodes.indexOf(n);
@@ -195,5 +205,48 @@ describe("Dom.patch text reconciliation (regression: stacking saved badge)", () 
     }
     expect(root.childNodes.length).toBe(3);
     expect(root.children[1].textContent).toBe("💾 saved");
+  });
+});
+
+describe("Dom.patch — Web Awesome extensions", () => {
+  it("onWa* binds the kebab custom event; firing it calls the fn", () => {
+    const root = new FakeEl("div");
+    let got = null;
+    patch(
+      root,
+      [
+        h("wa-select", {
+          key: "s",
+          onWaChange: (e) => {
+            got = e.detail;
+          },
+        }),
+      ],
+      fakeDoc,
+    );
+    const sel = root.children[0];
+    sel.dispatch("wa-change", { detail: "iron_bar" });
+    expect(got).toBe("iron_bar");
+  });
+  it("onWa* listener does not stack across re-renders (remove-before-add)", () => {
+    const root = new FakeEl("div");
+    const fns = [() => {}, () => {}, () => {}];
+    fns.forEach((fn) =>
+      patch(root, [h("wa-dialog", { key: "d", onWaHide: fn })], fakeDoc),
+    );
+    const dlg = root.children[0];
+    expect((dlg._listeners["wa-hide"] || []).length).toBe(1);
+  });
+  it("prop: assigns a DOM property, not an attribute", () => {
+    const root = new FakeEl("div");
+    patch(root, [h("wa-select", { key: "s", "prop:value": "steel" })], fakeDoc);
+    const sel = root.children[0];
+    expect(sel.value).toBe("steel");
+    expect("value" in sel.attributes).toBe(false);
+  });
+  it("boolean attributes still render as empty attrs", () => {
+    const root = new FakeEl("div");
+    patch(root, [h("wa-button", { key: "b", disabled: true })], fakeDoc);
+    expect(root.children[0].attributes.disabled).toBe("");
   });
 });
