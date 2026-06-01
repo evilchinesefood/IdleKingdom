@@ -44,6 +44,18 @@
   fill: var(--ink-soft);
   font-size: 11px;
 }
+.node-ico {
+  overflow: visible;
+}
+.node-ico i {
+  font-size: 20px;
+  line-height: 24px;
+  display: block;
+  text-align: center;
+  --fa-primary-color: var(--ink);
+  --fa-secondary-color: var(--gold);
+  --fa-secondary-opacity: 0.45;
+}
 
 /* capacity bar */
 .cap-bg {
