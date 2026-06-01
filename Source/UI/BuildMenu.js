@@ -6,7 +6,6 @@ import { RECIPES } from "../Engine/Content/Recipes.js";
 import { GATHERER_VARIANTS } from "../Engine/Content/Machines.js";
 import { INTENT } from "../Engine/Intents.js";
 
-// UI label for the gatherer variant that mines a given raw resource.
 function variantLabel(resourceId) {
   for (const v of Object.values(GATHERER_VARIANTS)) {
     if (v.resourceIds.includes(resourceId)) return v.label;
@@ -15,7 +14,6 @@ function variantLabel(resourceId) {
 }
 
 export function BuildMenu(snap, dispatch, ui) {
-  // ui = { selectedPaletteKind, setPalette(kind), spawnPos() } owned by App.
   const bm = snap.buildMenu || {
     placeableMachines: [],
     unlockedRecipes: [],
@@ -24,12 +22,17 @@ export function BuildMenu(snap, dispatch, ui) {
 
   const machineButtons = bm.placeableMachines.map((kind) =>
     h(
-      "button",
+      "wa-button",
       {
+        key: "bm-machine-" + kind,
         class:
           "bm-machine" + (ui.selectedPaletteKind === kind ? " selected" : ""),
+        size: "small",
+        pill: true,
+        appearance: ui.selectedPaletteKind === kind ? "accent" : "outlined",
         onclick: () => ui.setPalette(kind),
       },
+      h("span", { slot: "start" }, icon(kind)),
       cap(kind),
     ),
   );
@@ -43,9 +46,11 @@ export function BuildMenu(snap, dispatch, ui) {
       if (!res) continue;
       detail.push(
         h(
-          "button",
+          "wa-button",
           {
+            key: "bm-place-gatherer-" + rid,
             class: "bm-place",
+            appearance: "filled",
             onclick: () =>
               dispatch({
                 type: INTENT.PlaceNode,
@@ -54,7 +59,8 @@ export function BuildMenu(snap, dispatch, ui) {
                 pos: ui.spawnPos(),
               }),
           },
-          [icon(rid), ` ${variantLabel(rid)}: ${res.display}`],
+          h("span", { slot: "start" }, icon(rid)),
+          `${variantLabel(rid)}: ${res.display}`,
         ),
       );
     }
@@ -66,9 +72,11 @@ export function BuildMenu(snap, dispatch, ui) {
       const out = RESOURCES[recipe.output];
       detail.push(
         h(
-          "button",
+          "wa-button",
           {
+            key: "bm-place-recipe-" + r,
             class: "bm-place",
+            appearance: "filled",
             onclick: () =>
               dispatch({
                 type: INTENT.PlaceNode,
@@ -77,28 +85,32 @@ export function BuildMenu(snap, dispatch, ui) {
                 pos: ui.spawnPos(),
               }),
           },
-          [icon(recipe.output), ` ${out.display}`],
+          h("span", { slot: "start" }, icon(recipe.output)),
+          out.display,
         ),
       );
     }
   } else if (kind) {
     detail.push(
       h(
-        "button",
+        "wa-button",
         {
+          key: "bm-place-" + kind,
           class: "bm-place",
+          appearance: "filled",
           onclick: () =>
             dispatch({ type: INTENT.PlaceNode, kind, pos: ui.spawnPos() }),
         },
+        h("span", { slot: "start" }, icon(kind)),
         `Place ${cap(kind)}`,
       ),
     );
   }
 
   return h(
-    "div",
-    { class: "build-menu", id: "BuildMenu" },
-    h("div", { class: "bm-title" }, "Build"),
+    "wa-card",
+    { key: "buildmenu", class: "build-menu", id: "BuildMenu" },
+    h("div", { class: "bm-title" }, h("span", {}, icon("factory")), " Build"),
     h("div", { class: "bm-machines" }, ...machineButtons),
     h("div", { class: "bm-detail" }, ...detail),
   );
