@@ -1,7 +1,8 @@
 import { Router } from "./Router.js";
 import { Hud } from "./Hud.js";
 import { GraphView } from "./GraphView.js";
-import { patch } from "./Render/Dom.js";
+import { patch, h } from "./Render/Dom.js";
+import { icon } from "./Icons.js";
 import { BuildMenu } from "./BuildMenu.js";
 import { NodeInspector } from "./NodeInspector.js";
 import { ResearchTree } from "./ResearchTree.js";
@@ -119,6 +120,23 @@ class AppInstance {
       this.screenEl.appendChild(canvas);
       this.screenEl.appendChild(this.panelEl);
       this.panelEl.innerHTML = "";
+      const legend = document.createElement("div");
+      legend.className = "factory-legend";
+      patch(legend, [
+        h(
+          "span",
+          { class: "lg-item lg-max" },
+          icon("max"),
+          " MAX = running at level cap",
+        ),
+        h(
+          "span",
+          { class: "lg-item lg-starved" },
+          icon("starved"),
+          " STARVED = needs more input",
+        ),
+      ]);
+      this.screenEl.appendChild(legend);
       this.graphView = new GraphView(canvas, this.game, {
         onSelect: (id) => {
           this.selectedNodeId = id;
@@ -238,11 +256,19 @@ class AppInstance {
   }
 
   _flashError(msg) {
-    this.errorEl.textContent = msg;
+    patch(this.errorEl, [
+      h(
+        "wa-callout",
+        { class: "hud-error-callout", key: "err", variant: "danger" },
+        h("span", { slot: "start" }, icon("starved", { class: "err-icon" })),
+        h("span", { class: "hud-error-text" }, msg),
+      ),
+    ]);
     this.errorEl.style.display = "";
     clearTimeout(this._errorTimer);
     this._errorTimer = setTimeout(() => {
       this.errorEl.style.display = "none";
+      patch(this.errorEl, []);
     }, 2500);
   }
 
