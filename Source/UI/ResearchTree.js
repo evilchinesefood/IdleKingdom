@@ -1,7 +1,7 @@
 import { h } from "./Render/Dom.js";
 import { svg } from "./Render/Svg.js";
 import { icon } from "./Icons.js";
-import { fmtCost, affordClass } from "./Format/Format.js";
+import { fmtCost } from "./Format/Format.js";
 import { RESEARCH_NODES } from "../Engine/Content/ResearchNodes.js";
 import { INTENT } from "../Engine/Intents.js";
 
@@ -75,24 +75,62 @@ export function ResearchTree(snap, dispatch) {
   const cards = (snap.research || []).map((r) => {
     const p = pos[r.id] || { x: 0, y: 0 };
     const canBuy = r.status === "available" && r.affordable;
-    return h(
-      "div",
-      {
-        class: `res-node ${r.status}`,
-        style: `position:absolute;left:${p.x}px;top:${p.y}px;width:${CARD_W}px`,
-      },
-      h("div", { class: "res-name" }, r.name),
-      h("div", { class: "res-cost" }, [icon(r.currency), " ", fmtCost(r.cost)]),
-      h("div", { class: "res-eff" }, r.effectsText || ""),
-      h(
-        "button",
+    let buyBtn;
+    if (r.status === "owned") {
+      buyBtn = h(
+        "wa-button",
         {
-          class: "res-buy " + affordClass(canBuy),
+          slot: "footer",
+          class: "res-buy",
+          variant: "success",
+          appearance: "outlined",
+          size: "small",
+          disabled: true,
+        },
+        icon("ready"),
+        " Owned",
+      );
+    } else if (r.status === "locked") {
+      buyBtn = h(
+        "wa-button",
+        {
+          slot: "footer",
+          class: "res-buy",
+          appearance: "outlined",
+          size: "small",
+          disabled: true,
+        },
+        icon("locked"),
+        " Locked",
+      );
+    } else {
+      buyBtn = h(
+        "wa-button",
+        {
+          slot: "footer",
+          class: "res-buy " + (canBuy ? "affordable" : "locked"),
+          variant: "brand",
+          appearance: "accent",
+          size: "small",
           disabled: !canBuy,
           onclick: () => dispatch({ type: INTENT.BuyResearch, nodeId: r.id }),
         },
-        r.status === "owned" ? "Owned" : "Research",
-      ),
+        icon("upgrade"),
+        " Research",
+      );
+    }
+    return h(
+      "wa-card",
+      {
+        key: "res-" + r.id,
+        class: `res-node ${r.status}`,
+        "with-footer": true,
+        style: `position:absolute;left:${p.x}px;top:${p.y}px;width:${CARD_W}px`,
+      },
+      h("div", { class: "res-name", slot: "header" }, r.name),
+      h("div", { class: "res-cost" }, icon(r.currency), " " + fmtCost(r.cost)),
+      h("div", { class: "res-eff" }, r.effectsText || ""),
+      buyBtn,
     );
   });
 
