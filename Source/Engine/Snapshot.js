@@ -29,7 +29,15 @@ export function build(state, solved, content, lastError = null) {
   const nodes = state.graph.nodes.map((node) => {
     const cap = (solved.capacityByNode && solved.capacityByNode[node.id]) || 0;
     const out = (solved.availableOut && solved.availableOut[node.id]) || {};
-    const effectiveRate = Object.values(out).reduce((a, b) => a + b, 0);
+    const drawMap = (solved.perNodeDraw && solved.perNodeDraw[node.id]) || {};
+    const producerRate = Object.values(out).reduce((a, b) => a + b, 0);
+    const consumerRate = Object.values(drawMap).reduce((a, b) => a + b, 0);
+    const isConsumer = node.kind === "scholar" || node.kind === "market";
+    const throughput = isConsumer ? consumerRate : producerRate;
+    const takesInput = node.kind !== "gatherer";
+    const EPS = 1e-6;
+    const atCapacity = cap > 0 && throughput >= cap - EPS;
+    const starved = cap > 0 && takesInput && throughput < cap - EPS;
     const cost = upgradeCost(node.kind, node.level, content);
     return {
       id: node.id,
@@ -39,9 +47,12 @@ export function build(state, solved, content, lastError = null) {
       recipeId: node.recipeId,
       pos: { x: node.pos.x, y: node.pos.y },
       capacity: cap,
-      effectiveRate,
-      capacityPct: cap > 0 ? effectiveRate / cap : 0,
-      draw: (solved.perNodeDraw && solved.perNodeDraw[node.id]) || {},
+      effectiveRate: producerRate,
+      throughput,
+      capacityPct: cap > 0 ? throughput / cap : 0,
+      atCapacity,
+      starved,
+      draw: drawMap,
       surplus: (solved.surplusRate && solved.surplusRate[node.id]) || {},
       stockpile: { ...node.stockpile },
       upgradeCost: cost,
