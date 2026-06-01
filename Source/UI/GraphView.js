@@ -4,6 +4,7 @@ import {
   graphToScreen,
   screenToGraph,
   linkPath,
+  linkBezier,
   snapToGrid,
 } from "./Render/Svg.js";
 import { GraphInput } from "./GraphInput.js";
@@ -79,12 +80,16 @@ export class GraphView {
   }
 
   // Toggle which link's flow label is revealed (touch-friendly alternative to hover).
+  // A revealed link may coexist with a selected node by design: reveal is a UI
+  // overlay orthogonal to inspector selection; only _select clears the link.
   _selectLink(id) {
     this.selectedLinkId = this.selectedLinkId === id ? null : id;
     this._draw();
   }
 
-  // Graph-space hit test against link polylines (GraphInput passes graph coords).
+  // Graph-space hit test against the rendered link Bézier (GraphInput passes graph
+  // coords). Samples the SAME cubic linkPath draws (shared linkBezier control pts)
+  // so a tap on the visible curve mid-span hits even on vertically-offset links.
   hitLink(gx, gy) {
     if (!this.snap) return null;
     const tol = 14 / this.view.scale;
@@ -96,11 +101,17 @@ export class GraphView {
         tp = this._pos(to);
       const a = { x: fp.x + NODE_W, y: fp.y + NODE_H / 2 };
       const b = { x: tp.x, y: tp.y + NODE_H / 2 };
+      const { c1, c2 } = linkBezier(a, b);
       const steps = 24;
       for (let i = 0; i <= steps; i++) {
-        const t = i / steps;
-        const px = a.x + (b.x - a.x) * t;
-        const py = a.y + (b.y - a.y) * t;
+        const t = i / steps,
+          u = 1 - t;
+        const w0 = u * u * u,
+          w1 = 3 * u * u * t,
+          w2 = 3 * u * t * t,
+          w3 = t * t * t;
+        const px = w0 * a.x + w1 * c1.x + w2 * c2.x + w3 * b.x;
+        const py = w0 * a.y + w1 * c1.y + w2 * c2.y + w3 * b.y;
         if (Math.hypot(gx - px, gy - py) <= tol) return l.id;
       }
     }
@@ -399,14 +410,14 @@ export class GraphView {
     // MAX/starved badge in the top-right corner
     if (n.atCapacity || n.starved) {
       const label = n.atCapacity ? "MAX" : "LOW";
-      const cls = n.atCapacity ? "node-badge max" : "node-badge starved";
+      const variant = n.atCapacity ? "max" : "starved";
       const bw = 34 * v.scale,
         bh = 14 * v.scale;
       const bx = p.x + w - bw - 4 * v.scale,
         by = p.y + 4 * v.scale;
       g.appendChild(
         svg("rect", {
-          class: cls + " node-badge-box",
+          class: `node-badge-box ${variant}`,
           x: bx,
           y: by,
           width: bw,
@@ -418,7 +429,7 @@ export class GraphView {
         svg(
           "text",
           {
-            class: cls + " node-badge-text",
+            class: "node-badge-text",
             x: bx + bw / 2,
             y: by + bh / 2 + 3.5 * v.scale,
             "text-anchor": "middle",

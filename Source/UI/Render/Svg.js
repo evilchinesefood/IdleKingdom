@@ -57,8 +57,14 @@ export function snapToGrid(pos, grid) {
   };
 }
 
+// Control points for the link curve — shared source of truth for draw + hit-test.
+export function linkBezier(from, to) {
+  const dx = Math.max(40, (to.x - from.x) * 0.5);
+  return { c1: { x: from.x + dx, y: from.y }, c2: { x: to.x - dx, y: to.y } };
+}
+
 // Build a "M x1 y1 C ..." cubic path connecting two graph-space points (left->right flow curve).
 export function linkPath(from, to) {
-  const dx = Math.max(40, (to.x - from.x) * 0.5);
-  return `M ${from.x} ${from.y} C ${from.x + dx} ${from.y}, ${to.x - dx} ${to.y}, ${to.x} ${to.y}`;
+  const { c1, c2 } = linkBezier(from, to);
+  return `M ${from.x} ${from.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${to.x} ${to.y}`;
 }
