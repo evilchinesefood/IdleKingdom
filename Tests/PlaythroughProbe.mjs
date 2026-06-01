@@ -847,7 +847,7 @@ step(
         `select for ${slot} has no onchange`,
       );
       // MINOR: gear option labels must use the resource display, never "undefined T#"
-      const optText = sel.querySelectorAll("option").map((o) => o.text);
+      const optText = sel.querySelectorAll("wa-option").map((o) => o.text);
       assert(
         !optText.some((t) => /undefined/.test(t)),
         `HeroPanel ${slot} option labels contain "undefined": ${JSON.stringify(optText)}`,
@@ -1048,7 +1048,7 @@ step(
         const tier = best[itemId] || 1;
         // only fire if the select offers that tier option
         const hasOpt = sel
-          .querySelectorAll("option")
+          .querySelectorAll("wa-option")
           .some((o) => o.getAttribute("value") === String(tier));
         if (hasOpt) sel.onchange({ target: { value: String(tier) } });
       }
