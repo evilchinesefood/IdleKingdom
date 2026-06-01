@@ -69,9 +69,15 @@ export class GraphInput {
     }
     const nodeId = this.cb.hitNode(g.x, g.y);
     if (nodeId) {
-      this.mode = "dragNode";
-      this.dragNodeId = nodeId;
+      const already = this.cb.isSelected && this.cb.isSelected(nodeId);
       this.cb.onSelect(nodeId);
+      if (already) {
+        this.mode = "dragNode";
+        this.dragNodeId = nodeId;
+        if (this.cb.onNodeGrab) this.cb.onNodeGrab(nodeId, g.x, g.y);
+      } else {
+        this.mode = "selectOnly"; // first gesture selects; it will not move the node
+      }
       return;
     }
 

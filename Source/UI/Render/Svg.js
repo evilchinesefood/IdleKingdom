@@ -49,6 +49,14 @@ export function zoomAt(v, anchorX, anchorY, factor) {
   };
 }
 
+// Snap a graph-space point to the nearest `grid` multiple (DOM-free, testable).
+export function snapToGrid(pos, grid) {
+  return {
+    x: Math.round(pos.x / grid) * grid,
+    y: Math.round(pos.y / grid) * grid,
+  };
+}
+
 // Build a "M x1 y1 C ..." cubic path connecting two graph-space points (left->right flow curve).
 export function linkPath(from, to) {
   const dx = Math.max(40, (to.x - from.x) * 0.5);

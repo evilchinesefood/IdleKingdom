@@ -17,6 +17,8 @@
     var(--parchment);
   touch-action: none; /* we own pan/pinch */
   cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .graph-svg.panning {
   cursor: grabbing;
@@ -90,6 +92,19 @@
 .link-label {
   fill: var(--ink-soft);
   font-size: 10px;
+  visibility: hidden;
+}
+.link-g:hover .link-label {
+  visibility: visible;
+}
+.link-label.show {
+  visibility: visible;
+}
+.link-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 18;
+  cursor: pointer;
 }
 .link-pending {
   fill: none;

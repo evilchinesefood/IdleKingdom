@@ -124,6 +124,7 @@ class AppInstance {
           this.selectedNodeId = id;
           this.renderNow();
         },
+        snap: () => !!this.prefs.snapToGrid,
       });
     } else {
       // route-owned panel host

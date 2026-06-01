@@ -4,6 +4,7 @@ import {
   graphToScreen,
   screenToGraph,
   linkPath,
+  snapToGrid,
 } from "./Render/Svg.js";
 import { GraphInput } from "./GraphInput.js";
 import { INTENT } from "../Engine/Intents.js";
@@ -13,7 +14,8 @@ import { cap } from "./Format/Format.js";
 const NODE_W = 120,
   NODE_H = 64,
   PORT_R = 8,
-  HIT_R = 22;
+  HIT_R = 22,
+  GRID = 40;
 
 export class GraphView {
   constructor(host, game, opts = {}) {
@@ -24,6 +26,9 @@ export class GraphView {
     this.armedPort = null; // {nodeId, dir} for touch tap-port-then-port
     this.snap = null;
     this.onSelect = opts.onSelect || (() => {});
+    this.snapEnabled = opts.snap || (() => false);
+    this._grabOffset = null;
+    this._revealedLinkId = null;
 
     this.svgEl = svg("svg", { class: "graph-svg" });
     this.layerLinks = svg("g", {});
@@ -39,6 +44,8 @@ export class GraphView {
       },
       hitPort: (gx, gy) => this._hitPort(gx, gy),
       hitNode: (gx, gy) => this._hitNode(gx, gy),
+      isSelected: (id) => this.selectedId === id,
+      onNodeGrab: (id, gx, gy) => this._grab(id, gx, gy),
       onNodeDrag: (id, gx, gy) => this._dragNode(id, gx, gy),
       onNodeDrop: (id, gx, gy) => this._dropNode(id, gx, gy),
       onConnect: (from, to) => this._connect(from, to),
@@ -65,6 +72,12 @@ export class GraphView {
 
   _connectEnd() {
     this._pendingLink = null;
+    this._draw();
+  }
+
+  // Toggle which link's flow label is revealed (touch-friendly alternative to hover).
+  _toggleLink(id) {
+    this._revealedLinkId = this._revealedLinkId === id ? null : id;
     this._draw();
   }
 
@@ -109,25 +122,37 @@ export class GraphView {
     return null;
   }
 
-  _dragNode(id, gx, gy) {
+  // Capture the cursor-to-node-origin offset at drag start so grabbing a corner
+  // doesn't snap the node center to the cursor (no jump).
+  _grab(id, gx, gy) {
     const n = this._nodeAt(id);
-    if (n) {
-      // snapshot nodes are frozen; nudge a local override for smooth live redraw
-      this._dragPos = this._dragPos || {};
-      this._dragPos[id] = { x: gx - NODE_W / 2, y: gy - NODE_H / 2 };
-      this._draw();
-    }
+    const p = n ? this._pos(n) : { x: gx, y: gy };
+    this._grabOffset = { x: gx - p.x, y: gy - p.y };
   }
 
-  // On drag pointer-up: persist the new pos via SetNodePos, then clear the local
-  // override so draw + hit-test both read the (now updated) snapshot n.pos.
+  _dragNode(id, gx, gy) {
+    const n = this._nodeAt(id);
+    if (!n) return;
+    // snapshot nodes are frozen; nudge a local override for smooth live redraw
+    const off = this._grabOffset || { x: NODE_W / 2, y: NODE_H / 2 };
+    this._dragPos = this._dragPos || {};
+    this._dragPos[id] = { x: gx - off.x, y: gy - off.y };
+    this._draw();
+  }
+
+  // On drag pointer-up: persist the new pos via SetNodePos (snapped to grid when
+  // the pref is on), then clear the local override so draw + hit-test both read
+  // the (now updated) snapshot n.pos.
   _dropNode(id, gx, gy) {
-    const pos = (this._dragPos && this._dragPos[id]) || {
-      x: gx - NODE_W / 2,
-      y: gy - NODE_H / 2,
+    const off = this._grabOffset || { x: NODE_W / 2, y: NODE_H / 2 };
+    let pos = (this._dragPos && this._dragPos[id]) || {
+      x: gx - off.x,
+      y: gy - off.y,
     };
+    if (this.snapEnabled()) pos = snapToGrid(pos, GRID);
     this.game.dispatch({ type: INTENT.SetNodePos, nodeId: id, pos });
     if (this._dragPos) delete this._dragPos[id];
+    this._grabOffset = null;
   }
 
   _connect(fromId, toId) {
@@ -197,11 +222,19 @@ export class GraphView {
         const a = graphToScreen(v, fp.x + NODE_W, fp.y + NODE_H / 2);
         const b = graphToScreen(v, tp.x, tp.y + NODE_H / 2);
         const starved = l.fedPct != null && l.fedPct < 0.999;
-        const g = svg("g", {});
+        const g = svg("g", { class: "link-g" });
         g.appendChild(
           svg("path", {
             class: starved ? "link-path starved" : "link-path",
             d: linkPath(a, b),
+          }),
+        );
+        // wide transparent hit path so the thin link is hover/click-able
+        g.appendChild(
+          svg("path", {
+            class: "link-hit",
+            d: linkPath(a, b),
+            onclick: () => this._toggleLink(l.id),
           }),
         );
         const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 - 6 };
@@ -209,7 +242,10 @@ export class GraphView {
           svg(
             "text",
             {
-              class: "link-label",
+              class:
+                this._revealedLinkId === l.id
+                  ? "link-label show"
+                  : "link-label",
               x: mid.x,
               y: mid.y,
               "text-anchor": "middle",
