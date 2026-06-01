@@ -3,8 +3,6 @@
 
 export { formatNumber, formatRate } from "../Render/Format.js";
 
-const CURRENCY_GLYPH = { gold: "🪙", research: "📜", renown: "🛡️" };
-
 function withSeparators(intStr) {
   return intStr.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
@@ -34,8 +32,8 @@ export function fmtCountdown(ms) {
   return `${m}:${ss}`;
 }
 
-export function fmtCost(amount, currency) {
-  return `${fmtNum(amount)} ${CURRENCY_GLYPH[currency] || ""}`.trimEnd();
+export function fmtCost(amount /*, currency */) {
+  return fmtNum(amount);
 }
 
 export function affordClass(ok) {
