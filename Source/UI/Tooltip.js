@@ -6,8 +6,8 @@ import { INTENT } from "../Engine/Intents.js";
 const TIPS = {
   gold: {
     flag: "seenGoldTip",
-    anchor: '.hud-cur[data-key="gold"]',
-    text: "This is your Gold. Sell goods at the Market to earn it.",
+    anchor: ".factory-panels",
+    text: "Welcome to Yensburg. Open the Build menu and place a Miner, a Smelter, and a Market — connect them so ore becomes iron bars that sell at the Market for Gold.",
   },
   upgrade: {
     flag: "seenUpgradeTip",

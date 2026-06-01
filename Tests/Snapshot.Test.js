@@ -6,7 +6,7 @@ import { RESEARCH_NODES } from "../Source/Engine/Content/ResearchNodes.js";
 import { TERRITORIES } from "../Source/Engine/Content/Territories.js";
 import { EQUIPMENT } from "../Source/Engine/Content/Equipment.js";
 import { HEROES } from "../Source/Engine/Content/Heroes.js";
-import { NewGame } from "../Source/Engine/GameState.js";
+import { seededState } from "./Fixtures/Seeded.js";
 import { FakeClock } from "../Source/Engine/Clock.js";
 import { solve } from "../Source/Engine/Simulation/RateSolver.js";
 import { build } from "../Source/Engine/Snapshot.js";
@@ -23,7 +23,7 @@ const content = {
 
 describe("Snapshot", () => {
   it("builds a frozen read-model with raw currencies + rates from solved", () => {
-    const s = NewGame(new FakeClock(0));
+    const s = seededState(new FakeClock(0));
     const solved = solve(s, content);
     const snap = build(s, solved, content);
     expect(Object.isFrozen(snap)).toBe(true);
@@ -34,7 +34,7 @@ describe("Snapshot", () => {
   });
 
   it("node rows carry upgradeCost, canAfford, capacity, effectiveRate", () => {
-    const s = NewGame(new FakeClock(0));
+    const s = seededState(new FakeClock(0));
     const solved = solve(s, content);
     const snap = build(s, solved, content);
     const miner = snap.nodes.find((n) => n.id === "n_miner_0");
@@ -46,7 +46,7 @@ describe("Snapshot", () => {
   });
 
   it("research rows carry status + affordability + name", () => {
-    const s = NewGame(new FakeClock(0));
+    const s = seededState(new FakeClock(0));
     s.currencies.research = 100;
     const solved = solve(s, content);
     const snap = build(s, solved, content);
@@ -61,7 +61,7 @@ describe("Snapshot", () => {
   });
 
   it("hero rows carry power + powerBreakdown + levelCost", () => {
-    const s = NewGame(new FakeClock(0));
+    const s = seededState(new FakeClock(0));
     const solved = solve(s, content);
     const snap = build(s, solved, content);
     const hero = snap.heroes.find((h) => h.id === "h_0");
@@ -72,7 +72,7 @@ describe("Snapshot", () => {
   });
 
   it("territory rows carry status + isNext; expedition is null when none active", () => {
-    const s = NewGame(new FakeClock(0));
+    const s = seededState(new FakeClock(0));
     const solved = solve(s, content);
     const snap = build(s, solved, content);
     const gh = snap.territories.find((t) => t.id === "t_gatehouse");
@@ -85,7 +85,7 @@ describe("Snapshot", () => {
   });
 
   it("rate currency strings carry the /s unit (M1)", () => {
-    const s = NewGame(new FakeClock(0));
+    const s = seededState(new FakeClock(0));
     const solved = solve(s, content);
     const snap = build(s, solved, content);
     expect(snap.currencyStrings.goldRate.endsWith("/s")).toBe(true);
@@ -94,17 +94,17 @@ describe("Snapshot", () => {
   });
 
   it("surfaces meta.seenVictory (B2); false on a fresh game", () => {
-    const s = NewGame(new FakeClock(0));
+    const s = seededState(new FakeClock(0));
     const snap = build(s, solve(s, content), content);
     expect(snap.meta.seenVictory).toBe(false);
-    const s2 = NewGame(new FakeClock(0));
+    const s2 = seededState(new FakeClock(0));
     s2.meta.seenVictory = true;
     const snap2 = build(s2, solve(s2, content), content);
     expect(snap2.meta.seenVictory).toBe(true);
   });
 
   it("snapshot is deeply frozen (nested objects too)", () => {
-    const s = NewGame(new FakeClock(0));
+    const s = seededState(new FakeClock(0));
     const solved = solve(s, content);
     const snap = build(s, solved, content);
     expect(Object.isFrozen(snap.currencies)).toBe(true);

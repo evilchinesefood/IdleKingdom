@@ -6,7 +6,7 @@ import { RESEARCH_NODES } from "../Source/Engine/Content/ResearchNodes.js";
 import { TERRITORIES } from "../Source/Engine/Content/Territories.js";
 import { EQUIPMENT } from "../Source/Engine/Content/Equipment.js";
 import { HEROES } from "../Source/Engine/Content/Heroes.js";
-import { NewGame } from "../Source/Engine/GameState.js";
+import { seededState } from "./Fixtures/Seeded.js";
 import { FakeClock } from "../Source/Engine/Clock.js";
 import { reduce } from "../Source/Engine/Reducer.js";
 import { solve } from "../Source/Engine/Simulation/RateSolver.js";
@@ -23,7 +23,7 @@ const content = {
 
 describe("Reducer", () => {
   it("is pure: rejected intent returns the original state object unchanged + an error", () => {
-    const s = NewGame(new FakeClock(0));
+    const s = seededState(new FakeClock(0));
     s.currencies.gold = 0; // cannot afford any upgrade
     const before = JSON.stringify(s);
     const out = reduce(
@@ -37,7 +37,7 @@ describe("Reducer", () => {
   });
 
   it("accepts a legal UpgradeNode: returns a new state with the level bumped, original untouched", () => {
-    const s = NewGame(new FakeClock(0)); // 25 gold; miner upgrade 17.25
+    const s = seededState(new FakeClock(0)); // 25 gold; miner upgrade 17.25
     const out = reduce(
       s,
       { type: "UpgradeNode", nodeId: "n_miner_0" },
@@ -53,14 +53,14 @@ describe("Reducer", () => {
   });
 
   it("rejects malformed intents via Intents.validate", () => {
-    const s = NewGame(new FakeClock(0));
+    const s = seededState(new FakeClock(0));
     const out = reduce(s, { type: "UpgradeNode" }, content);
     expect(out.state).toBe(s);
     expect(typeof out.error === "string").toBe(true);
   });
 
   it("routes BuyResearch via nodeId; rejects unaffordable, accepts affordable", () => {
-    const s = NewGame(new FakeClock(0));
+    const s = seededState(new FakeClock(0));
     s.currencies.research = 0;
     const rej = reduce(
       s,
@@ -80,7 +80,7 @@ describe("Reducer", () => {
   });
 
   it("routes StartExpedition; rejects under-power; accepts when power >= req", () => {
-    const s = NewGame(new FakeClock(0));
+    const s = seededState(new FakeClock(0));
     const rej = reduce(
       s,
       { type: "StartExpedition", territoryId: "t_gatehouse", heroId: "h_0" },
@@ -137,7 +137,7 @@ describe("Reducer", () => {
   });
 
   it("rejects EquipItem with a locked tier (T2 sword before any reclaim)", () => {
-    const s = NewGame(new FakeClock(0));
+    const s = seededState(new FakeClock(0));
     const out = reduce(
       s,
       {
@@ -154,7 +154,7 @@ describe("Reducer", () => {
   });
 
   it("rejects a cycle-creating ConnectLink", () => {
-    const s = NewGame(new FakeClock(0));
+    const s = seededState(new FakeClock(0));
     // seed: miner->smelter->market. Try to close a cycle market->miner (illegal & wrong ports anyway).
     const out = reduce(
       s,
@@ -171,7 +171,7 @@ describe("Reducer", () => {
   });
 
   it("DismissTooltip flips a tutorial flag (non-structural, no solver dirty needed)", () => {
-    const s = NewGame(new FakeClock(0));
+    const s = seededState(new FakeClock(0));
     const out = reduce(
       s,
       { type: "DismissTooltip", flag: "seenGoldTip" },
@@ -182,7 +182,7 @@ describe("Reducer", () => {
   });
 
   it("SetGathererResource rejects timber/hide before their research; accepts after enableGathererResource", () => {
-    const s = NewGame(new FakeClock(0));
+    const s = seededState(new FakeClock(0));
     // timber is NOT startable until res_lumber enables it (must not leak from a hardcoded set).
     const rejTimber = reduce(
       s,
@@ -213,7 +213,7 @@ describe("Reducer", () => {
     );
     expect(accIron.error).toBe(undefined);
     // After enabling timber via gathererResources it becomes assignable.
-    const withTimber = NewGame(new FakeClock(0));
+    const withTimber = seededState(new FakeClock(0));
     withTimber.unlocks.gathererResources = ["timber"];
     const accTimber = reduce(
       withTimber,
@@ -231,7 +231,7 @@ describe("Reducer", () => {
   });
 
   it("AckVictory sets meta.seenVictory; non-structural so rates are unaffected", () => {
-    const s = NewGame(new FakeClock(0));
+    const s = seededState(new FakeClock(0));
     s.meta.won = true;
     const before = solve(s, content).goldRate;
     const out = reduce(s, { type: "AckVictory" }, content);
@@ -243,7 +243,7 @@ describe("Reducer", () => {
   });
 
   it("SetNodePos updates pos; non-structural so rates are unaffected; original untouched", () => {
-    const s = NewGame(new FakeClock(0));
+    const s = seededState(new FakeClock(0));
     const before = solve(s, content).goldRate;
     const out = reduce(
       s,
@@ -263,7 +263,7 @@ describe("Reducer", () => {
   });
 
   it("SetNodePos rejects an unknown node", () => {
-    const s = NewGame(new FakeClock(0));
+    const s = seededState(new FakeClock(0));
     const out = reduce(
       s,
       { type: "SetNodePos", nodeId: "n_nope", pos: { x: 1, y: 2 } },
@@ -274,7 +274,7 @@ describe("Reducer", () => {
   });
 
   it("PlaceNode rejects a gatherer with a not-yet-enabled raw (defensive minor)", () => {
-    const s = NewGame(new FakeClock(0)); // timber not enabled yet
+    const s = seededState(new FakeClock(0)); // timber not enabled yet
     const n0 = s.graph.nodes.length;
     const out = reduce(
       s,
@@ -305,7 +305,7 @@ describe("Reducer", () => {
   });
 
   it("PlaceNode rejects an unknown/cosmetic machine kind cleanly (no throw, state unchanged)", () => {
-    const s = NewGame(new FakeClock(0));
+    const s = seededState(new FakeClock(0));
     const nodeCount0 = s.graph.nodes.length;
     // "forester" is a cosmetic gatherer label, NOT an engine machine kind.
     const out = reduce(
@@ -319,7 +319,7 @@ describe("Reducer", () => {
   });
 
   it("PlaceNode rejects a real-but-locked machine kind (scholar before res_scholar)", () => {
-    const s = NewGame(new FakeClock(0));
+    const s = seededState(new FakeClock(0));
     // "scholar" is a valid engine kind but not in NewGame machinesUnlocked.
     expect(s.unlocks.machinesUnlocked.includes("scholar")).toBe(false);
     const out = reduce(
@@ -332,7 +332,7 @@ describe("Reducer", () => {
   });
 
   it("PlaceNode accepts an unlocked kind (smelter) — legitimate path still works", () => {
-    const s = NewGame(new FakeClock(0));
+    const s = seededState(new FakeClock(0));
     const nodeCount0 = s.graph.nodes.length;
     const out = reduce(
       s,

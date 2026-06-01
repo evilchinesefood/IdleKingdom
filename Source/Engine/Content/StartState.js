@@ -1,53 +1,14 @@
-/** NewGame seed: pre-placed Miner -> Smelter(r_iron_bar) -> Market; 25 gold; iron_bar listed.
+/** NewGame seed: EMPTY graph — the player builds everything from scratch.
+ *  25 starting gold (placing nodes is free; gold is for upgrades). iron_bar is
+ *  listed so the first Mine -> Smelt -> Market chain sells immediately once built.
  *  Brand-new game has expeditions.active === null. */
 export const START_STATE = {
   currencies: { gold: 25.0, research: 0.0, renown: 0.0 },
   graph: {
-    nodes: [
-      {
-        id: "n_miner_0",
-        kind: "gatherer",
-        level: 1,
-        resourceId: "iron_ore",
-        recipeId: null,
-        stockpile: { iron_ore: 0.0 },
-        pos: { x: 120, y: 200 },
-      },
-      {
-        id: "n_smelter_0",
-        kind: "smelter",
-        level: 1,
-        resourceId: null,
-        recipeId: "r_iron_bar",
-        stockpile: { iron_bar: 0.0 },
-        pos: { x: 360, y: 200 },
-      },
-      {
-        id: "n_market_0",
-        kind: "market",
-        level: 1,
-        resourceId: null,
-        recipeId: null,
-        stockpile: {},
-        pos: { x: 600, y: 200 },
-      },
-    ],
-    links: [
-      {
-        id: "l_0",
-        from: "n_miner_0",
-        to: "n_smelter_0",
-        resourceId: "iron_ore",
-      },
-      {
-        id: "l_1",
-        from: "n_smelter_0",
-        to: "n_market_0",
-        resourceId: "iron_bar",
-      },
-    ],
-    nextNodeSeq: 1,
-    nextLinkSeq: 2,
+    nodes: [],
+    links: [],
+    nextNodeSeq: 0,
+    nextLinkSeq: 0,
   },
   unlocks: {
     researchOwned: [],

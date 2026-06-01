@@ -58,11 +58,18 @@ export class Game {
     if (resolved) {
       delete this.state._solved; // reclaim unlocks change rates
       this._ensureSolved();
+      this._emit(); // discrete event (reward/reclaim/victory) — render it now
     }
   }
 
   getState() {
     return this.state;
+  }
+
+  // Build the current snapshot WITHOUT notifying listeners — used by the
+  // passive HUD refresh so counters can tick without a full re-render.
+  getSnapshot() {
+    return buildSnapshot(this.state, this._ensureSolved(), this.content, null);
   }
 
   onSnapshot(fn) {

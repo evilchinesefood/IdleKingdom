@@ -10,6 +10,7 @@ import { START_STATE } from "../Source/Engine/Content/StartState.js";
 import { FakeClock } from "../Source/Engine/Clock.js";
 import { MemoryStorageAdapter } from "../Source/Engine/Persistence/MemoryStorageAdapter.js";
 import { Game } from "../Source/Engine/Game.js";
+import { seededState } from "./Fixtures/Seeded.js";
 
 const content = {
   resources: RESOURCES,
@@ -26,6 +27,15 @@ function makeGame(clock) {
   return new Game({ content, clock: clock || new FakeClock(0) });
 }
 
+// Boot a game and inject the classic Mine -> Smelt -> Market chain so facade
+// tests have a producing factory (the live game starts with an empty graph).
+function bootSeeded(g, clock) {
+  g.bootstrap(new MemoryStorageAdapter());
+  g.getState().graph = seededState(clock || new FakeClock(0)).graph;
+  delete g.getState()._solved;
+  return g;
+}
+
 describe("Game facade", () => {
   it("bootstrap on empty storage starts a new game and returns an offline summary", () => {
     const g = makeGame(new FakeClock(0));
@@ -36,8 +46,7 @@ describe("Game facade", () => {
   });
 
   it("dispatch routes a legal intent and returns ok; rejects an illegal one", () => {
-    const g = makeGame(new FakeClock(0));
-    g.bootstrap(new MemoryStorageAdapter());
+    const g = bootSeeded(makeGame(new FakeClock(0)));
     const ok = g.dispatch({ type: "UpgradeNode", nodeId: "n_miner_0" });
     expect(ok.ok).toBe(true);
     expect(
@@ -51,8 +60,7 @@ describe("Game facade", () => {
   });
 
   it("dispatch emits a snapshot to subscribers", () => {
-    const g = makeGame(new FakeClock(0));
-    g.bootstrap(new MemoryStorageAdapter());
+    const g = bootSeeded(makeGame(new FakeClock(0)));
     let last = null;
     const off = g.onSnapshot((snap) => {
       last = snap;
@@ -86,8 +94,7 @@ describe("Game facade", () => {
   });
 
   it("tick integrates rates over dt without emitting per call", () => {
-    const g = makeGame(new FakeClock(0));
-    g.bootstrap(new MemoryStorageAdapter());
+    const g = bootSeeded(makeGame(new FakeClock(0)));
     let emits = 0;
     g.onSnapshot(() => {
       emits++;

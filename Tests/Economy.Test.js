@@ -3,6 +3,7 @@ import { MACHINES } from "../Source/Engine/Content/Machines.js";
 import { RECIPES } from "../Source/Engine/Content/Recipes.js";
 import { RESOURCES } from "../Source/Engine/Content/Resources.js";
 import { NewGame } from "../Source/Engine/GameState.js";
+import { seededState } from "./Fixtures/Seeded.js";
 import { FakeClock } from "../Source/Engine/Clock.js";
 import {
   upgradeCost,
@@ -47,7 +48,7 @@ describe("EconomySystem", () => {
   });
 
   it("canUpgrade reflects gold on hand; applyUpgrade spends + increments level", () => {
-    const s = NewGame(new FakeClock(0));
+    const s = seededState(new FakeClock(0));
     // seed has 25 gold; miner L1 next cost = 15*1.15 = 17.25
     expect(canUpgrade(s, content, "n_miner_0")).toBe(true);
     applyUpgrade(s, content, "n_miner_0");
@@ -65,7 +66,7 @@ describe("EconomySystem", () => {
   });
 
   it("sellFromStockpile converts a node's stockpile to gold + research tithe", () => {
-    const s = NewGame(new FakeClock(0));
+    const s = seededState(new FakeClock(0));
     const smelter = s.graph.nodes.find((n) => n.id === "n_smelter_0");
     smelter.stockpile.iron_bar = 10;
     const gold0 = s.currencies.gold;
@@ -92,7 +93,7 @@ describe("EconomySystem", () => {
   });
 
   it("sales tithe is 0.05, then 0.07 after raising titheRate", () => {
-    const s = NewGame(new FakeClock(0));
+    const s = seededState(new FakeClock(0));
     const node = s.graph.nodes.find((n) => n.id === "n_smelter_0");
     node.stockpile.iron_bar = 100;
     sellFromStockpile(s, content, "n_smelter_0", "iron_bar");

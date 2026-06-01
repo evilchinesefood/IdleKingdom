@@ -357,6 +357,72 @@ function recordingDispatch(game) {
   return d;
 }
 
+// The live game now starts with an EMPTY graph — the player builds everything.
+// Drive the exact intents the UI would fire to construct the classic
+// Mine -> Smelt -> Market chain (PlaceNode x3 + ConnectLink x2; placing is free).
+// Then canonicalize the new node/link ids + seed positions so the rest of the
+// probe can keep referring to n_miner_0 / n_smelter_0 / n_market_0 by name.
+function buildSeedChain(game) {
+  const d = recordingDispatch(game);
+  const ids = [];
+  const place = (kind, extra, pos) => {
+    const before = game.getState().graph.nodes.length;
+    const r = d({ type: "PlaceNode", kind, pos, ...extra });
+    assert(r.ok, `PlaceNode ${kind} rejected: ${r.error}`);
+    assert(
+      game.getState().graph.nodes.length === before + 1,
+      `PlaceNode ${kind} did not add a node`,
+    );
+    const id = game.getState().graph.nodes.slice(-1)[0].id;
+    ids.push(id);
+    return id;
+  };
+  const minerId = place(
+    "gatherer",
+    { resourceId: "iron_ore" },
+    { x: 120, y: 200 },
+  );
+  const smelterId = place(
+    "smelter",
+    { recipeId: "r_iron_bar" },
+    { x: 360, y: 200 },
+  );
+  const marketId = place("market", {}, { x: 600, y: 200 });
+
+  let r = d({
+    type: "ConnectLink",
+    from: minerId,
+    to: smelterId,
+    resourceId: "iron_ore",
+  });
+  assert(r.ok, `ConnectLink miner->smelter rejected: ${r.error}`);
+  r = d({
+    type: "ConnectLink",
+    from: smelterId,
+    to: marketId,
+    resourceId: "iron_bar",
+  });
+  assert(r.ok, `ConnectLink smelter->market rejected: ${r.error}`);
+
+  // Canonicalize ids/positions to the historical seed names so later steps that
+  // address nodes by id (n_miner_0 etc.) keep working unchanged.
+  const st = game.getState();
+  const rename = {
+    [minerId]: "n_miner_0",
+    [smelterId]: "n_smelter_0",
+    [marketId]: "n_market_0",
+  };
+  for (const n of st.graph.nodes) {
+    if (rename[n.id]) n.id = rename[n.id];
+  }
+  st.graph.links.forEach((l, i) => {
+    if (rename[l.from]) l.from = rename[l.from];
+    if (rename[l.to]) l.to = rename[l.to];
+    l.id = "l_" + i;
+  });
+  delete st._solved;
+}
+
 // ----------------------------------------------------------------------------
 // Boot a game
 // ----------------------------------------------------------------------------
@@ -365,14 +431,28 @@ const game = new Game({ content, clock });
 game.bootstrap(new MemoryStorageAdapter());
 
 // ============================================================================
-// STEP 1 — initial factory + HUD gold ~25 and a >0 gold/s after a few ticks
+// STEP 1 — build the Mine -> Smelt -> Market chain from an empty start, then
+//          assert it produces ~2.0 gold/s and the HUD reflects gold ~25
 // ============================================================================
 step(
   1,
-  "Initial seed factory renders; HUD gold ~25 then >0 gold/s after ticks",
+  "Build Mine->Smelt->Market via PlaceNode+ConnectLink; chain produces ~2.0 gold/s; HUD gold ~25",
   () => {
+    // Brand-new game starts EMPTY — the player builds everything.
+    const empty = snap(game);
+    assert(
+      empty.nodes.length === 0,
+      `expected an empty start graph, got ${empty.nodes.length} nodes`,
+    );
+
+    // Drive the build intents the UI would fire (placing is free).
+    buildSeedChain(game);
+    console.log(
+      "    [wired] PlaceNode x3 + ConnectLink x2 (built the seed chain from empty)",
+    );
+
     const s0 = snap(game);
-    // Seed Mine -> Smelt -> Market present
+    // Seed Mine -> Smelt -> Market now present
     const kinds = s0.nodes.map((n) => n.kind).sort();
     assert(
       JSON.stringify(kinds) ===
@@ -415,7 +495,13 @@ step(
       `HUD rendered ${hudEl.querySelectorAll(".hud-tabs a").length} tabs (expected 4)`,
     );
 
-    // A few ticks should produce a positive gold rate (seed chain sells iron_bar).
+    // The freshly-built chain sells iron_bar at the §7 baseline: 2.0 gold/s.
+    assert(
+      Math.abs(s0.rates.goldRate - 2.0) < 1e-9,
+      `built chain gold rate ${s0.rates.goldRate}, expected 2.0`,
+    );
+
+    // A few ticks keep producing a positive gold rate.
     for (let i = 0; i < 10; i++) {
       clock.advance(50);
       game.tick(0.05);
@@ -1043,6 +1129,7 @@ step(
     const oclock = new FakeClock(0);
     const og = new Game({ content, clock: oclock });
     og.bootstrap(new MemoryStorageAdapter());
+    buildSeedChain(og); // build the producing chain (empty start otherwise banks nothing)
     // simulate the player closing the tab now and returning 2 hours later
     const elapsed = 2 * 3600 * 1000;
     oclock.advance(elapsed);
@@ -1220,6 +1307,7 @@ step(
     const bclock = new FakeClock(0);
     const bg = new Game({ content, clock: bclock });
     bg.bootstrap(new MemoryStorageAdapter());
+    buildSeedChain(bg); // build the producing chain so 2/s income exists
 
     // play 30s foreground
     for (let i = 0; i < 600; i++) {
@@ -1338,6 +1426,8 @@ step(
     const mclock = new FakeClock(0);
     const mg = new Game({ content, clock: mclock });
     mg.bootstrap(new MemoryStorageAdapter());
+    // build the seed chain from the empty start so the edit ops have nodes/links
+    buildSeedChain(mg);
     // enable a second gatherer raw so reassignment has a real target
     mg.getState().unlocks.gathererResources = ["timber"];
     delete mg.getState()._solved;

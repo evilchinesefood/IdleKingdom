@@ -1,5 +1,6 @@
 import { describe, it, expect } from "./Runner.js";
 import { NewGame } from "../Source/Engine/GameState.js";
+import { seededState } from "./Fixtures/Seeded.js";
 import { FakeClock } from "../Source/Engine/Clock.js";
 import {
   serialize,
@@ -48,7 +49,7 @@ describe("SaveManager.serialize lastSeen (B1 no-phantom-offline)", () => {
     const { applyOffline } =
       await import("../Source/Engine/Simulation/Offline.js");
     const clock = new FakeClock(0);
-    const state = NewGame(clock);
+    const state = seededState(clock);
     // foreground play then a save at T stamps lastSeen=T (the B1 fix)
     const T = 100_000;
     const saved = deserialize(serialize(state, T), clock);
@@ -65,7 +66,7 @@ describe("SaveManager.serialize lastSeen (B1 no-phantom-offline)", () => {
     const { applyOffline } =
       await import("../Source/Engine/Simulation/Offline.js");
     const clock = new FakeClock(0);
-    const state = NewGame(clock);
+    const state = seededState(clock);
     const T = 100_000;
     const saved = deserialize(serialize(state, T), clock);
     const summary = applyOffline(saved, content, T + 5 * 60_000); // 5 min away
@@ -139,7 +140,7 @@ describe("Migrations", () => {
 describe("SaveManager.deserialize", () => {
   it("round-trips deep-equal incl. sparse stockpiles and null slots", () => {
     const clock = new FakeClock(5000);
-    const state = NewGame(clock);
+    const state = seededState(clock);
     state.currencies.gold = 123.456;
     state.graph.nodes[0].stockpile = { iron_ore: 7.25 }; // sparse
     state._solved = { goldRate: 2 }; // must not survive

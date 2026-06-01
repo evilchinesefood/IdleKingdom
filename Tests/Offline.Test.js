@@ -1,19 +1,23 @@
 import { describe, it, expect } from "./Runner.js";
-import { NewGame } from "../Source/Engine/GameState.js";
+import { seededState } from "./Fixtures/Seeded.js";
 import { FakeClock } from "../Source/Engine/Clock.js";
 import { content } from "../Source/Engine/Content/Content.js";
 import { applyOffline } from "../Source/Engine/Simulation/Offline.js";
 import { TERRITORIES } from "../Source/Engine/Content/Territories.js";
 import { RESOURCES } from "../Source/Engine/Content/Resources.js";
 import { MemoryStorageAdapter } from "../Source/Engine/Persistence/MemoryStorageAdapter.js";
-import { serialize, deserialize, SAVE_KEY } from "../Source/Engine/Persistence/SaveManager.js";
+import {
+  serialize,
+  deserialize,
+  SAVE_KEY,
+} from "../Source/Engine/Persistence/SaveManager.js";
 
 const HOUR = 3600 * 1000;
 
 describe("Offline.applyOffline within cap", () => {
   it("2h within 8h cap gains 14400 gold and 720 research", () => {
     const clock = new FakeClock(0);
-    const state = NewGame(clock);
+    const state = seededState(clock);
     state.lastSeen = 0;
     const now = 2 * HOUR;
     const summary = applyOffline(state, content, now);
@@ -29,7 +33,7 @@ describe("Offline.applyOffline within cap", () => {
 describe("Offline.applyOffline clamps to cap", () => {
   it("3-day gap clamps to 8h => 57600 gold, clamped:true", () => {
     const clock = new FakeClock(0);
-    const state = NewGame(clock);
+    const state = seededState(clock);
     state.lastSeen = 0;
     const now = 3 * 24 * HOUR; // 72h
     const summary = applyOffline(state, content, now);
@@ -41,7 +45,7 @@ describe("Offline.applyOffline clamps to cap", () => {
 
   it("raised cap (offlineCapHours=24) clamps a 3-day gap to 24h", () => {
     const clock = new FakeClock(0);
-    const state = NewGame(clock);
+    const state = seededState(clock);
     state.lastSeen = 0;
     state.unlocks.offlineCapHours = 24;
     const now = 3 * 24 * HOUR;
@@ -53,7 +57,7 @@ describe("Offline.applyOffline clamps to cap", () => {
 
   it("suppresses (negligible) under ~60s: appliedMs small, gains tiny", () => {
     const clock = new FakeClock(0);
-    const state = NewGame(clock);
+    const state = seededState(clock);
     state.lastSeen = 0;
     const now = 30 * 1000; // 30s
     const summary = applyOffline(state, content, now);
@@ -66,7 +70,7 @@ describe("Offline.applyOffline clamps to cap", () => {
 describe("Offline expedition fast-forward", () => {
   it("resolves an in-flight expedition mid-gap: renown awarded, territory reclaimed, active cleared", () => {
     const clock = new FakeClock(0);
-    const state = NewGame(clock);
+    const state = seededState(clock);
     state.lastSeen = 0;
     // an expedition launched at t=0 against t_gatehouse (duration 120000)
     state.expeditions.active = {
@@ -89,7 +93,7 @@ describe("Offline expedition fast-forward", () => {
 
   it("leaves an unfinished expedition active when it would not complete within the clamped window", () => {
     const clock = new FakeClock(0);
-    const state = NewGame(clock);
+    const state = seededState(clock);
     state.lastSeen = 0;
     state.expeditions.active = {
       territoryId: "t_gatehouse",
@@ -108,7 +112,7 @@ describe("Offline expedition fast-forward", () => {
 describe("Offline auto-sell one-shot dump", () => {
   it("dumps stockpiles to gold once when autoSell is owned; finite and emptied", () => {
     const clock = new FakeClock(0);
-    const state = NewGame(clock);
+    const state = seededState(clock);
     state.lastSeen = 0;
     state.unlocks.autoSell = true;
     // simulate ~8h of accrued surplus iron_bar sitting on the smelter (no consumer)
@@ -125,24 +129,33 @@ describe("Offline auto-sell one-shot dump", () => {
     expect(smelter.stockpile.iron_bar).toBeCloseTo(0, 1e-6);
     // gold gained >= the dump (plus a sliver of 1s factory income)
     expect(summary.gained.gold).toBeCloseTo(dumpGold + 2.0 * 1, 1e-3);
-    expect(state.currencies.gold).toBeCloseTo(beforeGold + dumpGold + 2.0 * 1, 1e-3);
-    expect(summary.gained.research).toBeCloseTo(dumpGold * tithe + 0.1 * 1, 1e-3);
+    expect(state.currencies.gold).toBeCloseTo(
+      beforeGold + dumpGold + 2.0 * 1,
+      1e-3,
+    );
+    expect(summary.gained.research).toBeCloseTo(
+      dumpGold * tithe + 0.1 * 1,
+      1e-3,
+    );
 
     // second pass: nothing left to dump
     const summary2 = applyOffline(state, content, 2000);
-    expect(state.graph.nodes.find((n) => n.id === "n_smelter_0").stockpile.iron_bar).toBeCloseTo(0, 1e-6);
+    expect(
+      state.graph.nodes.find((n) => n.id === "n_smelter_0").stockpile.iron_bar,
+    ).toBeCloseTo(0, 1e-6);
     expect(summary2.gained.gold).toBeCloseTo(2.0 * 1, 1e-3); // only 1s of factory income, no second dump
   });
 
   it("does NOT dump when autoSell is not owned", () => {
     const clock = new FakeClock(0);
-    const state = NewGame(clock);
+    const state = seededState(clock);
     state.lastSeen = 0;
     const smelter = state.graph.nodes.find((n) => n.id === "n_smelter_0");
     smelter.stockpile.iron_bar = 5000;
     applyOffline(state, content, 1000);
     // stockpile may grow from accrual but must not be sold off
-    const after = state.graph.nodes.find((n) => n.id === "n_smelter_0").stockpile.iron_bar;
+    const after = state.graph.nodes.find((n) => n.id === "n_smelter_0")
+      .stockpile.iron_bar;
     expect(after >= 5000).toBe(true);
   });
 });
@@ -151,7 +164,7 @@ describe("Persistence + Offline integration", () => {
   it("save with lastSeen=0, reload at 2h => 14400 gold via applyOffline", () => {
     const clock = new FakeClock(0);
     const storage = new MemoryStorageAdapter();
-    const state = NewGame(clock);
+    const state = seededState(clock);
     state.lastSeen = 0;
     storage.set(SAVE_KEY, serialize(state)); // serialize stamps lastSeen = state.lastSeen = 0
     // ...later...

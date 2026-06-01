@@ -23,6 +23,7 @@ import "./Intents.Test.js";
 import "./Reducer.Test.js";
 import "./Snapshot.Test.js";
 import "./Game.Test.js";
+import "./RenderCadence.Test.js";
 
 // UI pure-helper suites
 import "./Format.Test.js";

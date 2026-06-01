@@ -1,5 +1,11 @@
 import { describe, it, expect } from "./Runner.js";
-import { NewGame, clone, freeze, validate, SAVE_VERSION } from "../Source/Engine/GameState.js";
+import {
+  NewGame,
+  clone,
+  freeze,
+  validate,
+  SAVE_VERSION,
+} from "../Source/Engine/GameState.js";
 import { FakeClock } from "../Source/Engine/Clock.js";
 
 describe("GameState.NewGame", () => {
@@ -19,13 +25,12 @@ describe("GameState.NewGame", () => {
     expect(g.territories.reclaimed).toEqual([]);
   });
 
-  it("seeds the Mine -> Smelt -> Market chain", () => {
+  it("starts with an EMPTY graph (the player builds everything)", () => {
     const g = NewGame(new FakeClock(0));
-    expect(g.graph.nodes.map((n) => n.kind)).toEqual(["gatherer", "smelter", "market"]);
-    expect(g.graph.nodes[0].resourceId).toBe("iron_ore");
-    expect(g.graph.nodes[1].recipeId).toBe("r_iron_bar");
-    expect(g.graph.links.length).toBe(2);
-    expect(g.graph.links[0]).toEqual({ id: "l_0", from: "n_miner_0", to: "n_smelter_0", resourceId: "iron_ore" });
+    expect(g.graph.nodes.length).toBe(0);
+    expect(g.graph.links.length).toBe(0);
+    expect(g.graph.nextNodeSeq).toBe(0);
+    expect(g.graph.nextLinkSeq).toBe(0);
   });
 
   it("brand-new game has no active expedition", () => {
@@ -43,8 +48,13 @@ describe("GameState.NewGame", () => {
   it("two NewGames do not share references", () => {
     const a = NewGame(new FakeClock(0));
     const b = NewGame(new FakeClock(0));
-    a.graph.nodes[0].level = 99;
-    expect(b.graph.nodes[0].level).toBe(1);
+    // mutate one game's state and confirm the other is untouched (deep clone)
+    a.currencies.gold = 999;
+    a.unlocks.recipesUnlocked.push("r_steel");
+    a.graph.nodes.push({ id: "x", kind: "gatherer" });
+    expect(b.currencies.gold).toBe(25.0);
+    expect(b.unlocks.recipesUnlocked).toEqual(["r_iron_bar"]);
+    expect(b.graph.nodes.length).toBe(0);
   });
 });
 
@@ -94,7 +104,12 @@ describe("GameState.validate", () => {
   });
   it("rejects a link pointing at a missing node", () => {
     const g = NewGame(new FakeClock(0));
-    g.graph.links.push({ id: "l_bad", from: "n_ghost", to: "n_market_0", resourceId: "iron_bar" });
+    g.graph.links.push({
+      id: "l_bad",
+      from: "n_ghost",
+      to: "n_market_0",
+      resourceId: "iron_bar",
+    });
     expect(validate(g)).toBe(false);
   });
 });

@@ -13,8 +13,14 @@ const game = new Game({ content, clock });
 
 const offlineSummary = game.bootstrap(storage);
 App.mount(document.getElementById("App"), game);
+game.emitSnapshotForFrame(); // one initial full render from real state
 if (offlineSummary && offlineSummary.appliedMs > 60_000)
   App.showOfflineSummary(offlineSummary);
+
+// Passive display refresh: gold/research counters tick every 2s WITHOUT rebuilding
+// the interactive panels. User actions (intents) and expedition resolution render
+// immediately via Game._emit — this is what keeps buttons and dropdowns clickable.
+setInterval(() => App.refreshHud(), 2000);
 
 // --- Autosave (debounced ~1s; interval ~10s; visibility/pagehide immediate) ---
 let saveStatus = "ok";
@@ -67,7 +73,9 @@ function frame() {
     game.tick(STEP / 1000);
     acc -= STEP;
   }
-  game.emitSnapshotForFrame();
+  // No per-frame render: the sim accrues silently; the HUD refreshes on a 2s
+  // interval and panels render on intents (see above). Rendering every frame
+  // tore down interactive elements ~60x/sec, breaking all clicks.
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

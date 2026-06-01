@@ -23,6 +23,9 @@ export const App = {
   showOfflineSummary(summary) {
     if (App._current) App._current.showOfflineSummary(summary);
   },
+  refreshHud() {
+    if (App._current) App._current.refreshHud();
+  },
   _current: null,
 };
 
@@ -136,6 +139,15 @@ class AppInstance {
     const snap = this.lastSnap || this._emptySnap();
     this._renderScreen(snap);
     this._renderOverlay(snap);
+  }
+
+  // Passive HUD-only refresh (~every 2s): update currency/rate counters WITHOUT
+  // rebuilding the interactive panels/graph — rebuilding them would close open
+  // dropdowns and make buttons un-clickable under continuous re-render.
+  refreshHud() {
+    const snap = this.game.getSnapshot();
+    this.lastSnap = snap;
+    this.hud.render(snap);
   }
 
   _renderScreen(snap) {
