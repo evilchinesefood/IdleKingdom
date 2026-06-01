@@ -158,11 +158,7 @@
 .bm-machine,
 .bm-place,
 .ni-upgrade,
-.ni-sell,
-.res-buy,
-.exp-launch,
-.hp-levelup,
-.hp-recruit {
+.ni-sell {
   min-height: var(--tap);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -170,6 +166,20 @@
   color: var(--ink);
   padding: 0 0.6rem;
   cursor: pointer;
+}
+/* P4 WA action buttons get their look from variant/appearance + WaTheme tokens.
+   The legacy .affordable/.locked background+opacity must not repaint them. */
+wa-button.res-buy,
+wa-button.exp-launch,
+wa-button.hp-levelup,
+wa-button.hp-recruit {
+  width: 100%;
+  margin-top: 0.4rem;
+}
+wa-button.affordable,
+wa-button.locked {
+  background: none;
+  opacity: 1;
 }
 .bm-machine.selected {
   background: var(--gold);
@@ -230,18 +240,13 @@
   stroke-width: 2;
   fill: none;
 }
-.res-node {
-  background: var(--panel);
-  border: 2px solid var(--line);
-  border-radius: var(--radius);
-  padding: 0.4rem;
-  box-shadow: var(--shadow);
-}
 .res-node.owned {
-  border-color: var(--good);
+  outline: 2px solid var(--good);
+  border-radius: var(--radius);
 }
 .res-node.available {
-  border-color: var(--gold);
+  outline: 2px solid var(--gold);
+  border-radius: var(--radius);
 }
 .res-node.locked {
   opacity: 0.6;
@@ -274,15 +279,25 @@
   overflow-y: auto;
   height: 100%;
 }
-.exp-card {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 0.6rem;
-}
 .exp-card.victory {
-  border-color: var(--gold);
+  outline: 2px solid var(--gold);
+  border-radius: var(--radius);
+}
+.exp-card.active {
+  outline: 2px solid var(--good);
+  border-radius: var(--radius);
+}
+.exp-card.reclaimed {
+  opacity: 0.85;
+}
+.exp-reward {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  margin: 0.3rem 0;
+}
+.exp-progress {
+  margin-top: 0.3rem;
 }
 .exp-name {
   font-weight: 700;
@@ -307,13 +322,9 @@
   overflow-y: auto;
   height: 100%;
 }
-.hero-card,
-.recruit-card {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 0.6rem;
+.hp-level {
+  margin: 0.25rem 0;
+  display: inline-block;
 }
 .hp-name {
   font-weight: 700;
