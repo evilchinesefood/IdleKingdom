@@ -21,7 +21,8 @@
   --wa-color-success-fill-loud: var(--good);
   --wa-color-warning-fill-loud: var(--gold);
   --wa-color-danger-fill-loud: var(--bad);
-  --wa-font-family-body: "Georgia", "Iowan Old Style", serif;
+  --wa-font-family-body: "EB Garamond", "Iowan Old Style", Georgia, serif;
+  --wa-font-family-heading: "Cinzel", "Iowan Old Style", Georgia, serif;
   --wa-border-radius-m: 6px;
 
   /* FA duotone two-tone defaults (overridable per icon) */
