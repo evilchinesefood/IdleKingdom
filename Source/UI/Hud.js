@@ -3,23 +3,35 @@ import { formatNumber, formatRate } from "./Render/Format.js";
 import { icon } from "./Icons.js";
 
 const TABS = [
-  { route: "factory", label: [icon("factory", { noTone: true }), " Factory"] },
-  {
-    route: "research",
-    label: [icon("research", { noTone: true }), " Research"],
-  },
-  {
-    route: "expeditions",
-    label: [icon("expeditions", { noTone: true }), " Expeditions"],
-  },
-  { route: "heroes", label: [icon("heroes", { noTone: true }), " Heroes"] },
+  { route: "factory", label: "Factory" },
+  { route: "research", label: "Research" },
+  { route: "expeditions", label: "Expeditions" },
+  { route: "heroes", label: "Heroes" },
 ];
 
-function currencyCell(key, curIcon, value, rate) {
-  return h("div", { class: "hud-cur", key }, [
-    h("span", { class: "val" }, [curIcon, " " + value]),
-    h("span", { class: "rate" }, [rate]),
-  ]);
+function startIcon(concept) {
+  const v = icon(concept, { noTone: true });
+  v.props = { ...v.props, slot: "start" };
+  return v;
+}
+
+function currencyTag(key, concept, value, rate) {
+  return h(
+    "wa-tag",
+    {
+      key,
+      class: "hud-cur",
+      variant: "neutral",
+      appearance: "filled",
+      size: "large",
+      pill: true,
+    },
+    [
+      startIcon(concept),
+      h("span", { class: "val" }, [value]),
+      rate != null ? h("small", { class: "rate" }, [rate]) : null,
+    ],
+  );
 }
 
 export class Hud {
@@ -27,6 +39,12 @@ export class Hud {
     this.el = el;
     this.router = router;
     this.onOpenSettings = onOpenSettings;
+    this._onTabShow = (e) => {
+      const name = e && e.detail && e.detail.name;
+      if (name && this.router && typeof this.router.navigate === "function") {
+        this.router.navigate(name);
+      }
+    };
   }
 
   render(snap) {
@@ -38,42 +56,41 @@ export class Hud {
     const resR = cs.researchRate ?? formatRate(snap.rates.researchRate);
 
     const saveOk = snap.save && snap.save.status === "ok";
-    const tabs = h(
-      "nav",
-      { class: "hud-tabs" },
-      TABS.map((t) =>
-        h(
-          "a",
-          {
-            key: t.route,
-            href: "#/" + t.route,
-            class: this.router.current === t.route ? "active" : "",
-          },
-          [t.label],
-        ),
-      ),
-    );
 
     patch(this.el, [
       h("div", { class: "hud-currencies", key: "cur" }, [
-        currencyCell("gold", icon("gold", { noTone: true }), goldV, goldR),
-        currencyCell(
-          "research",
-          icon("research", { noTone: true }),
-          resV,
-          resR,
-        ),
-        currencyCell("renown", icon("renown", { noTone: true }), renV, "—"),
+        currencyTag("gold", "gold", goldV, goldR),
+        currencyTag("research", "research", resV, resR),
+        currencyTag("renown", "renown", renV, null),
       ]),
       h(
-        "div",
-        { class: saveOk ? "hud-save" : "hud-save failed", key: "save" },
+        "wa-tag",
+        {
+          key: "save",
+          class: saveOk ? "hud-save" : "hud-save failed",
+          variant: saveOk ? "success" : "danger",
+          appearance: "outlined",
+        },
         [
-          icon(saveOk ? "save_ok" : "save_fail", { noTone: true }),
-          saveOk ? " saved" : " save failed",
+          startIcon(saveOk ? "save_ok" : "save_fail"),
+          saveOk ? "saved" : "save failed",
         ],
       ),
-      tabs,
+      h(
+        "wa-tab-group",
+        {
+          key: "tabs",
+          class: "hud-tabs",
+          "prop:active": this.router.current,
+          onWaTabShow: this._onTabShow,
+        },
+        TABS.map((t) =>
+          h("wa-tab", { key: "tab-" + t.route, panel: t.route }, [
+            startIcon(t.route),
+            t.label,
+          ]),
+        ),
+      ),
       h(
         "button",
         {
