@@ -59,12 +59,8 @@
   top: 60px;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--bad);
-  color: #fff;
-  padding: 0.5rem 1rem;
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
   z-index: 50;
+  max-width: 90vw;
 }
 
 /* Screen host */
@@ -333,7 +329,7 @@ wa-button.locked {
   margin: 0.25rem 0;
 }
 
-/* Overlay layer (tooltip + modals) */
+/* Overlay layer (tooltip callout + wa-dialog modals) */
 .overlay-layer {
   position: fixed;
   inset: 0;
@@ -343,57 +339,50 @@ wa-button.locked {
 .overlay-layer > * {
   pointer-events: auto;
 }
+.overlay-layer wa-dialog {
+  pointer-events: auto;
+}
+
+/* Onboarding tooltip: kept positioning host; inner is a wa-callout. */
 .tooltip-layer {
   position: fixed;
   left: 50%;
   bottom: 1.5rem;
   transform: translateX(-50%);
+  max-width: 340px;
 }
 .tooltip {
-  background: var(--ink);
-  color: var(--parchment);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 0.6rem 0.9rem;
-  max-width: 320px;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
+  width: 100%;
 }
-.tip-dismiss,
-.os-close,
-.victory-close {
-  min-height: var(--tap);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--gold);
-  color: var(--ink);
-  cursor: pointer;
+.tip-text {
+  line-height: 1.4;
 }
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(20, 14, 8, 0.55);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.tip-dismiss {
+  margin-top: 0.4rem;
+  align-self: flex-end;
 }
-.modal {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 1.25rem;
-  max-width: 420px;
-  width: calc(100% - 2rem);
+
+/* Dialog bodies */
+.os-elapsed {
+  font-size: 0.95rem;
+  margin-bottom: 0.5rem;
+}
+.os-gained {
   display: flex;
-  flex-direction: column;
   gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+.os-exp {
+  margin: 0.2rem 0.2rem 0 0;
 }
 .os-title,
 .victory-title {
   font-size: 1.25rem;
   font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 .victory-text {
   line-height: 1.45;
@@ -401,6 +390,42 @@ wa-button.locked {
 .victory-sub {
   font-size: 0.85rem;
   color: var(--ink-soft);
+  margin-top: 0.5rem;
+}
+
+/* HUD error flash: imperative host + reconciled wa-callout child */
+.hud-error-callout {
+  box-shadow: var(--shadow);
+}
+
+/* MAX / starved legend (clarity) */
+.factory-legend {
+  position: absolute;
+  left: 0.5rem;
+  bottom: 0.5rem;
+  z-index: 30;
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.3rem 0.6rem;
+  font-size: 0.75rem;
+  color: var(--ink-soft);
+  pointer-events: none;
+}
+.factory-legend .lg-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.factory-legend .lg-max {
+  color: var(--good);
+}
+.factory-legend .lg-starved {
+  color: var(--bad);
 }
 
 .hud-settings {
