@@ -1,5 +1,6 @@
 import { h } from "./Render/Dom.js";
 import { fmtNum, fmtCountdown } from "./Format/Format.js";
+import { icon } from "./Icons.js";
 import { TERRITORIES } from "../Engine/Content/Territories.js";
 
 export function OfflineSummary(summary, onClose) {
@@ -24,11 +25,14 @@ export function OfflineSummary(summary, onClose) {
         { class: "os-elapsed" },
         `Away for ${fmtCountdown(summary.appliedMs)}${summary.clamped ? " (capped)" : ""}`,
       ),
-      h(
-        "div",
-        { class: "os-gained" },
-        `🪙 +${fmtNum(g.gold)}   📜 +${fmtNum(g.research)}   🛡️ +${fmtNum(g.renown)}`,
-      ),
+      h("div", { class: "os-gained" }, [
+        icon("gold"),
+        ` +${fmtNum(g.gold)}   `,
+        icon("research"),
+        ` +${fmtNum(g.research)}   `,
+        icon("renown"),
+        ` +${fmtNum(g.renown)}`,
+      ]),
       ...expLines,
       h("button", { class: "os-close", onclick: onClose }, "Continue"),
     ),

@@ -1,4 +1,5 @@
 import { h } from "./Render/Dom.js";
+import { icon } from "./Icons.js";
 import { RESOURCES } from "../Engine/Content/Resources.js";
 import { RECIPES } from "../Engine/Content/Recipes.js";
 import { GATHERER_VARIANTS } from "../Engine/Content/Machines.js";
@@ -52,7 +53,7 @@ export function BuildMenu(snap, dispatch, ui) {
                 pos: ui.spawnPos(),
               }),
           },
-          `${res.icon} ${variantLabel(rid)}: ${res.display}`,
+          [icon(rid), ` ${variantLabel(rid)}: ${res.display}`],
         ),
       );
     }
@@ -75,7 +76,7 @@ export function BuildMenu(snap, dispatch, ui) {
                 pos: ui.spawnPos(),
               }),
           },
-          `${out.icon} ${out.display}`,
+          [icon(recipe.output), ` ${out.display}`],
         ),
       );
     }

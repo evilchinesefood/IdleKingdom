@@ -1,5 +1,6 @@
 import { h } from "./Render/Dom.js";
 import { svg } from "./Render/Svg.js";
+import { icon } from "./Icons.js";
 import { fmtCost, affordClass } from "./Format/Format.js";
 import { RESEARCH_NODES } from "../Engine/Content/ResearchNodes.js";
 import { INTENT } from "../Engine/Intents.js";
@@ -81,7 +82,7 @@ export function ResearchTree(snap, dispatch) {
         style: `position:absolute;left:${p.x}px;top:${p.y}px;width:${CARD_W}px`,
       },
       h("div", { class: "res-name" }, r.name),
-      h("div", { class: "res-cost" }, fmtCost(r.cost, r.currency)),
+      h("div", { class: "res-cost" }, [icon(r.currency), " ", fmtCost(r.cost)]),
       h("div", { class: "res-eff" }, r.effectsText || ""),
       h(
         "button",

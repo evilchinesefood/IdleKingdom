@@ -1,5 +1,6 @@
 import { h } from "./Render/Dom.js";
 import { fmtNum, fmtRate, fmtCost, affordClass } from "./Format/Format.js";
+import { icon } from "./Icons.js";
 import { RESOURCES } from "../Engine/Content/Resources.js";
 import { RECIPES } from "../Engine/Content/Recipes.js";
 import { INTENT } from "../Engine/Intents.js";
@@ -15,7 +16,7 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
 
   const pct = Math.round((node.capacityPct || 0) * 100);
   const rows = [
-    h("div", { class: "ni-title" }, node.kind),
+    h("div", { class: "ni-title" }, [icon(node.kind), " ", node.kind]),
     h("div", { class: "ni-line" }, `Level ${node.level}`),
     h(
       "div",
@@ -34,7 +35,7 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
       h(
         "div",
         { class: "ni-stock" },
-        `${res.icon} ${res.display}: ${fmtNum(qty)}`,
+        [icon(resId), ` ${res.display}: ${fmtNum(qty)}`],
         res.basePrice != null
           ? h(
               "button",
@@ -47,7 +48,7 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
                     resId,
                   }),
               },
-              "Sell",
+              [icon("sell"), " Sell"],
             )
           : null,
       ),
@@ -85,11 +86,10 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
     const opts = raws
       .filter((rid) => RESOURCES[rid])
       .map((rid) =>
-        h(
-          "option",
-          { value: rid, selected: rid === node.resourceId },
-          `${RESOURCES[rid].icon} ${RESOURCES[rid].display}`,
-        ),
+        h("option", { value: rid, selected: rid === node.resourceId }, [
+          icon(rid),
+          ` ${RESOURCES[rid].display}`,
+        ]),
       );
     rows.push(
       h(
@@ -117,7 +117,7 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
         disabled: !node.canAfford,
         onclick: () => dispatch({ type: INTENT.UpgradeNode, nodeId: node.id }),
       },
-      `Upgrade → ${fmtCost(node.upgradeCost, "gold")}`,
+      [icon("gold"), ` Upgrade → ${fmtCost(node.upgradeCost)}`],
     ),
   );
 
