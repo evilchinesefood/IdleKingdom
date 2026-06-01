@@ -6,6 +6,7 @@ import {
   clampScale,
   panBy,
   zoomAt,
+  snapToGrid,
 } from "../Source/UI/Render/Svg.js";
 
 describe("Svg.makeView", () => {
@@ -47,6 +48,19 @@ describe("Svg.panBy", () => {
     const v = panBy({ scale: 1, tx: 0, ty: 0 }, 15, -5);
     expect(v.tx).toBeCloseTo(15, 1e-9);
     expect(v.ty).toBeCloseTo(-5, 1e-9);
+  });
+});
+
+describe("Svg.snapToGrid", () => {
+  it("rounds each axis to the nearest grid multiple", () => {
+    const p = snapToGrid({ x: 53, y: 18 }, 40);
+    expect(p.x).toBe(40); // 53/40=1.325 -> round 1 -> 40
+    expect(p.y).toBe(0); // 18/40=0.45 -> round 0 -> 0
+  });
+  it("rounds .5 up (banker-free Math.round)", () => {
+    const p = snapToGrid({ x: 60, y: 60 }, 40);
+    expect(p.x).toBe(80); // 60/40=1.5 -> round 2 -> 80
+    expect(p.y).toBe(80);
   });
 });
 
