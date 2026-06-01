@@ -38,3 +38,30 @@ select {
   outline: 2px solid var(--gold);
   outline-offset: 2px;
 }
+.hud,
+.factory-panels,
+.panel-host,
+.overlay-layer,
+.build-menu,
+.node-inspector,
+.hero-panel,
+.research-tree,
+.expedition-board,
+.tooltip,
+.modal,
+wa-button,
+wa-tab,
+wa-tab-group,
+wa-card,
+wa-callout,
+wa-badge,
+wa-tag {
+  user-select: none;
+  -webkit-user-select: none;
+}
+wa-input,
+wa-select,
+.modal-text,
+.victory-text {
+  user-select: text;
+}
