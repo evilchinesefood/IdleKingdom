@@ -10,8 +10,11 @@ import { HeroPanel } from "./HeroPanel.js";
 import { OfflineSummary } from "./OfflineSummary.js";
 import { Tooltip } from "./Tooltip.js";
 import { Victory } from "./Victory.js";
+import { Settings } from "./Settings.js";
+import { loadPrefs, savePrefs } from "./Prefs.js";
 import { victoryReady } from "./Logic/Selectors.js";
 import { INTENT } from "../Engine/Intents.js";
+import { SAVE_KEY } from "../Engine/Persistence/SaveManager.js";
 
 export const App = {
   mount(rootEl, game) {
@@ -55,7 +58,10 @@ class AppInstance {
     this.root.appendChild(this.overlayEl);
     this.root.appendChild(this.errorEl);
 
-    this.hud = new Hud(this.hudEl, this.router);
+    this.prefs = loadPrefs();
+    this.showSettings = false;
+
+    this.hud = new Hud(this.hudEl, this.router, () => this.openSettings());
     this.graphView = null;
     this.lastSnap = null;
     this.activeScreen = null;
@@ -80,10 +86,20 @@ class AppInstance {
   }
 
   start() {
+    this._applyPrefs();
     this.router.onChange(() => this._mountScreen());
     this.game.onSnapshot((snap) => this._onSnapshot(snap));
     this.router.start();
     this._mountScreen();
+  }
+
+  _applyPrefs() {
+    this.hudEl.classList.toggle("show-rates", !!this.prefs.alwaysShowRates);
+  }
+
+  openSettings() {
+    this.showSettings = true;
+    this.renderNow();
   }
 
   _mountScreen() {
@@ -185,6 +201,33 @@ class AppInstance {
           this.showVictory = false;
           this.dispatch({ type: INTENT.AckVictory });
           this.renderNow();
+        }),
+      );
+    }
+    if (this.showSettings) {
+      children.push(
+        Settings(this.prefs, {
+          onToggle: (k) => {
+            this.prefs[k] = !this.prefs[k];
+            savePrefs(this.prefs);
+            this._applyPrefs();
+            this.renderNow();
+          },
+          onReset: () => {
+            if (
+              typeof confirm === "function" &&
+              !confirm("Reset all progress? This cannot be undone.")
+            )
+              return;
+            try {
+              localStorage.removeItem(SAVE_KEY);
+            } catch {}
+            location.reload();
+          },
+          onClose: () => {
+            this.showSettings = false;
+            this.renderNow();
+          },
         }),
       );
     }

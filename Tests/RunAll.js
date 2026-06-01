@@ -32,6 +32,7 @@ import "./Svg.Test.js";
 import "./FormatHelpers.Test.js";
 import "./Selectors.Test.js";
 import "./IconMap.Test.js";
+import "./Prefs.Test.js";
 
 // Optional substring filter: `node Tests/RunAll.js Clock` runs only suites whose label contains "Clock".
 run(process.argv[2]);
