@@ -1,5 +1,5 @@
 import { h } from "./Render/Dom.js";
-import { fmtNum, fmtCost, affordClass } from "./Format/Format.js";
+import { fmtNum, fmtCost } from "./Format/Format.js";
 import { icon } from "./Icons.js";
 import { RESOURCES } from "../Engine/Content/Resources.js";
 import { HEROES } from "../Engine/Content/Heroes.js";
@@ -23,9 +23,10 @@ export function HeroPanel(snap, dispatch) {
       const equipped = hero.equipped[slot]; // {itemId,tier} | null
       const tierOpts = tiersFor(snap, itemId).map((tier) =>
         h(
-          "option",
-          { value: String(tier), selected: equipped && equipped.tier === tier },
-          [icon(itemId), ` ${res.display} T${tier}`],
+          "wa-option",
+          { value: String(tier) },
+          icon(itemId),
+          ` ${res.display} T${tier}`,
         ),
       );
       return h(
@@ -33,9 +34,13 @@ export function HeroPanel(snap, dispatch) {
         { class: "hp-slot" },
         h("div", { class: "hp-slot-label" }, slot),
         h(
-          "select",
+          "wa-select",
           {
+            key: "equip-" + hero.id + "-" + slot,
             class: "hp-equip",
+            label: slot,
+            appearance: "filled",
+            "prop:value": equipped ? String(equipped.tier) : "",
             onchange: (e) => {
               const val = e.target.value;
               if (val === "") return; // "— none —" is a no-op (no unequip intent in MVP)
@@ -48,33 +53,40 @@ export function HeroPanel(snap, dispatch) {
               });
             },
           },
-          h("option", { value: "", selected: !equipped }, "— none —"),
+          h("wa-option", { value: "" }, "— none —"),
           ...tierOpts,
         ),
       );
     });
 
+    const levelUpButton = h(
+      "wa-button",
+      {
+        class: "hp-levelup " + (hero.canLevel ? "affordable" : "locked"),
+        variant: "brand",
+        appearance: "accent",
+        disabled: !hero.canLevel,
+        onclick: () => dispatch({ type: INTENT.LevelUpHero, heroId: hero.id }),
+      },
+      icon("levelup"),
+      " Level Up → ",
+      icon("renown"),
+      " " + fmtCost(hero.levelCost),
+    );
+
     return h(
-      "div",
-      { class: "hero-card" },
-      h("div", { class: "hp-name" }, hero.name),
+      "wa-card",
+      { key: "hero-" + hero.id, class: "hero-card", "with-header": true },
+      h("div", { class: "hp-name", slot: "header" }, hero.name),
       h(
         "div",
         { class: "hp-power" },
-        `Power ${fmtNum(hero.power)} (gear ${fmtNum(hero.powerBreakdown.gear)} + level ${fmtNum(hero.powerBreakdown.level)})`,
+        icon("renown"),
+        ` Power ${fmtNum(hero.power)} (gear ${fmtNum(hero.powerBreakdown.gear)} + level ${fmtNum(hero.powerBreakdown.level)})`,
       ),
-      h("div", { class: "hp-level" }, `Level ${hero.level}`),
+      h("wa-tag", { class: "hp-level", size: "small" }, `Level ${hero.level}`),
       ...slots,
-      h(
-        "button",
-        {
-          class: "hp-levelup " + affordClass(hero.canLevel),
-          disabled: !hero.canLevel,
-          onclick: () =>
-            dispatch({ type: INTENT.LevelUpHero, heroId: hero.id }),
-        },
-        [icon("renown"), ` Level Up → ${fmtCost(hero.levelCost)}`],
-      ),
+      levelUpButton,
     );
   });
 
@@ -86,25 +98,29 @@ export function HeroPanel(snap, dispatch) {
       const r = (snap.recruitable || []).find(
         (x) => x.templateId === tpl.id,
       ) || { canRecruit: false };
+      const recruitButton = h(
+        "wa-button",
+        {
+          class: "hp-recruit " + (r.canRecruit ? "affordable" : "locked"),
+          appearance: "accent",
+          disabled: !r.canRecruit,
+          onclick: () =>
+            dispatch({ type: INTENT.RecruitHero, templateId: tpl.id }),
+        },
+        icon("recruit"),
+        " Recruit → ",
+        icon("renown"),
+        " " + fmtCost(tpl.unlockRenownCost),
+      );
       return h(
-        "div",
-        { class: "recruit-card" },
-        h("div", { class: "hp-name" }, tpl.name),
-        h(
-          "button",
-          {
-            class: "hp-recruit " + affordClass(r.canRecruit),
-            disabled: !r.canRecruit,
-            onclick: () =>
-              dispatch({ type: INTENT.RecruitHero, templateId: tpl.id }),
-          },
-          [
-            icon("recruit"),
-            " Recruit → ",
-            icon("renown"),
-            " " + fmtCost(tpl.unlockRenownCost),
-          ],
-        ),
+        "wa-card",
+        {
+          key: "recruit-" + tpl.id,
+          class: "recruit-card",
+          "with-header": true,
+        },
+        h("div", { class: "hp-name", slot: "header" }, tpl.name),
+        recruitButton,
       );
     });
 
