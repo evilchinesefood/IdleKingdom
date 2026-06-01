@@ -52,6 +52,16 @@
   background: var(--gold);
   color: var(--ink);
 }
+.hud i {
+  --fa-primary-color: var(--parchment);
+  --fa-secondary-color: var(--gold-lt);
+  --fa-secondary-opacity: 0.7;
+}
+.hud-tabs a.active i {
+  --fa-primary-color: var(--ink);
+  --fa-secondary-color: var(--gold);
+  --fa-secondary-opacity: 0.55;
+}
 .hud-save {
   font-size: 0.75rem;
 }

@@ -50,4 +50,18 @@ describe("Icons.icon()", () => {
   it("iconName returns the raw FA name", () => {
     expect(iconName("market")).toBe(ICONS.market.name);
   });
+  it("noTone omits the inline tone style (CSS controls tones)", () => {
+    const v = icon("gold", { noTone: true });
+    expect(v.props.style === undefined).toBe(true);
+    expect(v.props.class.includes("fa-coins")).toBe(true);
+  });
+  it("primary/secondary overrides win over the registry tone", () => {
+    const v = icon("gold", { primary: "var(--parchment)" });
+    expect(v.props.style.includes("--fa-primary-color:var(--parchment)")).toBe(
+      true,
+    );
+  });
+  it("opts.class appends an extra class", () => {
+    expect(icon("gold", { class: "x" }).props.class.includes(" x")).toBe(true);
+  });
 });

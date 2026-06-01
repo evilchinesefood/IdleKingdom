@@ -75,12 +75,25 @@ function styleFor(i) {
   return p.join(";");
 }
 
-export function icon(concept, extraClass = "") {
+// icon(concept, opts?)
+// opts.noTone      → emit no inline tone style (lets CSS control tones)
+// opts.primary     → override registry primary color
+// opts.secondary   → override registry secondary color
+// opts.secOpacity  → override registry secondary opacity
+// opts.class       → extra class appended to the element
+// Default (single-arg) behavior is unchanged: registry tones applied inline.
+export function icon(concept, opts = {}) {
   const i = ICONS[concept] || { name: "circle-question" };
-  const cls = `fa-duotone fa-solid fa-${i.name}${i.swap ? " fa-swap-opacity" : ""}${extraClass ? " " + extraClass : ""}`;
+  const cls = `fa-duotone fa-solid fa-${i.name}${i.swap ? " fa-swap-opacity" : ""}${opts.class ? " " + opts.class : ""}`;
   const props = { class: cls, "aria-hidden": "true" };
-  const s = styleFor(i);
-  if (s) props.style = s;
+  if (!opts.noTone) {
+    const s = styleFor({
+      primary: opts.primary ?? i.primary,
+      secondary: opts.secondary ?? i.secondary,
+      secOpacity: opts.secOpacity ?? i.secOpacity,
+    });
+    if (s) props.style = s;
+  }
   return h("i", props);
 }
 
