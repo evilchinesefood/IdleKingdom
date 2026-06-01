@@ -92,15 +92,21 @@ export class GraphView {
   // so a tap on the visible curve mid-span hits even on vertically-offset links.
   hitLink(gx, gy) {
     if (!this.snap) return null;
-    const tol = 14 / this.view.scale;
+    const v = this.view;
+    // Sample the curve in SCREEN space so the hit path matches the one _draw
+    // renders. linkBezier's `max(40, …)` clamp is not scale-invariant, so
+    // sampling in graph space would desync from the drawn curve at any zoom != 1.
+    const sx = gx * v.scale + v.tx,
+      sy = gy * v.scale + v.ty;
+    const tol = 14;
     for (const l of this.snap.links) {
       const from = this._nodeAt(l.from),
         to = this._nodeAt(l.to);
       if (!from || !to) continue;
       const fp = this._pos(from),
         tp = this._pos(to);
-      const a = { x: fp.x + NODE_W, y: fp.y + NODE_H / 2 };
-      const b = { x: tp.x, y: tp.y + NODE_H / 2 };
+      const a = graphToScreen(v, fp.x + NODE_W, fp.y + NODE_H / 2);
+      const b = graphToScreen(v, tp.x, tp.y + NODE_H / 2);
       const { c1, c2 } = linkBezier(a, b);
       const steps = 24;
       for (let i = 0; i <= steps; i++) {
@@ -112,7 +118,7 @@ export class GraphView {
           w3 = t * t * t;
         const px = w0 * a.x + w1 * c1.x + w2 * c2.x + w3 * b.x;
         const py = w0 * a.y + w1 * c1.y + w2 * c2.y + w3 * b.y;
-        if (Math.hypot(gx - px, gy - py) <= tol) return l.id;
+        if (Math.hypot(sx - px, sy - py) <= tol) return l.id;
       }
     }
     return null;
@@ -301,7 +307,7 @@ export class GraphView {
               class: "link-delete-hit",
               cx: mid.x,
               cy: mid.y + 12,
-              r: 10,
+              r: 13,
               onclick: () =>
                 this.game.dispatch({ type: INTENT.RemoveLink, linkId: l.id }),
             }),
@@ -346,29 +352,32 @@ export class GraphView {
   _drawNode(n, v) {
     const np = this._pos(n);
     const p = graphToScreen(v, np.x, np.y);
-    const w = NODE_W * v.scale,
-      hgt = NODE_H * v.scale;
+    // Render the whole node in ONE scaled group with children in LOCAL unscaled
+    // coords (0..NODE_W, 0..NODE_H). The transform scales box, text, icon,
+    // cap-bar, badge AND ports uniformly with zoom — at scale 1 this is
+    // pixel-identical to the old per-coordinate math, and at any other zoom the
+    // interior no longer spills/desyncs. Ports also line up with the
+    // graph-space hit-test (which uses the same graph units).
     const g = svg("g", {
       class: n.id === this.selectedId ? "node-card selected" : "node-card",
+      transform: `translate(${p.x} ${p.y}) scale(${v.scale})`,
     });
     g.appendChild(
       svg("rect", {
         class: "node-box",
-        x: p.x,
-        y: p.y,
-        width: w,
-        height: hgt,
+        x: 0,
+        y: 0,
+        width: NODE_W,
+        height: NODE_H,
         rx: 8,
       }),
     );
     g.appendChild(
-      svg("text", { class: "node-label", x: p.x + 30, y: p.y + 20 }, [
-        cap(n.kind),
-      ]),
+      svg("text", { class: "node-label", x: 30, y: 20 }, [cap(n.kind)]),
     );
     const fo = svg("foreignObject", {
-      x: p.x + 5,
-      y: p.y + 4,
+      x: 5,
+      y: 4,
       width: 24,
       height: 24,
       class: "node-ico",
@@ -379,19 +388,19 @@ export class GraphView {
     fo.appendChild(iEl);
     g.appendChild(fo);
     g.appendChild(
-      svg("text", { class: "node-sub", x: p.x + 8, y: p.y + 38 }, [
+      svg("text", { class: "node-sub", x: 8, y: 38 }, [
         `L${n.level} · ${(n.effectiveRate ?? 0).toFixed(2)}/s`,
       ]),
     );
     // capacity bar
     const pct = Math.max(0, Math.min(1, n.capacityPct ?? 0));
-    const barY = p.y + hgt - 8;
+    const barY = NODE_H - 8;
     g.appendChild(
       svg("rect", {
         class: "cap-bg",
-        x: p.x + 8,
+        x: 8,
         y: barY,
-        width: w - 16,
+        width: NODE_W - 16,
         height: 4,
       }),
     );
@@ -401,9 +410,9 @@ export class GraphView {
     g.appendChild(
       svg("rect", {
         class: capCls,
-        x: p.x + 8,
+        x: 8,
         y: barY,
-        width: (w - 16) * pct,
+        width: (NODE_W - 16) * pct,
         height: 4,
       }),
     );
@@ -411,10 +420,10 @@ export class GraphView {
     if (n.atCapacity || n.starved) {
       const label = n.atCapacity ? "MAX" : "LOW";
       const variant = n.atCapacity ? "max" : "starved";
-      const bw = 34 * v.scale,
-        bh = 14 * v.scale;
-      const bx = p.x + w - bw - 4 * v.scale,
-        by = p.y + 4 * v.scale;
+      const bw = 34,
+        bh = 14;
+      const bx = NODE_W - bw - 4,
+        by = 4;
       g.appendChild(
         svg("rect", {
           class: `node-badge-box ${variant}`,
@@ -431,33 +440,36 @@ export class GraphView {
           {
             class: "node-badge-text",
             x: bx + bw / 2,
-            y: by + bh / 2 + 3.5 * v.scale,
+            y: by + bh / 2 + 3.5,
             "text-anchor": "middle",
           },
           [label],
         ),
       );
     }
-    // ports (visible dot + transparent >=44px hit halo)
-    const op = graphToScreen(v, np.x + NODE_W, np.y + NODE_H / 2);
-    const ip = graphToScreen(v, np.x, np.y + NODE_H / 2);
+    // ports (visible dot + transparent >=44px hit halo), local coords
     const armedOut = this.armedPort && this.armedPort.nodeId === n.id;
     g.appendChild(
-      svg("circle", { class: "port-hit", cx: op.x, cy: op.y, r: HIT_R }),
+      svg("circle", {
+        class: "port-hit",
+        cx: NODE_W,
+        cy: NODE_H / 2,
+        r: HIT_R,
+      }),
     );
     g.appendChild(
       svg("circle", {
         class: armedOut ? "port armed" : "port",
-        cx: op.x,
-        cy: op.y,
+        cx: NODE_W,
+        cy: NODE_H / 2,
         r: PORT_R,
       }),
     );
     g.appendChild(
-      svg("circle", { class: "port-hit", cx: ip.x, cy: ip.y, r: HIT_R }),
+      svg("circle", { class: "port-hit", cx: 0, cy: NODE_H / 2, r: HIT_R }),
     );
     g.appendChild(
-      svg("circle", { class: "port", cx: ip.x, cy: ip.y, r: PORT_R }),
+      svg("circle", { class: "port", cx: 0, cy: NODE_H / 2, r: PORT_R }),
     );
     return g;
   }

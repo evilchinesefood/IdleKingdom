@@ -51,6 +51,7 @@ class AppInstance {
     this.overlayEl.className = "overlay-layer";
     this.errorEl = document.createElement("div");
     this.errorEl.className = "hud-error";
+    this.errorEl.setAttribute("role", "alert");
     this.errorEl.style.display = "none";
 
     this.root.innerHTML = "";
@@ -133,7 +134,7 @@ class AppInstance {
           "span",
           { class: "lg-item lg-starved" },
           icon("starved"),
-          " STARVED = needs more input",
+          " LOW = needs more input",
         ),
       ]);
       this.screenEl.appendChild(legend);

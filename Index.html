@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
     <meta name="theme-color" content="#3a3f44" />
     <title>IdleKingdom</title>
@@ -27,10 +27,11 @@
     <link rel="stylesheet" href="./Source/Vendor/FontAwesome/css/duotone.css" />
     <!-- Vendored OFL fonts (must precede app styles) -->
     <link rel="stylesheet" href="./Source/Styles/Fonts.css" />
-    <!-- App theme: overrides Web Awesome tokens (loads after webawesome.css) -->
-    <link rel="stylesheet" href="./Source/Styles/WaTheme.css" />
-    <link rel="stylesheet" href="./Source/Styles/Reset.css" />
+    <!-- Palette vars first, then WaTheme consumes them to override WA tokens
+         (WaTheme still loads after webawesome.css in <head>, so it wins). -->
     <link rel="stylesheet" href="./Source/Styles/Theme.css" />
+    <link rel="stylesheet" href="./Source/Styles/Reset.css" />
+    <link rel="stylesheet" href="./Source/Styles/WaTheme.css" />
     <link rel="stylesheet" href="./Source/Styles/Layout.css" />
     <link rel="stylesheet" href="./Source/Styles/Graph.css" />
   </head>

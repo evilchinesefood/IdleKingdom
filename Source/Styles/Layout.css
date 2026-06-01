@@ -4,6 +4,13 @@
   height: 100%;
 }
 
+/* Every Web Awesome button gets a >=44px touch target on ALL breakpoints
+   (the migration to wa-button dropped the old min-height; WA defaults are
+   ~38-43px). Targets the inner ::part(base), not the inline-block host. */
+wa-button::part(base) {
+  min-height: var(--tap);
+}
+
 /* HUD */
 .hud {
   display: flex;
@@ -32,6 +39,16 @@
 .hud-cur .rate {
   font-size: 0.7rem;
   opacity: 0.8;
+}
+/* Per-currency rate: shown when the "Always show rates" pref adds .show-rates,
+   otherwise revealed on hover (pointer devices only). */
+.hud:not(.show-rates) .hud-cur .rate {
+  display: none;
+}
+@media (hover: hover) {
+  .hud:not(.show-rates) .hud-cur:hover .rate {
+    display: inline;
+  }
 }
 .hud-cur i[slot="start"],
 .hud-save i[slot="start"] {
@@ -276,6 +293,7 @@ wa-button.hp-recruit {
 }
 .exp-progress {
   margin-top: 0.3rem;
+  --track-height: 6px;
 }
 .exp-name {
   font-weight: 700;
@@ -441,13 +459,19 @@ wa-button.hp-recruit {
     width: auto;
     pointer-events: auto;
   }
+  /* The MAX/STARVED legend is pinned bottom-left and would sit under the
+     bottom-sheet panels on narrow screens — hide it (badges + inspector still
+     convey the state). */
+  .factory-legend {
+    display: none;
+  }
   .build-menu,
   .node-inspector {
     position: fixed;
     left: 0;
     right: 0;
     bottom: 0;
-    max-height: 45vh;
+    max-height: 45dvh;
     overflow-y: auto;
     border-top: 2px solid var(--iron);
     background: var(--parchment);
@@ -457,9 +481,10 @@ wa-button.hp-recruit {
   }
   .node-inspector {
     bottom: 0;
+    padding-bottom: calc(0.6rem + env(safe-area-inset-bottom));
   }
   .build-menu {
-    bottom: 45vh;
+    bottom: 45dvh;
   }
   .hero-panel {
     padding-bottom: 56px;

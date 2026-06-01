@@ -1,10 +1,29 @@
 /* Kingdom theme — overrides Web Awesome design tokens with the flat-fantasy palette.
    Loads AFTER webawesome.css so these win. Scoped to html.kingdom-theme. */
 .kingdom-theme {
-  /* Map onto Web Awesome brand/surface tokens using Theme.css palette */
+  /* Gold brand ramp — replaces Web Awesome's default BLUE ramp so EVERY
+     variant="brand" fill, border, outline, hover/active, and outlined-text
+     token is gold. WA derives the semantic brand tokens (fill/border/on at
+     loud/normal/quiet) from these steps (see WebAwesome themes/default.css):
+       fill-loud<-50  border-loud<-60  on-quiet<-40  fill-quiet<-95 ... */
+  --wa-color-brand-95: #f6eed6;
+  --wa-color-brand-90: #ecdcab;
+  --wa-color-brand-80: #ddc578;
+  --wa-color-brand-70: #d0b34e;
+  --wa-color-brand-60: #b8911f;
+  --wa-color-brand-50: var(--gold);
+  --wa-color-brand-40: #7a5f12;
+  --wa-color-brand-30: #5c4810;
+  --wa-color-brand-20: #443509;
+  --wa-color-brand-10: #2c2206;
+  --wa-color-brand-05: #1c1604;
+  --wa-color-brand: var(--gold);
+  --wa-color-brand-on: var(--ink);
+  /* WA hardcodes --wa-color-brand-on-loud:white → unreadable on gold (2.4:1).
+     Force ink (ink on gold = 6.5:1). */
+  --wa-color-brand-on-loud: var(--ink);
   --wa-color-brand-fill-loud: var(--gold);
   --wa-color-brand-fill-quiet: var(--parchment-dk);
-  --wa-color-brand-on-loud: var(--parchment);
   --wa-color-surface-default: var(--parchment);
   --wa-color-surface-raised: var(--panel);
   --wa-color-text-normal: var(--ink);

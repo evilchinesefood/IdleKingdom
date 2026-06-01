@@ -1,6 +1,6 @@
 // UI preferences (NOT engine state) — persisted in localStorage under a separate key.
 const KEY = "idlekingdom-prefs";
-export const DEFAULT_PREFS = { snapToGrid: true, alwaysShowRates: false };
+export const DEFAULT_PREFS = { snapToGrid: true, alwaysShowRates: true };
 
 function store(s) {
   if (s) return s;

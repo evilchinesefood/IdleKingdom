@@ -125,3 +125,15 @@
   stroke-width: 3;
   stroke-dasharray: 5 4;
 }
+.link-delete-hit {
+  fill: var(--panel);
+  stroke: var(--line);
+  stroke-width: 1;
+  cursor: pointer;
+}
+.link-delete {
+  fill: var(--bad);
+  font-size: 14px;
+  font-weight: 700;
+  pointer-events: none;
+}
