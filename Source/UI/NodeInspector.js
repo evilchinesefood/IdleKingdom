@@ -38,7 +38,7 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
         "wa-badge",
         { key: "ni-badge", class: "ni-badge starved", variant: "warning" },
         h("span", { slot: "start" }, icon("starved")),
-        "STARVED",
+        "LOW",
       ),
     );
   }

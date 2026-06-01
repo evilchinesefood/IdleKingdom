@@ -1,4 +1,4 @@
-const CACHE = "idlekingdom-v11";
+const CACHE = "idlekingdom-v12";
 const SHELL = [
   "./",
   "./Index.html",
@@ -44,12 +44,29 @@ self.addEventListener("activate", (e) => {
 
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
+  const url = new URL(e.request.url);
+  if (url.origin !== location.origin) return; // leave cross-origin alone
+
   e.respondWith(
-    caches
-      .match(e.request)
-      .then(
-        (hit) =>
-          hit || fetch(e.request).catch(() => caches.match("./Index.html")),
-      ),
+    caches.match(e.request).then((hit) => {
+      if (hit) return hit;
+      return fetch(e.request)
+        .then((res) => {
+          // Runtime-cache successful same-origin GETs so the lazily-imported
+          // Web Awesome component/chunk files (not in SHELL) survive offline.
+          if (res && res.ok && res.type === "basic") {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(e.request, copy));
+          }
+          return res;
+        })
+        .catch(() => {
+          // Only fall back to the app shell for NAVIGATIONS — never return HTML
+          // for a failed script/style/font request (that breaks module/MIME).
+          if (e.request.mode === "navigate")
+            return caches.match("./Index.html");
+          return Response.error();
+        });
+    }),
   );
 });

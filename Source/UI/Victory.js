@@ -7,9 +7,18 @@ const EPILOGUE =
   "the throne avenged. The forges do not cool — they never will again.";
 
 export function Victory(onClose) {
+  // Acknowledged-only: WA's wa-hide (Escape / header ×) is cancelable — block it
+  // so the victory epilogue can't be dismissed by accident and lost forever.
+  // The only way out is the explicit "Continue the Reign" button below.
+  const blockDismiss = (e) => e && e.preventDefault && e.preventDefault();
   return h(
     "wa-dialog",
-    { id: "Victory", key: "victory", "prop:open": true, onWaHide: onClose },
+    {
+      id: "Victory",
+      key: "victory",
+      "prop:open": true,
+      onWaHide: blockDismiss,
+    },
     h(
       "div",
       { slot: "label", class: "victory-title" },

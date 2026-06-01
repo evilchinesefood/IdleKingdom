@@ -48,7 +48,6 @@ select {
 .research-tree,
 .expedition-board,
 .tooltip,
-.modal,
 wa-button,
 wa-tab,
 wa-tab-group,
@@ -64,4 +63,23 @@ wa-select,
 .modal-text,
 .victory-text {
   user-select: text;
+}
+
+/* Hide Web Awesome custom elements until they're upgraded (defined) so they
+   don't flash as unstyled inline content on cold load. Dialogs stay fully
+   hidden; everything else just reserves nothing visible until ready. */
+wa-button:not(:defined),
+wa-tag:not(:defined),
+wa-tab-group:not(:defined),
+wa-tab:not(:defined),
+wa-card:not(:defined),
+wa-callout:not(:defined),
+wa-select:not(:defined),
+wa-option:not(:defined),
+wa-badge:not(:defined),
+wa-progress-bar:not(:defined) {
+  visibility: hidden;
+}
+wa-dialog:not(:defined) {
+  display: none;
 }

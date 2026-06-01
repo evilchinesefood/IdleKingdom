@@ -15,7 +15,7 @@ function startIcon(concept) {
   return v;
 }
 
-function currencyTag(key, concept, value, rate) {
+function currencyTag(key, concept, name, value, rate) {
   return h(
     "wa-tag",
     {
@@ -25,6 +25,9 @@ function currencyTag(key, concept, value, rate) {
       appearance: "filled",
       size: "l",
       pill: true,
+      // The three currencies differ only by a small icon — give each an
+      // accessible name so screen readers don't announce a bare number.
+      "aria-label": `${name}: ${value}`,
     },
     [
       startIcon(concept),
@@ -59,9 +62,9 @@ export class Hud {
 
     patch(this.el, [
       h("div", { class: "hud-currencies", key: "cur" }, [
-        currencyTag("gold", "gold", goldV, goldR),
-        currencyTag("research", "research", resV, resR),
-        currencyTag("renown", "renown", renV, null),
+        currencyTag("gold", "gold", "Gold", goldV, goldR),
+        currencyTag("research", "research", "Research", resV, resR),
+        currencyTag("renown", "renown", "Renown", renV, null),
       ]),
       h(
         "wa-tag",
