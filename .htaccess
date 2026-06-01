@@ -12,6 +12,7 @@
   AddType text/javascript .mjs
   AddType application/manifest+json .webmanifest
   AddType image/svg+xml .svg
+  AddType font/woff2 .woff2
 </IfModule>
 
 # Always revalidate the service worker so updates ship promptly.
