@@ -51,11 +51,12 @@ describe("Format.fmtCountdown", () => {
   });
 });
 
-describe("Format.fmtCost", () => {
-  it("renders a cost with a currency glyph", () => {
-    expect(fmtCost(9, "research")).toBe("9 📜");
-    expect(fmtCost(30, "renown")).toBe("30 🛡️");
-    expect(fmtCost(15.0, "gold")).toBe("15 🪙");
+describe("Format.fmtCost — no embedded emoji (B2)", () => {
+  const EMOJI = /\p{Extended_Pictographic}/u;
+  it("returns a text-only cost with no currency emoji glyph", () => {
+    expect(EMOJI.test(fmtCost(9, "research"))).toBe(false);
+    expect(EMOJI.test(fmtCost(30, "renown"))).toBe(false);
+    expect(fmtCost(15, "gold")).toBe("15");
   });
 });
 
