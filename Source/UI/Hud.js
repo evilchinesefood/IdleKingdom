@@ -23,9 +23,10 @@ function currencyCell(key, curIcon, value, rate) {
 }
 
 export class Hud {
-  constructor(el, router) {
+  constructor(el, router, onOpenSettings) {
     this.el = el;
     this.router = router;
+    this.onOpenSettings = onOpenSettings;
   }
 
   render(snap) {
@@ -73,6 +74,16 @@ export class Hud {
         ],
       ),
       tabs,
+      h(
+        "button",
+        {
+          class: "hud-settings",
+          key: "settings-btn",
+          "aria-label": "Settings",
+          onclick: () => this.onOpenSettings && this.onOpenSettings(),
+        },
+        [icon("settings", { noTone: true })],
+      ),
     ]);
   }
 }

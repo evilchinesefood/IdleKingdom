@@ -32,6 +32,13 @@
 .hud-cur .rate {
   font-size: 0.75rem;
   color: var(--gold-lt);
+  visibility: hidden;
+}
+.hud-cur:hover .rate {
+  visibility: visible;
+}
+.hud.show-rates .hud-cur .rate {
+  visibility: visible;
 }
 .hud-tabs {
   display: flex;
@@ -379,6 +386,49 @@
 .victory-sub {
   font-size: 0.85rem;
   color: var(--ink-soft);
+}
+
+.hud-settings {
+  min-height: var(--tap);
+  min-width: var(--tap);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--parchment-dk);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.settings-modal {
+  gap: 0.75rem;
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+.settings-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.settings-reset,
+.settings-close {
+  min-height: var(--tap);
+  padding: 0 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.settings-reset {
+  background: var(--bad);
+  color: #fff;
+}
+.settings-close {
+  background: var(--gold);
+  color: var(--ink);
 }
 
 /* Narrow (mobile): panels become bottom-sheets */
