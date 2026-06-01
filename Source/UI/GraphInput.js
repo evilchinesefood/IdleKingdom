@@ -16,6 +16,7 @@ export class GraphInput {
     this.mode = null; // 'pan' | 'dragNode' | 'connect' | 'pinch'
     this.dragNodeId = null;
     this.connectFrom = null; // {nodeId, dir, gx, gy} during a mouse drag-connect
+    this.downLink = null; // link under the pointer at _down (reveal toggles on a tap in _up)
     this.startScreen = null;
     this.pinchDist = 0;
     this._bind();
@@ -81,8 +82,12 @@ export class GraphInput {
       return;
     }
 
+    // Empty space or a link: start a pan, but remember any link under the pointer.
+    // Don't toggle here — a pan-drag that starts on a link must not reveal it; the
+    // reveal toggles in _up only if the gesture was a tap (moved <= TAP_MOVE_PX).
+    this.downLink = this.cb.hitLink ? this.cb.hitLink(g.x, g.y) : null;
     this.mode = "pan";
-    this.cb.onSelect(null);
+    if (!this.downLink) this.cb.onSelect(null);
     this.el.classList.add("panning");
   }
 
@@ -137,6 +142,17 @@ export class GraphInput {
       if (this.cb.onNodeDrop) this.cb.onNodeDrop(this.dragNodeId, g.x, g.y);
     }
 
+    if (wasMode === "pan" && this.downLink && moved <= TAP_MOVE_PX) {
+      if (this.cb.onSelectLink) this.cb.onSelectLink(this.downLink);
+    } else if (
+      wasMode === "pan" &&
+      this.downLink &&
+      moved > TAP_MOVE_PX &&
+      this.cb.onSelect
+    ) {
+      this.cb.onSelect(null);
+    }
+
     if (wasMode === "connect" && this.connectFrom) {
       const g = this._toGraph(e);
       const target = this.cb.hitPort(g.x, g.y);
@@ -161,6 +177,7 @@ export class GraphInput {
       this.mode = null;
       this.dragNodeId = null;
       this.connectFrom = null;
+      this.downLink = null;
       this.el.classList.remove("panning");
     }
   }

@@ -66,6 +66,25 @@
 .cap-fill {
   fill: var(--good);
 }
+.cap-fill.at-capacity {
+  fill: var(--good);
+}
+.cap-fill.starved {
+  fill: var(--bad);
+}
+
+/* MAX/starved node badge */
+.node-badge-box.max {
+  fill: var(--good);
+}
+.node-badge-box.starved {
+  fill: var(--bad);
+}
+.node-badge-text {
+  fill: var(--parchment);
+  font-size: 9px;
+  font-weight: 700;
+}
 
 /* ports — >=44px hit area via transparent halo */
 .port {
@@ -92,10 +111,6 @@
 .link-label {
   fill: var(--ink-soft);
   font-size: 10px;
-  visibility: hidden;
-}
-.link-g:hover .link-label {
-  visibility: visible;
 }
 .link-label.show {
   visibility: visible;
@@ -104,6 +119,7 @@
   fill: none;
   stroke: transparent;
   stroke-width: 18;
+  pointer-events: stroke;
   cursor: pointer;
 }
 .link-pending {
