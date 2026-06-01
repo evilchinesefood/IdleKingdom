@@ -14,34 +14,49 @@ export function Settings(prefs, handlers) {
       " " + label,
     ]);
   return h(
-    "div",
-    { class: "modal-backdrop", key: "settings", onclick: () => onClose() },
-    [
-      h(
-        "div",
-        {
-          class: "modal settings-modal",
-          key: "m",
-          onclick: (e) => e.stopPropagation(),
-        },
-        [
-          h("div", { class: "os-title" }, [icon("settings"), " Settings"]),
-          toggleRow("snapToGrid", "Snap nodes to grid"),
-          toggleRow("alwaysShowRates", "Always show rates"),
-          h("div", { class: "settings-actions" }, [
-            h(
-              "button",
-              { class: "settings-reset", key: "r", onclick: () => onReset() },
-              ["Reset game"],
-            ),
-            h(
-              "button",
-              { class: "settings-close", key: "c", onclick: () => onClose() },
-              ["Close"],
-            ),
-          ]),
-        ],
-      ),
-    ],
+    "wa-dialog",
+    {
+      id: "Settings",
+      key: "settings",
+      "prop:open": true,
+      onWaHide: onClose,
+    },
+    h("div", { slot: "label", class: "os-title" }, [
+      icon("settings"),
+      " Settings",
+    ]),
+    h("div", { class: "settings-modal" }, [
+      toggleRow("snapToGrid", "Snap nodes to grid"),
+      toggleRow("alwaysShowRates", "Always show rates"),
+    ]),
+    h(
+      "div",
+      {
+        slot: "footer",
+        style: "display: flex; gap: 0.5rem; justify-content: flex-end;",
+      },
+      [
+        h(
+          "wa-button",
+          {
+            key: "r",
+            variant: "danger",
+            appearance: "outlined",
+            onclick: () => onReset(),
+          },
+          "Reset game",
+        ),
+        h(
+          "wa-button",
+          {
+            key: "c",
+            variant: "brand",
+            appearance: "accent",
+            onclick: () => onClose(),
+          },
+          "Close",
+        ),
+      ],
+    ),
   );
 }

@@ -114,6 +114,7 @@
 .factory-panels {
   position: absolute;
   top: 0.5rem;
+  bottom: 0.5rem;
   right: 0.5rem;
   width: 260px;
   display: flex;
@@ -124,6 +125,8 @@
 }
 .factory-panels > * {
   pointer-events: auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .build-menu,
@@ -155,16 +158,8 @@
 .bm-place,
 .ni-upgrade,
 .ni-sell {
-  min-height: var(--tap);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--parchment-dk);
-  color: var(--ink);
-  padding: 0 0.6rem;
   cursor: pointer;
 }
-/* P4 WA action buttons get their look from variant/appearance + WaTheme tokens.
-   The legacy .affordable/.locked background+opacity must not repaint them. */
 wa-button.res-buy,
 wa-button.exp-launch,
 wa-button.hp-levelup,
@@ -172,12 +167,8 @@ wa-button.hp-recruit {
   width: 100%;
   margin-top: 0.4rem;
 }
-wa-button.affordable,
-wa-button.locked {
-  background: none;
-  opacity: 1;
-}
-.bm-machine.selected {
+.bm-machine.selected::part(base) {
+  border-color: var(--gold);
   background: var(--gold);
 }
 .bm-detail {
@@ -198,20 +189,11 @@ wa-button.locked {
 }
 .ni-sell {
   margin-left: 0.4rem;
-  min-height: 32px;
 }
 .ni-recipe,
 .hp-equip {
-  min-height: var(--tap);
   margin: 0.25rem 0;
   width: 100%;
-}
-.affordable {
-  background: var(--gold);
-}
-.locked {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 
 /* Route host for research / expeditions / heroes */
@@ -441,6 +423,8 @@ wa-button.locked {
   cursor: pointer;
 }
 .settings-modal {
+  display: flex;
+  flex-direction: column;
   gap: 0.75rem;
 }
 .settings-row {
@@ -448,27 +432,6 @@ wa-button.locked {
   align-items: center;
   gap: 0.5rem;
   cursor: pointer;
-}
-.settings-actions {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-.settings-reset,
-.settings-close {
-  min-height: var(--tap);
-  padding: 0 0.9rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  cursor: pointer;
-}
-.settings-reset {
-  background: var(--bad);
-  color: #fff;
-}
-.settings-close {
-  background: var(--gold);
-  color: var(--ink);
 }
 
 /* Narrow (mobile): panels become bottom-sheets */
@@ -550,13 +513,10 @@ wa-button.locked {
   align-items: center;
   gap: 4px;
 }
-.node-inspector wa-button,
-.build-menu wa-button {
+.ni-upgrade,
+.ni-remove,
+.bm-place {
   display: block;
   width: 100%;
   margin: 4px 0;
-}
-.build-menu .bm-machines wa-button {
-  display: inline-flex;
-  width: auto;
 }

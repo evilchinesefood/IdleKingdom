@@ -1,31 +1,22 @@
 /* Kingdom theme — overrides Web Awesome design tokens with the flat-fantasy palette.
    Loads AFTER webawesome.css so these win. Scoped to html.kingdom-theme. */
 .kingdom-theme {
-  /* App palette (also consumed by hand-rolled CSS + FA icon tones) */
-  --parchment: #f4e8cf;
-  --parchment-dk: #e8dcc0;
-  --ink: #3a3f44;
-  --iron: #6b7178;
-  --gold: #caa24a;
-  --good: #4f8a4f;
-  --bad: #b4543a;
-
-  /* Map onto Web Awesome brand/surface tokens (confirmed against WA 3.7 themes/default.css) */
+  /* Map onto Web Awesome brand/surface tokens using Theme.css palette */
   --wa-color-brand-fill-loud: var(--gold);
   --wa-color-brand-fill-quiet: var(--parchment-dk);
-  --wa-color-brand-on-loud: var(--ink);
+  --wa-color-brand-on-loud: var(--parchment);
   --wa-color-surface-default: var(--parchment);
-  --wa-color-surface-raised: #fbf3df;
+  --wa-color-surface-raised: var(--panel);
   --wa-color-text-normal: var(--ink);
-  --wa-color-text-quiet: var(--iron);
+  --wa-color-text-quiet: var(--ink-soft);
   --wa-color-success-fill-loud: var(--good);
   --wa-color-warning-fill-loud: var(--gold);
   --wa-color-danger-fill-loud: var(--bad);
-  --wa-font-family-body: "EB Garamond", "Iowan Old Style", Georgia, serif;
-  --wa-font-family-heading: "Cinzel", "Iowan Old Style", Georgia, serif;
-  --wa-border-radius-m: 6px;
+  --wa-font-family-body: var(--font);
+  --wa-font-family-heading: var(--font-display);
+  --wa-border-radius-m: var(--radius);
 
-  /* FA duotone two-tone defaults (overridable per icon) */
+  /* FA duotone two-tone defaults */
   --fa-primary-color: var(--ink);
   --fa-secondary-color: var(--gold);
   --fa-secondary-opacity: 0.45;
