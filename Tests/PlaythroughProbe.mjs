@@ -1506,11 +1506,18 @@ step(
       "    [wired] GraphView drag -> SetNodePos persists; _dragPos cleared; _solved kept",
     );
 
-    // --- RemoveLink via the ✕ midpoint control in GraphView ---
+    // --- RemoveLink via the ✕ midpoint control in GraphView (now click-to-reveal, P3) ---
     gv.render(snap(mg));
     const beforeLinks = mg.getState().graph.links.length;
+    // pre-reveal: with selectedLinkId null, the ✕ must NOT be present (default-hidden)
+    assert(
+      gvHost.querySelector(".link-delete") == null,
+      "link ✕ should be hidden until the link is revealed (P3 click-to-reveal)",
+    );
+    const someLinkId = mg.getState().graph.links[0].id;
+    gv._selectLink(someLinkId); // [click] tap-to-reveal a link
     const delX = gvHost.querySelector(".link-delete");
-    assert(delX, "GraphView rendered no link-delete ✕ control");
+    assert(delX, "GraphView rendered no link-delete ✕ control after reveal");
     assert(
       typeof delX.onclick === "function",
       "link-delete control has no onclick",
@@ -1520,7 +1527,38 @@ step(
       mg.getState().graph.links.length === beforeLinks - 1,
       `RemoveLink via ✕ did not drop a link (${beforeLinks} -> ${mg.getState().graph.links.length})`,
     );
-    console.log("    [click] GraphView link ✕ -> RemoveLink");
+    console.log("    [click] GraphView link reveal + ✕ -> RemoveLink");
+
+    // --- B1: a pan-drag that STARTS on a link must NOT toggle its reveal; a tap DOES ---
+    const gv2Host = new FakeEl("div");
+    const gv2 = new GraphView(gv2Host, mg, {});
+    gv2.render(snap(mg));
+    const linkB = mg.getState().graph.links[0];
+    const fromN = mg.getState().graph.nodes.find((n) => n.id === linkB.from);
+    const toN = mg.getState().graph.nodes.find((n) => n.id === linkB.to);
+    const mgx = (fromN.pos.x + 120 + toN.pos.x) / 2;
+    const mgy = (fromN.pos.y + 32 + toN.pos.y + 32) / 2;
+    assert(
+      gv2.hitLink(mgx, mgy) === linkB.id,
+      `hitLink should find ${linkB.id} at link midpoint, got ${gv2.hitLink(mgx, mgy)}`,
+    );
+    const pdn = (id, x, y) => ({ pointerId: id, clientX: x, clientY: y });
+    gv2.input._down(pdn(2, mgx, mgy));
+    gv2.input._move(pdn(2, mgx + 80, mgy + 60));
+    gv2.input._up(pdn(2, mgx + 80, mgy + 60));
+    assert(
+      gv2.selectedLinkId == null,
+      "a pan-drag starting on a link wrongly revealed it (B1 violation)",
+    );
+    // the pan-drag above moved the view; reset to identity so the tap's screen
+    // coords map back to the same graph coords (screen == graph at scale 1, tx/ty 0)
+    gv2.view = { scale: 1, tx: 0, ty: 0 };
+    gv2.input._down(pdn(3, mgx, mgy));
+    gv2.input._up(pdn(3, mgx, mgy));
+    assert(gv2.selectedLinkId === linkB.id, "a tap on a link should reveal it");
+    console.log(
+      "    [wired] GraphInput link tap reveals; pan-drag on link does not (B1)",
+    );
 
     // --- RemoveNode via the NodeInspector Remove button ---
     const d2 = recordingDispatch(mg);
