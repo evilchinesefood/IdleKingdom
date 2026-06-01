@@ -14,7 +14,19 @@
   --shadow: 0 2px 6px rgba(43, 33, 26, 0.25);
   --radius: 8px;
   --tap: 44px;
-  --font: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --font: "EB Garamond", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-display: "Cinzel", "Iowan Old Style", Georgia, serif;
+}
+.hud,
+.bm-title,
+.ni-title,
+.res-name,
+.exp-name,
+.hp-name,
+.os-title,
+.victory-title {
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
 }
 body {
   background: var(--parchment);

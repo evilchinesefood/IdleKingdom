@@ -1,14 +1,18 @@
-const CACHE = "idlekingdom-v4";
+const CACHE = "idlekingdom-v5";
 const SHELL = [
   "./",
   "./Index.html",
   "./Manifest.webmanifest",
   "./Source/Main.js",
+  "./Source/Styles/Fonts.css",
   "./Source/Styles/Reset.css",
   "./Source/Styles/Theme.css",
   "./Source/Styles/WaTheme.css",
   "./Source/Styles/Layout.css",
   "./Source/Styles/Graph.css",
+  "./Source/Vendor/Fonts/cinzel-latin-700-normal.woff2",
+  "./Source/Vendor/Fonts/eb-garamond-latin-400-normal.woff2",
+  "./Source/Vendor/Fonts/eb-garamond-latin-700-normal.woff2",
   "./Source/Vendor/WebAwesome/webawesome.loader.js",
   "./Source/Vendor/WebAwesome/styles/webawesome.css",
   "./Source/Vendor/FontAwesome/css/fontawesome.css",

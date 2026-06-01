@@ -1,0 +1,22 @@
+/* Vendored OFL display + body fonts (buildless, self-hosted). Relative paths = subpath-safe. */
+@font-face {
+  font-family: "Cinzel";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../Vendor/Fonts/cinzel-latin-700-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "EB Garamond";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../Vendor/Fonts/eb-garamond-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "EB Garamond";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../Vendor/Fonts/eb-garamond-latin-700-normal.woff2") format("woff2");
+}
