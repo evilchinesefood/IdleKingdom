@@ -10,6 +10,7 @@ import { seededState } from "./Fixtures/Seeded.js";
 import { FakeClock } from "../Source/Engine/Clock.js";
 import { solve } from "../Source/Engine/Simulation/RateSolver.js";
 import { build } from "../Source/Engine/Snapshot.js";
+import { NewGame } from "../Source/Engine/GameState.js";
 
 const content = {
   resources: RESOURCES,
@@ -110,5 +111,136 @@ describe("Snapshot", () => {
     expect(Object.isFrozen(snap.currencies)).toBe(true);
     expect(Object.isFrozen(snap.nodes)).toBe(true);
     expect(Object.isFrozen(snap.nodes[0])).toBe(true);
+  });
+});
+
+// P3: derived throughput / atCapacity / starved read-model fields (spec §8).
+function graphState(clock, nodes, links = []) {
+  const s = NewGame(clock);
+  s.graph = {
+    nodes,
+    links,
+    nextNodeSeq: nodes.length,
+    nextLinkSeq: links.length,
+  };
+  delete s._solved;
+  return s;
+}
+
+describe("Snapshot.throughput/atCapacity/starved (§8)", () => {
+  it("full-fed gatherer -> atCapacity true, starved false (gatherers take no input)", () => {
+    const s = seededState(new FakeClock(0));
+    const snap = build(s, solve(s, content), content);
+    const miner = snap.nodes.find((n) => n.id === "n_miner_0");
+    expect(miner.throughput).toBeCloseTo(1.0, 1e-9);
+    expect(miner.capacity).toBeCloseTo(1.0, 1e-9);
+    expect(miner.atCapacity).toBe(true);
+    expect(miner.starved).toBe(false);
+  });
+
+  it("under-fed (disconnected) smelter -> starved true, atCapacity false", () => {
+    const s = graphState(new FakeClock(0), [
+      {
+        id: "sm",
+        kind: "smelter",
+        level: 1,
+        resourceId: null,
+        recipeId: "r_iron_bar",
+        stockpile: {},
+        pos: { x: 0, y: 0 },
+      },
+    ]);
+    const snap = build(s, solve(s, content), content);
+    const sm = snap.nodes.find((n) => n.id === "sm");
+    expect(sm.capacity).toBeCloseTo(0.5, 1e-9);
+    expect(sm.throughput).toBeCloseTo(0, 1e-9);
+    expect(sm.starved).toBe(true);
+    expect(sm.atCapacity).toBe(false);
+    expect(sm.capacityPct).toBeCloseTo(0, 1e-9);
+  });
+
+  it("fully-fed scholar -> atCapacity true, starved false (throughput = input draw)", () => {
+    const s = graphState(
+      new FakeClock(0),
+      [
+        {
+          id: "for",
+          kind: "gatherer",
+          level: 1,
+          resourceId: "timber",
+          recipeId: null,
+          stockpile: {},
+          pos: { x: 0, y: 0 },
+        },
+        {
+          id: "ws",
+          kind: "workshop",
+          level: 1,
+          resourceId: null,
+          recipeId: "r_parchment",
+          stockpile: {},
+          pos: { x: 1, y: 0 },
+        },
+        {
+          id: "sch",
+          kind: "scholar",
+          level: 1,
+          resourceId: null,
+          recipeId: null,
+          stockpile: {},
+          pos: { x: 2, y: 0 },
+        },
+      ],
+      [
+        { id: "la", from: "for", to: "ws", resourceId: "timber" },
+        { id: "lb", from: "ws", to: "sch", resourceId: "parchment" },
+      ],
+    );
+    const snap = build(s, solve(s, content), content);
+    const sch = snap.nodes.find((n) => n.id === "sch");
+    expect(sch.capacity).toBeCloseTo(0.5, 1e-9);
+    expect(sch.throughput).toBeCloseTo(0.5, 1e-9);
+    expect(sch.atCapacity).toBe(true);
+    expect(sch.starved).toBe(false);
+    expect(sch.capacityPct).toBeCloseTo(1.0, 1e-9);
+  });
+
+  it("market scaled below cap -> starved true (consumer throughput < cap)", () => {
+    const s = seededState(new FakeClock(0));
+    const snap = build(s, solve(s, content), content);
+    const market = snap.nodes.find((n) => n.id === "n_market_0");
+    expect(market.capacity).toBeCloseTo(5.0, 1e-9);
+    expect(market.throughput).toBeCloseTo(0.5, 1e-9);
+    expect(market.starved).toBe(true);
+    expect(market.atCapacity).toBe(false);
+  });
+
+  it("unconfigured gatherer (resourceId null) -> neither atCapacity nor starved", () => {
+    const s = graphState(new FakeClock(0), [
+      {
+        id: "g0",
+        kind: "gatherer",
+        level: 1,
+        resourceId: null,
+        recipeId: null,
+        stockpile: {},
+        pos: { x: 0, y: 0 },
+      },
+    ]);
+    const snap = build(s, solve(s, content), content);
+    const g0 = snap.nodes.find((n) => n.id === "g0");
+    expect(g0.throughput).toBeCloseTo(0, 1e-9);
+    expect(g0.atCapacity).toBe(false);
+    expect(g0.starved).toBe(false);
+  });
+
+  it("keeps effectiveRate = producer output for back-compat (consumers stay 0)", () => {
+    const s = seededState(new FakeClock(0));
+    const snap = build(s, solve(s, content), content);
+    const smelter = snap.nodes.find((n) => n.id === "n_smelter_0");
+    const market = snap.nodes.find((n) => n.id === "n_market_0");
+    expect(smelter.effectiveRate).toBeCloseTo(0.5, 1e-9);
+    expect(market.effectiveRate).toBeCloseTo(0, 1e-9);
+    expect(market.throughput).toBeCloseTo(0.5, 1e-9);
   });
 });
