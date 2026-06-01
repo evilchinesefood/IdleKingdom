@@ -1,4 +1,5 @@
 import { h } from "./Render/Dom.js";
+import { icon } from "./Icons.js";
 import { nextTutorialStep } from "./Logic/Selectors.js";
 import { INTENT } from "../Engine/Intents.js";
 
@@ -21,12 +22,12 @@ const TIPS = {
   },
   research: {
     flag: "seenResearchTip",
-    anchor: '.hud-tabs a[href="#/research"]',
+    anchor: 'wa-tab[panel="research"]',
     text: "Bank Research and open the tree to unlock new machines.",
   },
   expedition: {
     flag: "seenExpeditionTip",
-    anchor: '.hud-tabs a[href="#/expeditions"]',
+    anchor: 'wa-tab[panel="expeditions"]',
     text: "Forge gear, equip a hero, and launch an expedition.",
   },
 };
@@ -42,13 +43,16 @@ export function Tooltip(snap, dispatch) {
     "div",
     { class: "tooltip-layer", id: "TooltipLayer", "data-anchor": tip.anchor },
     h(
-      "div",
-      { class: "tooltip" },
-      h("div", { class: "tip-text" }, tip.text),
+      "wa-callout",
+      { class: "tooltip", key: "tip-" + step, variant: "brand" },
+      h("span", { slot: "start" }, icon("info", { class: "tip-icon" })),
+      h("span", { class: "tip-text" }, tip.text),
       h(
-        "button",
+        "wa-button",
         {
           class: "tip-dismiss",
+          size: "small",
+          appearance: "plain",
           onclick: () =>
             dispatch({ type: INTENT.DismissTooltip, flag: tip.flag }),
         },
