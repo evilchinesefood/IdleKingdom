@@ -1,0 +1,4 @@
+# Copy to repo-root .npmrc (gitignored) and fill the token from memory/secrets.md → FontAwesome Pro.
+@fortawesome:registry=https://npm.fontawesome.com/
+@awesome.me:registry=https://npm.fontawesome.com/
+//npm.fontawesome.com/:_authToken=YOUR_FA_PACKAGE_TOKEN
