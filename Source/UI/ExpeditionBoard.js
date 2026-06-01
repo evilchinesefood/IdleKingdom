@@ -1,5 +1,6 @@
 import { h } from "./Render/Dom.js";
 import { fmtCountdown, fmtNum } from "./Format/Format.js";
+import { icon } from "./Icons.js";
 import { expeditionCardStatus, launchNudge } from "./Logic/Selectors.js";
 import { INTENT } from "../Engine/Intents.js";
 
@@ -19,11 +20,14 @@ export function ExpeditionBoard(snap, dispatch) {
         `Power ${fmtNum(heroPower)} / ${fmtNum(t.requiredPower)}`,
       ),
       h("div", { class: "exp-dur" }, `Duration ${fmtCountdown(t.durationMs)}`),
-      h(
-        "div",
-        { class: "exp-reward" },
-        `🪙 ${fmtNum(t.rewards.gold)}  📜 ${fmtNum(t.rewards.research)}  🛡️ ${fmtNum(t.rewards.renown)}`,
-      ),
+      h("div", { class: "exp-reward" }, [
+        icon("gold"),
+        ` ${fmtNum(t.rewards.gold)}  `,
+        icon("research"),
+        ` ${fmtNum(t.rewards.research)}  `,
+        icon("renown"),
+        ` ${fmtNum(t.rewards.renown)}`,
+      ]),
     ];
 
     if (status === "active") {
@@ -83,7 +87,9 @@ export function ExpeditionBoard(snap, dispatch) {
         ),
       );
     } else if (status === "reclaimed") {
-      parts.push(h("div", { class: "exp-done" }, "Reclaimed ✓"));
+      parts.push(
+        h("div", { class: "exp-done" }, ["Reclaimed ", icon("ready")]),
+      );
     } else {
       parts.push(h("div", { class: "exp-locked" }, "Locked"));
     }

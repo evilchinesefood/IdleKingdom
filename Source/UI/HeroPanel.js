@@ -1,5 +1,6 @@
 import { h } from "./Render/Dom.js";
 import { fmtNum, fmtCost, affordClass } from "./Format/Format.js";
+import { icon } from "./Icons.js";
 import { RESOURCES } from "../Engine/Content/Resources.js";
 import { HEROES } from "../Engine/Content/Heroes.js";
 import { INTENT } from "../Engine/Intents.js";
@@ -24,7 +25,7 @@ export function HeroPanel(snap, dispatch) {
         h(
           "option",
           { value: String(tier), selected: equipped && equipped.tier === tier },
-          `${res.icon} ${res.display} T${tier}`,
+          [icon(itemId), ` ${res.display} T${tier}`],
         ),
       );
       return h(
@@ -72,7 +73,7 @@ export function HeroPanel(snap, dispatch) {
           onclick: () =>
             dispatch({ type: INTENT.LevelUpHero, heroId: hero.id }),
         },
-        `Level Up → ${fmtCost(hero.levelCost, "renown")}`,
+        [icon("renown"), ` Level Up → ${fmtCost(hero.levelCost)}`],
       ),
     );
   });
@@ -97,7 +98,12 @@ export function HeroPanel(snap, dispatch) {
             onclick: () =>
               dispatch({ type: INTENT.RecruitHero, templateId: tpl.id }),
           },
-          `Recruit → ${fmtCost(tpl.unlockRenownCost, "renown")}`,
+          [
+            icon("recruit"),
+            " Recruit → ",
+            icon("renown"),
+            " " + fmtCost(tpl.unlockRenownCost),
+          ],
         ),
       );
     });

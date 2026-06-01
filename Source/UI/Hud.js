@@ -1,16 +1,17 @@
 import { h, patch } from "./Render/Dom.js";
 import { formatNumber, formatRate } from "./Render/Format.js";
+import { icon } from "./Icons.js";
 
 const TABS = [
-  { route: "factory", label: "⚒ Factory" },
-  { route: "research", label: "📜 Research" },
-  { route: "expeditions", label: "🛡 Expeditions" },
-  { route: "heroes", label: "⚔ Heroes" },
+  { route: "factory", label: [icon("factory"), " Factory"] },
+  { route: "research", label: [icon("research"), " Research"] },
+  { route: "expeditions", label: [icon("expeditions"), " Expeditions"] },
+  { route: "heroes", label: [icon("heroes"), " Heroes"] },
 ];
 
-function currencyCell(key, icon, value, rate) {
+function currencyCell(key, curIcon, value, rate) {
   return h("div", { class: "hud-cur", key }, [
-    h("span", { class: "val" }, [`${icon} ${value}`]),
+    h("span", { class: "val" }, [curIcon, " " + value]),
     h("span", { class: "rate" }, [rate]),
   ]);
 }
@@ -48,14 +49,17 @@ export class Hud {
 
     patch(this.el, [
       h("div", { class: "hud-currencies", key: "cur" }, [
-        currencyCell("gold", "🪙", goldV, goldR),
-        currencyCell("research", "📜", resV, resR),
-        currencyCell("renown", "🛡️", renV, "—"),
+        currencyCell("gold", icon("gold"), goldV, goldR),
+        currencyCell("research", icon("research"), resV, resR),
+        currencyCell("renown", icon("renown"), renV, "—"),
       ]),
       h(
         "div",
         { class: saveOk ? "hud-save" : "hud-save failed", key: "save" },
-        [saveOk ? "💾 saved" : "⚠ save failed"],
+        [
+          icon(saveOk ? "save_ok" : "save_fail"),
+          saveOk ? " saved" : " save failed",
+        ],
       ),
       tabs,
     ]);
