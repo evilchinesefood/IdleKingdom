@@ -7,19 +7,12 @@ import {
 } from "./Render/Svg.js";
 import { GraphInput } from "./GraphInput.js";
 import { INTENT } from "../Engine/Intents.js";
+import { iconName } from "./Icons.js";
 
 const NODE_W = 120,
   NODE_H = 64,
   PORT_R = 8,
   HIT_R = 22;
-
-const KIND_ICON = {
-  gatherer: "⛏️",
-  smelter: "🔥",
-  workshop: "🔨",
-  market: "🏪",
-  scholar: "📜",
-};
 
 export class GraphView {
   constructor(host, game, opts = {}) {
@@ -223,7 +216,7 @@ export class GraphView {
             [`${l.resourceId} ${(l.flow ?? 0).toFixed(2)}/s`],
           ),
         );
-        // link-delete affordance: a small ✕ at the midpoint (its own hit target so
+        // link-delete affordance: a small × at the midpoint (its own hit target so
         // it doesn't interfere with the port drag-connect gesture).
         const del = svg("g", { class: "link-delete-g" });
         del.appendChild(
@@ -247,7 +240,7 @@ export class GraphView {
               onclick: () =>
                 this.game.dispatch({ type: INTENT.RemoveLink, linkId: l.id }),
             },
-            ["✕"],
+            ["×"],
           ),
         );
         g.appendChild(del);
@@ -291,10 +284,20 @@ export class GraphView {
       }),
     );
     g.appendChild(
-      svg("text", { class: "node-label", x: p.x + 8, y: p.y + 20 }, [
-        `${KIND_ICON[n.kind] || "▣"} ${n.kind}`,
-      ]),
+      svg("text", { class: "node-label", x: p.x + 30, y: p.y + 20 }, [n.kind]),
     );
+    const fo = svg("foreignObject", {
+      x: p.x + 5,
+      y: p.y + 4,
+      width: 24,
+      height: 24,
+      class: "node-ico",
+    });
+    const iEl = document.createElement("i");
+    iEl.className = `fa-duotone fa-solid fa-${iconName(n.kind)}`;
+    iEl.setAttribute("aria-hidden", "true");
+    fo.appendChild(iEl);
+    g.appendChild(fo);
     g.appendChild(
       svg("text", { class: "node-sub", x: p.x + 8, y: p.y + 38 }, [
         `L${n.level} · ${(n.effectiveRate ?? 0).toFixed(2)}/s`,
