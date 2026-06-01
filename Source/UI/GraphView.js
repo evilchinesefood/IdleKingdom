@@ -8,6 +8,7 @@ import {
 import { GraphInput } from "./GraphInput.js";
 import { INTENT } from "../Engine/Intents.js";
 import { iconName } from "./Icons.js";
+import { cap } from "./Format/Format.js";
 
 const NODE_W = 120,
   NODE_H = 64,
@@ -284,7 +285,9 @@ export class GraphView {
       }),
     );
     g.appendChild(
-      svg("text", { class: "node-label", x: p.x + 30, y: p.y + 20 }, [n.kind]),
+      svg("text", { class: "node-label", x: p.x + 30, y: p.y + 20 }, [
+        cap(n.kind),
+      ]),
     );
     const fo = svg("foreignObject", {
       x: p.x + 5,

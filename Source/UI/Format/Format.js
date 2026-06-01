@@ -39,3 +39,5 @@ export function fmtCost(amount /*, currency */) {
 export function affordClass(ok) {
   return ok ? "affordable" : "locked";
 }
+
+export const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
