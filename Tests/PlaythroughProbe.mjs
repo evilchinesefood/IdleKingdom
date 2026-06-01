@@ -1154,8 +1154,9 @@ step(
       text.includes("While you were away"),
       "OfflineSummary missing title",
     );
+    // P1 replaced the 🪙 emoji with a FA duotone icon; assert the icon + a "+amount".
     assert(
-      /\+/.test(text) && text.includes("🪙"),
+      /\+/.test(text) && host.querySelector("i.fa-coins"),
       `OfflineSummary did not render gained amounts; text="${text}"`,
     );
     // It must show the actual gold gained.
@@ -1172,7 +1173,7 @@ step(
     closeBtn.onclick();
     assert(closed, "offline close handler did not fire");
     console.log(
-      `    [render+click] OfflineSummary (gained 🪙${goldShown} over ${summary.appliedMs}ms)`,
+      `    [render+click] OfflineSummary (gained ${goldShown} gold over ${summary.appliedMs}ms)`,
     );
   },
 );
@@ -1464,6 +1465,11 @@ step(
     const cx = startPos.x + 60,
       cy = startPos.y + 32;
     const dn = (id, x, y) => ({ pointerId: id, clientX: x, clientY: y });
+    // Shipped behavior (commit a1eaf80): grab-offset + select-first — the first gesture
+    // only selects a node; it must already be selected before a drag moves it. So tap to
+    // select, then drag to move.
+    gv.input._down(dn(1, cx, cy));
+    gv.input._up(dn(1, cx, cy));
     gv.input._down(dn(1, cx, cy));
     gv.input._move(dn(1, cx + 100, cy + 40));
     const solvedBefore = mg.getState()._solved;
