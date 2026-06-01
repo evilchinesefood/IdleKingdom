@@ -10,6 +10,7 @@ import { GraphInput } from "./GraphInput.js";
 import { INTENT } from "../Engine/Intents.js";
 import { iconName } from "./Icons.js";
 import { cap } from "./Format/Format.js";
+import { RESOURCES } from "../Engine/Content/Resources.js";
 
 const NODE_W = 120,
   NODE_H = 64,
@@ -28,7 +29,7 @@ export class GraphView {
     this.onSelect = opts.onSelect || (() => {});
     this.snapEnabled = opts.snap || (() => false);
     this._grabOffset = null;
-    this._revealedLinkId = null;
+    this.selectedLinkId = null;
 
     this.svgEl = svg("svg", { class: "graph-svg" });
     this.layerLinks = svg("g", {});
@@ -53,6 +54,8 @@ export class GraphView {
       onConnectEnd: () => this._connectEnd(),
       onTapPort: (nodeId, dir) => this._tapPort(nodeId, dir),
       onSelect: (id) => this._select(id),
+      hitLink: (gx, gy) => this.hitLink(gx, gy),
+      onSelectLink: (id) => this._selectLink(id),
       onViewChange: () => this._draw(),
     });
     this._pendingLink = null; // {fromId, gx, gy} live mouse drag-connect preview
@@ -76,9 +79,32 @@ export class GraphView {
   }
 
   // Toggle which link's flow label is revealed (touch-friendly alternative to hover).
-  _toggleLink(id) {
-    this._revealedLinkId = this._revealedLinkId === id ? null : id;
+  _selectLink(id) {
+    this.selectedLinkId = this.selectedLinkId === id ? null : id;
     this._draw();
+  }
+
+  // Graph-space hit test against link polylines (GraphInput passes graph coords).
+  hitLink(gx, gy) {
+    if (!this.snap) return null;
+    const tol = 14 / this.view.scale;
+    for (const l of this.snap.links) {
+      const from = this._nodeAt(l.from),
+        to = this._nodeAt(l.to);
+      if (!from || !to) continue;
+      const fp = this._pos(from),
+        tp = this._pos(to);
+      const a = { x: fp.x + NODE_W, y: fp.y + NODE_H / 2 };
+      const b = { x: tp.x, y: tp.y + NODE_H / 2 };
+      const steps = 24;
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const px = a.x + (b.x - a.x) * t;
+        const py = a.y + (b.y - a.y) * t;
+        if (Math.hypot(gx - px, gy - py) <= tol) return l.id;
+      }
+    }
+    return null;
   }
 
   render(snap) {
@@ -200,6 +226,7 @@ export class GraphView {
   _select(id) {
     this.selectedId = id;
     this.onSelect(id);
+    this.selectedLinkId = null;
     this._draw();
   }
 
@@ -229,58 +256,61 @@ export class GraphView {
             d: linkPath(a, b),
           }),
         );
-        // wide transparent hit path so the thin link is hover/click-able
+        // wide transparent hit path so the thin link is the visual tap target
+        // (reveal now routes through GraphInput -> onSelectLink on a tap).
         g.appendChild(
           svg("path", {
             class: "link-hit",
             d: linkPath(a, b),
-            onclick: () => this._toggleLink(l.id),
           }),
         );
         const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 - 6 };
-        g.appendChild(
-          svg(
-            "text",
-            {
-              class:
-                this._revealedLinkId === l.id
-                  ? "link-label show"
-                  : "link-label",
-              x: mid.x,
-              y: mid.y,
-              "text-anchor": "middle",
-            },
-            [`${l.resourceId} ${(l.flow ?? 0).toFixed(2)}/s`],
-          ),
-        );
-        // link-delete affordance: a small × at the midpoint (its own hit target so
-        // it doesn't interfere with the port drag-connect gesture).
-        const del = svg("g", { class: "link-delete-g" });
-        del.appendChild(
-          svg("circle", {
-            class: "link-delete-hit",
-            cx: mid.x,
-            cy: mid.y + 12,
-            r: 10,
-            onclick: () =>
-              this.game.dispatch({ type: INTENT.RemoveLink, linkId: l.id }),
-          }),
-        );
-        del.appendChild(
-          svg(
-            "text",
-            {
-              class: "link-delete",
-              x: mid.x,
-              y: mid.y + 16,
-              "text-anchor": "middle",
+        // Label + delete affordance only render when this link is revealed.
+        if (l.id === this.selectedLinkId) {
+          const resName =
+            (RESOURCES[l.resourceId] && RESOURCES[l.resourceId].display) ||
+            l.resourceId;
+          g.appendChild(
+            svg(
+              "text",
+              {
+                class: "link-label show",
+                x: mid.x,
+                y: mid.y,
+                "text-anchor": "middle",
+              },
+              [`${resName} · ${(l.flow ?? 0).toFixed(2)}/s`],
+            ),
+          );
+          // link-delete affordance: a small × at the midpoint (its own hit target
+          // so it doesn't interfere with the port drag-connect gesture).
+          const del = svg("g", { class: "link-delete-g" });
+          del.appendChild(
+            svg("circle", {
+              class: "link-delete-hit",
+              cx: mid.x,
+              cy: mid.y + 12,
+              r: 10,
               onclick: () =>
                 this.game.dispatch({ type: INTENT.RemoveLink, linkId: l.id }),
-            },
-            ["×"],
-          ),
-        );
-        g.appendChild(del);
+            }),
+          );
+          del.appendChild(
+            svg(
+              "text",
+              {
+                class: "link-delete",
+                x: mid.x,
+                y: mid.y + 16,
+                "text-anchor": "middle",
+                onclick: () =>
+                  this.game.dispatch({ type: INTENT.RemoveLink, linkId: l.id }),
+              },
+              ["×"],
+            ),
+          );
+          g.appendChild(del);
+        }
         return g;
       })
       .filter(Boolean);
@@ -354,15 +384,49 @@ export class GraphView {
         height: 4,
       }),
     );
+    const capCls =
+      "cap-fill" +
+      (n.atCapacity ? " at-capacity" : n.starved ? " starved" : "");
     g.appendChild(
       svg("rect", {
-        class: "cap-fill",
+        class: capCls,
         x: p.x + 8,
         y: barY,
         width: (w - 16) * pct,
         height: 4,
       }),
     );
+    // MAX/starved badge in the top-right corner
+    if (n.atCapacity || n.starved) {
+      const label = n.atCapacity ? "MAX" : "LOW";
+      const cls = n.atCapacity ? "node-badge max" : "node-badge starved";
+      const bw = 34 * v.scale,
+        bh = 14 * v.scale;
+      const bx = p.x + w - bw - 4 * v.scale,
+        by = p.y + 4 * v.scale;
+      g.appendChild(
+        svg("rect", {
+          class: cls + " node-badge-box",
+          x: bx,
+          y: by,
+          width: bw,
+          height: bh,
+          rx: 4,
+        }),
+      );
+      g.appendChild(
+        svg(
+          "text",
+          {
+            class: cls + " node-badge-text",
+            x: bx + bw / 2,
+            y: by + bh / 2 + 3.5 * v.scale,
+            "text-anchor": "middle",
+          },
+          [label],
+        ),
+      );
+    }
     // ports (visible dot + transparent >=44px hit halo)
     const op = graphToScreen(v, np.x + NODE_W, np.y + NODE_H / 2);
     const ip = graphToScreen(v, np.x, np.y + NODE_H / 2);
