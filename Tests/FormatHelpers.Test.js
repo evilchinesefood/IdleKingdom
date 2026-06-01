@@ -5,6 +5,7 @@ import {
   fmtCountdown,
   fmtCost,
   affordClass,
+  cap,
 } from "../Source/UI/Format/Format.js";
 
 describe("Format.fmtNum", () => {
@@ -64,5 +65,13 @@ describe("Format.affordClass", () => {
   it("returns 'affordable' when true, 'locked' when false", () => {
     expect(affordClass(true)).toBe("affordable");
     expect(affordClass(false)).toBe("locked");
+  });
+});
+
+describe("Format.cap", () => {
+  it("capitalizes the first letter, leaves the rest", () => {
+    expect(cap("gatherer")).toBe("Gatherer");
+    expect(cap("smelter")).toBe("Smelter");
+    expect(cap("")).toBe("");
   });
 });

@@ -1,5 +1,5 @@
 import { h } from "./Render/Dom.js";
-import { fmtNum, fmtRate, fmtCost, affordClass } from "./Format/Format.js";
+import { fmtNum, fmtRate, fmtCost, affordClass, cap } from "./Format/Format.js";
 import { icon } from "./Icons.js";
 import { RESOURCES } from "../Engine/Content/Resources.js";
 import { RECIPES } from "../Engine/Content/Recipes.js";
@@ -16,7 +16,7 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
 
   const pct = Math.round((node.capacityPct || 0) * 100);
   const rows = [
-    h("div", { class: "ni-title" }, [icon(node.kind), " ", node.kind]),
+    h("div", { class: "ni-title" }, [icon(node.kind), " ", cap(node.kind)]),
     h("div", { class: "ni-line" }, `Level ${node.level}`),
     h(
       "div",
