@@ -31,23 +31,18 @@ export function ExpeditionBoard(snap, dispatch) {
       h(
         "div",
         { class: "exp-reward" },
-        h(
-          "wa-tag",
-          { size: "small" },
-          icon("gold"),
-          " " + fmtNum(t.rewards.gold),
-        ),
+        h("wa-tag", { size: "s" }, icon("gold"), " " + fmtNum(t.rewards.gold)),
         " ",
         h(
           "wa-tag",
-          { size: "small" },
+          { size: "s" },
           icon("research"),
           " " + fmtNum(t.rewards.research),
         ),
         " ",
         h(
           "wa-tag",
-          { size: "small" },
+          { size: "s" },
           icon("renown"),
           " " + fmtNum(t.rewards.renown),
         ),
@@ -63,7 +58,7 @@ export function ExpeditionBoard(snap, dispatch) {
       parts.push(
         h(
           "wa-callout",
-          { class: "exp-countdown", variant: "brand", size: "small" },
+          { class: "exp-countdown", variant: "brand", size: "s" },
           icon("inprogress"),
           ` In progress — ${fmtCountdown(rem)}`,
         ),
@@ -100,7 +95,7 @@ export function ExpeditionBoard(snap, dispatch) {
       parts.push(
         h(
           "wa-callout",
-          { class: "exp-nudge", variant: "warning", size: "small" },
+          { class: "exp-nudge", variant: "warning", size: "s" },
           icon("starved"),
           " " + launchNudge(heroPower, t.requiredPower),
         ),
@@ -117,7 +112,7 @@ export function ExpeditionBoard(snap, dispatch) {
       parts.push(
         h(
           "wa-callout",
-          { class: "exp-busy", variant: "neutral", size: "small" },
+          { class: "exp-busy", variant: "neutral", size: "s" },
           icon("inprogress"),
           " Another expedition is running.",
         ),

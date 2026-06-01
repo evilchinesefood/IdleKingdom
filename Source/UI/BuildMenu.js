@@ -27,7 +27,7 @@ export function BuildMenu(snap, dispatch, ui) {
         key: "bm-machine-" + kind,
         class:
           "bm-machine" + (ui.selectedPaletteKind === kind ? " selected" : ""),
-        size: "small",
+        size: "s",
         pill: true,
         appearance: ui.selectedPaletteKind === kind ? "accent" : "outlined",
         onclick: () => ui.setPalette(kind),

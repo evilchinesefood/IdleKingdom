@@ -12,7 +12,7 @@ export function OfflineSummary(summary, onClose) {
         class: "os-exp",
         variant: "success",
         appearance: "outlined",
-        size: "small",
+        size: "s",
       },
       icon("ready"),
       " Reclaimed " +
@@ -40,19 +40,19 @@ export function OfflineSummary(summary, onClose) {
       { class: "os-gained" },
       h(
         "wa-tag",
-        { class: "os-gain", size: "large", pill: true },
+        { class: "os-gain", size: "l", pill: true },
         icon("gold"),
         " +" + fmtNum(g.gold),
       ),
       h(
         "wa-tag",
-        { class: "os-gain", size: "large", pill: true },
+        { class: "os-gain", size: "l", pill: true },
         icon("research"),
         " +" + fmtNum(g.research),
       ),
       h(
         "wa-tag",
-        { class: "os-gain", size: "large", pill: true },
+        { class: "os-gain", size: "l", pill: true },
         icon("renown"),
         " +" + fmtNum(g.renown),
       ),

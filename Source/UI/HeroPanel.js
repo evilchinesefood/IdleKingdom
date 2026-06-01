@@ -84,7 +84,7 @@ export function HeroPanel(snap, dispatch) {
         icon("renown"),
         ` Power ${fmtNum(hero.power)} (gear ${fmtNum(hero.powerBreakdown.gear)} + level ${fmtNum(hero.powerBreakdown.level)})`,
       ),
-      h("wa-tag", { class: "hp-level", size: "small" }, `Level ${hero.level}`),
+      h("wa-tag", { class: "hp-level", size: "s" }, `Level ${hero.level}`),
       ...slots,
       levelUpButton,
     );
