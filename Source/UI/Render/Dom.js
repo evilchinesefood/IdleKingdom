@@ -58,31 +58,47 @@ function applyProps(el, oldProps, newProps) {
 
 export function patch(parent, newChildrenRaw, doc = document) {
   const newChildren = flat(newChildrenRaw);
-  const existing = Array.from(parent.children);
+  // Reconcile over ALL child nodes (elements AND text). Using parent.children
+  // (elements only) desyncs the cursor and leaks text nodes — every re-render
+  // would append a fresh text node and never remove the stale one.
   const byKey = new Map();
-  for (const el of existing)
-    if (el.dataset && el.dataset.key != null) byKey.set(el.dataset.key, el);
+  for (const node of Array.from(parent.childNodes)) {
+    if (node.nodeType === 1 && node.dataset && node.dataset.key != null)
+      byKey.set(node.dataset.key, node);
+  }
 
   let cursor = 0;
   for (const vnode of newChildren) {
     let el;
-    if (!isText(vnode) && vnode.key != null && byKey.has(vnode.key)) {
+    if (isText(vnode)) {
+      const want = String(vnode);
+      const cur = parent.childNodes[cursor];
+      if (cur && cur.nodeType === 3) {
+        // reuse the text node in place — just update its value
+        if (cur.nodeValue !== want) cur.nodeValue = want;
+        cursor++;
+        continue;
+      }
+      el = doc.createTextNode(want);
+    } else if (vnode.key != null && byKey.has(vnode.key)) {
       el = byKey.get(vnode.key);
       byKey.delete(vnode.key);
       const oldProps = el.__props || {};
       applyProps(el, oldProps, vnode.props);
       el.__props = vnode.props;
       patch(el, vnode.children, doc);
+    } else if (isPassthrough(vnode)) {
+      el = vnode.el; // prebuilt DOM/SVG node — reuse, don't recreate
     } else {
       el = create(vnode, doc);
-      if (!isText(vnode)) el.__props = vnode.props;
+      el.__props = vnode.props;
     }
-    const ref = parent.children[cursor] || null;
+    const ref = parent.childNodes[cursor] || null;
     if (ref !== el) parent.insertBefore(el, ref);
     cursor++;
   }
-  // remove anything not consumed
-  while (parent.children.length > cursor) {
-    parent.removeChild(parent.children[parent.children.length - 1]);
+  // remove any trailing leftover nodes (elements OR text)
+  while (parent.childNodes.length > cursor) {
+    parent.removeChild(parent.childNodes[parent.childNodes.length - 1]);
   }
 }

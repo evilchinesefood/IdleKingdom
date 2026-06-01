@@ -1,16 +1,42 @@
 import { describe, it, expect } from "./Runner.js";
 import { h, patch } from "../Source/UI/Render/Dom.js";
 
-// Minimal fake element: enough surface for Dom.patch under node (no jsdom).
+// Browser-faithful fake nodes: `children` is elements-only (like the real DOM),
+// `childNodes` includes text. The previous shim conflated the two, which hid a
+// real bug where text nodes were re-appended (never reconciled) on every render.
+class FakeText {
+  constructor(t) {
+    this.nodeType = 3;
+    this.nodeValue = String(t);
+    this.parentNode = null;
+  }
+  get textContent() {
+    return this.nodeValue;
+  }
+  set textContent(v) {
+    this.nodeValue = String(v);
+  }
+}
 class FakeEl {
   constructor(tag) {
+    this.nodeType = 1;
     this.tagName = String(tag).toUpperCase();
-    this.children = [];
+    this.childNodes = [];
     this.attributes = {};
     this.dataset = {};
-    this.textContent = "";
     this._listeners = {};
     this.parentNode = null;
+    this.__props = undefined;
+  }
+  get children() {
+    return this.childNodes.filter((n) => n.nodeType === 1);
+  }
+  get textContent() {
+    return this.childNodes.map((n) => n.textContent).join("");
+  }
+  set textContent(v) {
+    for (const n of this.childNodes) n.parentNode = null;
+    this.childNodes = v === "" ? [] : [new FakeText(v)];
   }
   setAttribute(k, v) {
     this.attributes[k] = String(v);
@@ -18,40 +44,38 @@ class FakeEl {
   }
   removeAttribute(k) {
     delete this.attributes[k];
+    if (k === "data-key") delete this.dataset.key;
   }
   addEventListener(t, fn) {
     this._listeners[t] = fn;
   }
+  _detach(n) {
+    const i = this.childNodes.indexOf(n);
+    if (i >= 0) this.childNodes.splice(i, 1);
+  }
   appendChild(c) {
+    if (c.parentNode) c.parentNode._detach(c);
     c.parentNode = this;
-    this.children.push(c);
+    this.childNodes.push(c);
     return c;
   }
   insertBefore(c, ref) {
-    if (c.parentNode === this) {
-      const cur = this.children.indexOf(c);
-      if (cur >= 0) this.children.splice(cur, 1);
-    }
+    if (c.parentNode) c.parentNode._detach(c);
     c.parentNode = this;
-    const i = ref ? this.children.indexOf(ref) : -1;
-    if (i < 0) this.children.push(c);
-    else this.children.splice(i, 0, c);
+    const i = ref ? this.childNodes.indexOf(ref) : -1;
+    if (i < 0) this.childNodes.push(c);
+    else this.childNodes.splice(i, 0, c);
     return c;
   }
   removeChild(c) {
-    const i = this.children.indexOf(c);
-    if (i >= 0) this.children.splice(i, 1);
+    this._detach(c);
     c.parentNode = null;
     return c;
   }
 }
 const fakeDoc = {
   createElement: (t) => new FakeEl(t),
-  createTextNode: (t) => {
-    const e = new FakeEl("#text");
-    e.textContent = String(t);
-    return e;
-  },
+  createTextNode: (t) => new FakeText(t),
 };
 
 describe("Dom.h", () => {
@@ -116,7 +140,6 @@ describe("Dom.patch keyed reconciliation", () => {
       fakeDoc,
     );
     expect(root.children.length).toBe(2);
-    // 'a' element instance preserved, just reordered + text updated
     const aNow = root.children.find((c) => c.dataset.key === "a");
     expect(aNow).toBe(firstA);
   });
@@ -130,5 +153,47 @@ describe("Dom.patch keyed reconciliation", () => {
     patch(root, [h("span", { key: "a" }, ["A"])], fakeDoc);
     expect(root.children.length).toBe(1);
     expect(root.children[0].dataset.key).toBe("a");
+  });
+});
+
+describe("Dom.patch text reconciliation (regression: stacking saved badge)", () => {
+  it("does NOT accumulate text nodes when re-rendered repeatedly", () => {
+    const root = new FakeEl("div");
+    for (let i = 0; i < 6; i++)
+      patch(root, [h("div", { key: "save" }, ["💾 saved"])], fakeDoc);
+    const save = root.children[0];
+    expect(save.childNodes.length).toBe(1); // not 6
+    expect(save.textContent).toBe("💾 saved");
+  });
+  it("updates a keyed element's text in place when the value changes", () => {
+    const root = new FakeEl("div");
+    patch(root, [h("div", { key: "g" }, ["🪙 25"])], fakeDoc);
+    patch(root, [h("div", { key: "g" }, ["🪙 40"])], fakeDoc);
+    const g = root.children[0];
+    expect(g.childNodes.length).toBe(1);
+    expect(g.textContent).toBe("🪙 40");
+  });
+  it("keeps mixed text+element children stable across re-renders", () => {
+    const root = new FakeEl("div");
+    for (let i = 0; i < 4; i++)
+      patch(root, ["lead ", h("b", { key: "x" }, ["bold"]), " tail"], fakeDoc);
+    expect(root.childNodes.length).toBe(3); // text, <b>, text
+    expect(root.textContent).toBe("lead bold tail");
+  });
+  it("reconciles an unkeyed nav sibling without stacking (the real HUD shape)", () => {
+    const root = new FakeEl("div");
+    for (let i = 0; i < 5; i++) {
+      patch(
+        root,
+        [
+          h("div", { key: "cur" }, ["🪙 25"]),
+          h("div", { key: "save" }, ["💾 saved"]),
+          h("nav", {}, [h("a", { key: "t" }, ["Factory"])]),
+        ],
+        fakeDoc,
+      );
+    }
+    expect(root.childNodes.length).toBe(3);
+    expect(root.children[1].textContent).toBe("💾 saved");
   });
 });
