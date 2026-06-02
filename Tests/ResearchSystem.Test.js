@@ -186,7 +186,7 @@ describe("ResearchSystem", () => {
     applyEffects(s, content, [{ type: "titheRate", value: 0.07 }]);
     expect(s.unlocks.titheRate).toBeCloseTo(0.07, 1e-9);
     applyEffects(s, content, [{ type: "offlineCapHours", value: 24 }]);
-    expect(s.unlocks.offlineCapHours).toBe(24);
+    expect(s.unlocks.offlineCapHours).toBe(1); // clamped: 1h is a hard maximum
     applyEffects(s, content, [
       { type: "productionBonus", kind: "smelter", mult: 1.25 },
     ]);

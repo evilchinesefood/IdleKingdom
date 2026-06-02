@@ -25,7 +25,7 @@ export const START_STATE = {
       "iron_bar",
     ],
     titheRate: 0.05,
-    offlineCapHours: 8,
+    offlineCapHours: 1,
     productionBonuses: {
       gatherer: 1.0,
       smelter: 1.0,

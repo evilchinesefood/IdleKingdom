@@ -7,7 +7,7 @@ import { isListed } from "../Systems/EconomySystem.js";
  *  fast-forwards an in-flight expedition deterministically, sets state.lastSeen = nowMs, and
  *  returns a summary. Pure-ish: mutates state in place; reads no wall-clock (nowMs injected). */
 export function applyOffline(state, content, nowMs) {
-  const capHours = state.unlocks.offlineCapHours || 8;
+  const capHours = state.unlocks.offlineCapHours || 1;
   const capMs = capHours * 3600 * 1000;
   const raw = Math.max(0, nowMs - (state.lastSeen || 0));
   const appliedMs = Math.min(raw, capMs);

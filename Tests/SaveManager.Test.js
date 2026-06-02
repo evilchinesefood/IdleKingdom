@@ -13,6 +13,7 @@ import {
   migrate2to3,
   migrate5to6,
   migrate6to7,
+  migrate7to8,
   MIGRATIONS,
 } from "../Source/Engine/Persistence/Migrations.js";
 import SaveV1 from "./Fixtures/SaveV1.json" with { type: "json" };
@@ -25,7 +26,7 @@ describe("SaveManager.serialize", () => {
     const json = serialize(state);
     const blob = JSON.parse(json);
     expect(blob.version).toBe(SAVE_VERSION);
-    expect(SAVE_VERSION).toBe(7);
+    expect(SAVE_VERSION).toBe(8);
     expect(SAVE_KEY).toBe("idlekingdom.save");
     expect(typeof blob.savedAt).toBe("number");
     expect(typeof blob.lastSeen).toBe("number");
@@ -183,6 +184,16 @@ describe("Migrations", () => {
     const s = v7.graph.nodes[0];
     expect(s.stockpile.iron_ore + s.stockpile.timber).toBeCloseTo(400, 1e-9);
   });
+
+  it("7->8 clamps a raised offline cap down to the 1h maximum", () => {
+    const v8 = migrate7to8({ version: 7, unlocks: { offlineCapHours: 24 } });
+    expect(v8.version).toBe(8);
+    expect(v8.unlocks.offlineCapHours).toBe(1);
+  });
+
+  it("7->8 is safe on a blob with no unlocks", () => {
+    expect(migrate7to8({ version: 7 }).version).toBe(8);
+  });
 });
 
 describe("SaveManager.deserialize", () => {
@@ -204,12 +215,12 @@ describe("SaveManager.deserialize", () => {
     expect(back.version).toBe(SAVE_VERSION);
   });
 
-  it("migrates SaveV1 fixture all the way to v7", () => {
+  it("migrates SaveV1 fixture all the way to v8", () => {
     const clock = new FakeClock(5000);
     const state = deserialize(JSON.stringify(SaveV1), clock);
-    expect(state.version).toBe(7);
+    expect(state.version).toBe(8);
     expect(state.meta.tutorialFlags.seenGoldTip).toBe(false);
-    expect(state.unlocks.offlineCapHours).toBe(8);
+    expect(state.unlocks.offlineCapHours).toBe(1); // v3 default 8, clamped to 1 by v7->v8
     expect(state.unlocks.offlineCap).toBe(undefined);
     expect(state.unlocks.productionBonuses.smelter).toBe(1.0);
     expect(Array.isArray(state.graph.buildings)).toBe(true); // v4 adds buildings

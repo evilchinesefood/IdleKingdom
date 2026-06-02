@@ -58,12 +58,12 @@ describe("EconomySystem", () => {
     expect(s._solved).toBe(undefined);
   });
 
-  it("isListed = any resource with a price (no marketListings gate)", () => {
+  it("isListed honors marketListings AND non-null basePrice", () => {
     const s = NewGame(new FakeClock(0));
-    expect(isListed(s, content, "iron_bar")).toBe(true); // priced
-    expect(isListed(s, content, "steel")).toBe(true); // priced (now sellable, no gate)
-    expect(isListed(s, content, "plank")).toBe(true); // priced
-    expect(isListed(s, content, "parchment")).toBe(false); // basePrice null -> unsellable
+    expect(isListed(s, content, "iron_bar")).toBe(true); // listed at start
+    expect(isListed(s, content, "steel")).toBe(false); // not listed until researched
+    expect(isListed(s, content, "plank")).toBe(false); // listed via res_open_market
+    expect(isListed(s, content, "parchment")).toBe(false); // basePrice null
   });
 
   it("sellFromStockpile converts a node's stockpile to gold + research tithe", () => {

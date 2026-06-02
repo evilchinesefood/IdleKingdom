@@ -176,12 +176,12 @@ describe("RateSolver — Market sink", () => {
     expect(solved.goldRate).toBeCloseTo(expected.goldRate, 1e-9); // 11.25
     expect(solved.researchRate).toBeCloseTo(expected.researchRate, 1e-9); // 0.5625
   });
-  it("market sells any PRICED resource regardless of marketListings", () => {
-    const { state, content, expected } = marketOverflowGraph();
-    // Even with NO listings, both priced goods (iron_bar + iron_ore) still sell:
-    state.unlocks.marketListings = [];
+  it("market does not sell an UNLISTED resource (selling is research-gated)", () => {
+    const { state, content } = marketOverflowGraph();
+    // Only iron_ore listed: iron_ore (4/s @0.5) sells = 2.0; iron_bar is ignored.
+    state.unlocks.marketListings = ["iron_ore"];
     const solved = solve(state, content);
-    expect(solved.goldRate).toBeCloseTo(expected.goldRate, 1e-9); // 11.25, unchanged
+    expect(solved.goldRate).toBeCloseTo(2.0, 1e-9);
   });
   it("res_trade_routes tithe 0.07 applies", () => {
     const { state, content } = seedGraph();
