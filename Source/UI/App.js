@@ -484,6 +484,16 @@ class AppInstance {
         if (this.graphView) this.graphView.selectedBuildingId = null;
         this.renderNow();
       },
+      onDelete: () => {
+        this._pendingRename = null;
+        this.dispatch({
+          type: INTENT.DeleteBuilding,
+          buildingId: this.selectedBuildingId,
+        });
+        this.selectedBuildingId = null;
+        if (this.graphView) this.graphView.selectedBuildingId = null;
+        this.renderNow();
+      },
     };
   }
 
@@ -511,15 +521,21 @@ class AppInstance {
     this.dispatch({ type: INTENT.RenameBuilding, buildingId: id, name: nm });
   }
 
-  // The factory "Group" tool toggle (also reflects the active select/copy mode).
+  // The factory toolbar: Group tool, Build-menu toggle, and bulk-Delete tool.
   _renderToolbar() {
     if (!this.toolbarEl) return;
     const mode = this.graphView ? this.graphView.getMode() : null;
-    let label;
+    const grouping = mode === "select" || mode === "copy";
+    let groupLabel;
     if (mode === "select")
-      label = "Hold Shift and drag a box around your machines to group them.";
-    else if (mode === "copy") label = "Tap the canvas to place the copy";
-    else label = [icon("group"), " Group"];
+      groupLabel =
+        "Hold Shift and drag a box around your machines to group them.";
+    else if (mode === "copy") groupLabel = "Tap the canvas to place the copy";
+    else groupLabel = [icon("group"), " Group"];
+    const deleteLabel =
+      mode === "delete"
+        ? "Drag a box over buildings to delete them (machines included)."
+        : [icon("remove"), " Delete"];
     patch(this.toolbarEl, [
       h(
         "wa-button",
@@ -527,8 +543,8 @@ class AppInstance {
           key: "tool-group",
           class: "tool-group",
           size: "s",
-          variant: mode ? "brand" : "neutral",
-          appearance: mode ? "accent" : "outlined",
+          variant: grouping ? "brand" : "neutral",
+          appearance: grouping ? "accent" : "outlined",
           onclick: () => {
             if (!this.graphView) return;
             Sound.play("click");
@@ -537,7 +553,7 @@ class AppInstance {
             this.renderNow();
           },
         },
-        label,
+        groupLabel,
       ),
       // Show/hide the Build menu panel.
       h(
@@ -556,6 +572,24 @@ class AppInstance {
           },
         },
         [icon("factory"), " Build"],
+      ),
+      // Bulk-delete buildings: toggle on, then drag a box over them.
+      h(
+        "wa-button",
+        {
+          key: "tool-delete",
+          class: "tool-delete",
+          size: "s",
+          variant: mode === "delete" ? "danger" : "neutral",
+          appearance: mode === "delete" ? "accent" : "outlined",
+          onclick: () => {
+            if (!this.graphView) return;
+            Sound.play("click");
+            this.graphView.toggleDeleteMode();
+            this.renderNow();
+          },
+        },
+        deleteLabel,
       ),
     ]);
   }

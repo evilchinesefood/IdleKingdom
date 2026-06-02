@@ -102,5 +102,18 @@ export function BuildingInspector(snap, buildingId, handlers, copying) {
       },
       "Ungroup",
     ),
+    // Delete the whole building INCLUDING its machines.
+    h(
+      "wa-button",
+      {
+        key: "bi-delete",
+        class: "bi-delete",
+        variant: "danger",
+        appearance: "accent",
+        onclick: () => handlers.onDelete(),
+      },
+      h("span", { slot: "start" }, icon("remove")),
+      "Delete building + machines",
+    ),
   );
 }

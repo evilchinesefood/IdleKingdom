@@ -223,6 +223,11 @@
   stroke-dasharray: 5 4;
   pointer-events: none;
 }
+/* Bulk-delete marquee: red, so the destructive drag reads as dangerous. */
+.select-box.delete {
+  fill: rgba(134, 40, 29, 0.14);
+  stroke: var(--bad);
+}
 /* Copy ghost (building rect + member outlines) */
 .building-ghost {
   fill: rgba(201, 162, 39, 0.1);

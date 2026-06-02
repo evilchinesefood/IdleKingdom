@@ -340,6 +340,15 @@ export class GraphView {
     this.onModeChange();
   }
 
+  // Bulk-delete mode: drag a box; every building it touches is deleted (machines too).
+  toggleDeleteMode() {
+    this._mode = this._mode === "delete" ? null : "delete";
+    this._copy = null;
+    this._selectBox = null;
+    this._draw();
+    this.onModeChange();
+  }
+
   startCopy(buildingId, withUpgrades = true) {
     const b = (this.snap.buildings || []).find((x) => x.id === buildingId);
     if (!b) return;
@@ -544,10 +553,26 @@ export class GraphView {
   // Finalize a select-box: capture machines FULLY inside (and not already
   // grouped); the engine implies the internal links. Then leave select mode.
   _onSelectBox(rect) {
+    const wasDelete = this._mode === "delete";
     this._selectBox = null;
     this._mode = null;
     this.onModeChange();
     if (!this.snap || rect.w < 8 || rect.h < 8) {
+      this._draw();
+      return;
+    }
+    if (wasDelete) {
+      // delete every building whose rect intersects the box (machines included)
+      const hits = (this.snap.buildings || []).filter(
+        (b) =>
+          rect.x < b.rect.x + b.rect.w &&
+          rect.x + rect.w > b.rect.x &&
+          rect.y < b.rect.y + b.rect.h &&
+          rect.y + rect.h > b.rect.y,
+      );
+      for (const b of hits)
+        this.game.dispatch({ type: INTENT.DeleteBuilding, buildingId: b.id });
+      this.selectedBuildingId = null;
       this._draw();
       return;
     }
@@ -766,7 +791,7 @@ export class GraphView {
       const a = graphToScreen(v, this._selectBox.x, this._selectBox.y);
       els.push(
         svg("rect", {
-          class: "select-box",
+          class: "select-box" + (this._mode === "delete" ? " delete" : ""),
           x: a.x,
           y: a.y,
           width: this._selectBox.w * v.scale,
@@ -991,7 +1016,7 @@ export class GraphView {
     // is actively producing and fed (n.working). Idle/blocked/full nodes are still.
     if (n.working) {
       const wfo = svg("foreignObject", {
-        x: NODE_W - 22,
+        x: NODE_W - 27,
         y: NODE_H - 30,
         width: 16,
         height: 16,

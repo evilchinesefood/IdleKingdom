@@ -379,6 +379,19 @@ export function reduce(state, intent, content) {
       next.graph.buildings.splice(idx, 1);
       break;
     }
+    case "DeleteBuilding": {
+      // Remove the building AND every machine in it (plus any link touching them).
+      const b = next.graph.buildings.find((x) => x.id === intent.buildingId);
+      if (!b) return reject(state, "no such building");
+      const members = new Set(b.nodeIds);
+      next.graph.nodes = next.graph.nodes.filter((n) => !members.has(n.id));
+      next.graph.links = next.graph.links.filter(
+        (l) => !members.has(l.from) && !members.has(l.to),
+      );
+      next.graph.buildings = next.graph.buildings.filter((x) => x.id !== b.id);
+      structural = true;
+      break;
+    }
     case "RemoveFromBuilding": {
       // Drop a SINGLE machine from its building (the rest of the group stays).
       const node = nodeById(next, intent.nodeId);

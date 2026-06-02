@@ -65,8 +65,8 @@ export class GraphInput {
       if (this.cb.onCopyMove) this.cb.onCopyMove(g.x, g.y);
       return;
     }
-    if (mode === "select" || e.shiftKey) {
-      // Select mode (toolbar) OR holding Shift while dragging starts a box.
+    if (mode === "select" || mode === "delete" || e.shiftKey) {
+      // Select/Delete mode (toolbar) OR holding Shift while dragging starts a box.
       this.mode = "selectBox";
       this.boxStart = g;
       if (this.cb.onSelectBoxMove) this.cb.onSelectBoxMove(this._box(g));

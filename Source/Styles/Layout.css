@@ -266,7 +266,8 @@ wa-button::part(base) {
 }
 .bi-copy,
 .bi-copy-structure,
-.bi-ungroup {
+.bi-ungroup,
+.bi-delete {
   display: block;
   width: 100%;
   margin: 4px 0;

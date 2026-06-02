@@ -25,6 +25,7 @@ import "./Building.Test.js";
 import "./UndoRedo.Test.js";
 import "./Storage.Test.js";
 import "./FanIn.Test.js";
+import "./BulkDelete.Test.js";
 import "./Snapshot.Test.js";
 import "./Game.Test.js";
 import "./RenderCadence.Test.js";

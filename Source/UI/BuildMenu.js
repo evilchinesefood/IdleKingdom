@@ -40,7 +40,7 @@ export function BuildMenu(snap, dispatch, ui) {
   const detail = [];
   const kind = ui.selectedPaletteKind;
   if (kind === "gatherer") {
-    detail.push(h("div", { class: "bm-detail-title" }, "Pick Recipe:"));
+    detail.push(h("div", { class: "bm-detail-title" }, "Machine Recipe:"));
     for (const rid of bm.gathererResources || []) {
       const res = RESOURCES[rid];
       if (!res) continue;
@@ -65,7 +65,7 @@ export function BuildMenu(snap, dispatch, ui) {
       );
     }
   } else if (kind === "smelter" || kind === "workshop") {
-    detail.push(h("div", { class: "bm-detail-title" }, "Pick Recipe:"));
+    detail.push(h("div", { class: "bm-detail-title" }, "Machine Recipe:"));
     for (const r of bm.unlockedRecipes) {
       const recipe = RECIPES[r];
       if (!recipe || recipe.crafterKind !== kind) continue;
@@ -92,6 +92,7 @@ export function BuildMenu(snap, dispatch, ui) {
       );
     }
   } else if (kind) {
+    detail.push(h("div", { class: "bm-detail-title" }, "Machine Recipe:"));
     detail.push(
       h(
         "wa-button",
@@ -103,7 +104,7 @@ export function BuildMenu(snap, dispatch, ui) {
             dispatch({ type: INTENT.PlaceNode, kind, pos: ui.spawnPos() }),
         },
         h("span", { slot: "start" }, icon(kind)),
-        `Place ${cap(kind)}`,
+        cap(kind),
       ),
     );
   }

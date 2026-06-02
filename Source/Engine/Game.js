@@ -24,6 +24,7 @@ const UNDOABLE = new Set([
   "ResizeBuilding",
   "CopyBuilding",
   "UngroupBuilding",
+  "DeleteBuilding",
   "RemoveFromBuilding",
   "AddToBuilding",
   "RenameBuilding",
