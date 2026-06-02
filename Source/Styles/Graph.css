@@ -25,7 +25,19 @@
 }
 
 .node-card {
+  cursor: pointer; /* press selects; only a selected node shows the move cursor */
+}
+.node-card.selected {
   cursor: move;
+}
+/* Keyboard focus ring — the global :focus-visible outline doesn't render on an
+   SVG <g>, so light up the node box instead. */
+.node-card:focus {
+  outline: none;
+}
+.node-card:focus .node-box {
+  stroke: var(--gold);
+  stroke-width: 3;
 }
 .node-card .node-box {
   fill: var(--panel);
@@ -112,6 +124,21 @@
 .link-label.show {
   visibility: visible;
 }
+/* Persistent midpoint dot hints that a link is interactive (the only affordance
+   on touch, where there's no hover). The wide .link-hit handles the tap. */
+.link-dot {
+  fill: var(--iron-lt);
+  pointer-events: none;
+}
+.link-g {
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .link-g:hover .link-path {
+    stroke: var(--gold);
+    stroke-width: 5;
+  }
+}
 .link-hit {
   fill: none;
   stroke: transparent;
@@ -124,6 +151,12 @@
   stroke: var(--gold);
   stroke-width: 3;
   stroke-dasharray: 5 4;
+}
+/* First-run empty-state hint (no machines placed yet) */
+.graph-empty {
+  fill: var(--ink-soft);
+  font-size: 16px;
+  font-family: var(--font);
 }
 .link-delete-hit {
   fill: var(--panel);

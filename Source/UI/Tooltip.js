@@ -3,7 +3,8 @@ import { icon } from "./Icons.js";
 import { nextTutorialStep } from "./Logic/Selectors.js";
 import { INTENT } from "../Engine/Intents.js";
 
-// anchor = a CSS selector for the element this tip points at (cosmetic; used by App to position).
+// anchor = CSS selector for the element this tip points at; App._positionTooltip
+// reads data-anchor and places the tooltip beside that element.
 const TIPS = {
   gold: {
     flag: "seenGoldTip",
