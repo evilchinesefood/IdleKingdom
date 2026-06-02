@@ -18,6 +18,8 @@ export class GraphInput {
     this.connectFrom = null; // {nodeId, dir, gx, gy} during a mouse drag-connect
     this.downLink = null; // link under the pointer at _down (reveal toggles on a tap in _up)
     this.downDelete = null; // revealed link's delete-× under the pointer at _down
+    this.dragBuildingId = null; // building being moved as a unit
+    this.boxStart = null; // graph-space anchor of a select-box drag
     this.startScreen = null;
     this.pinchDist = 0;
     this._bind();
@@ -56,6 +58,19 @@ export class GraphInput {
     }
 
     const g = this._toGraph(e);
+    const mode = this.cb.getMode ? this.cb.getMode() : null;
+    // Building tool modes hijack the canvas drag.
+    if (mode === "copy") {
+      this.mode = "copyPlace";
+      if (this.cb.onCopyMove) this.cb.onCopyMove(g.x, g.y);
+      return;
+    }
+    if (mode === "select") {
+      this.mode = "selectBox";
+      this.boxStart = g;
+      if (this.cb.onSelectBoxMove) this.cb.onSelectBoxMove(this._box(g));
+      return;
+    }
     // The delete-× of a revealed link wins over link-reveal/pan: a tap here must
     // delete the connection (the ×'s own onclick can't fire under SVG pointer capture).
     const del = this.cb.hitLinkDelete ? this.cb.hitLinkDelete(g.x, g.y) : null;
@@ -80,14 +95,28 @@ export class GraphInput {
     const nodeId = this.cb.hitNode(g.x, g.y);
     if (nodeId) {
       const already = this.cb.isSelected && this.cb.isSelected(nodeId);
+      const grouped = this.cb.isGrouped && this.cb.isGrouped(nodeId);
       this.cb.onSelect(nodeId);
-      if (already) {
+      // A grouped machine is position-locked: it selects (for editing) but never
+      // drags — the building moves as a unit instead.
+      if (already && !grouped) {
         this.mode = "dragNode";
         this.dragNodeId = nodeId;
         if (this.cb.onNodeGrab) this.cb.onNodeGrab(nodeId, g.x, g.y);
       } else {
         this.mode = "selectOnly"; // first gesture selects; it will not move the node
       }
+      return;
+    }
+
+    // A building's outline/label (not its interior machines, handled above):
+    // select + drag the whole group as a unit.
+    const bId = this.cb.hitBuilding ? this.cb.hitBuilding(g.x, g.y) : null;
+    if (bId != null) {
+      if (this.cb.onSelectBuilding) this.cb.onSelectBuilding(bId);
+      if (this.cb.onBuildingGrab) this.cb.onBuildingGrab(bId, g.x, g.y);
+      this.mode = "dragBuilding";
+      this.dragBuildingId = bId;
       return;
     }
 
@@ -122,6 +151,22 @@ export class GraphInput {
       this.cb.onNodeDrag(this.dragNodeId, g.x, g.y);
       return;
     }
+    if (this.mode === "selectBox") {
+      const g = this._toGraph(e);
+      if (this.cb.onSelectBoxMove) this.cb.onSelectBoxMove(this._box(g));
+      return;
+    }
+    if (this.mode === "dragBuilding") {
+      const g = this._toGraph(e);
+      if (this.cb.onBuildingDrag)
+        this.cb.onBuildingDrag(this.dragBuildingId, g.x, g.y);
+      return;
+    }
+    if (this.mode === "copyPlace") {
+      const g = this._toGraph(e);
+      if (this.cb.onCopyMove) this.cb.onCopyMove(g.x, g.y);
+      return;
+    }
     if (this.mode === "pan") {
       const dx = e.clientX - prev.x,
         dy = e.clientY - prev.y;
@@ -149,6 +194,20 @@ export class GraphInput {
     if (wasMode === "dragNode" && this.dragNodeId) {
       const g = this._toGraph(e);
       if (this.cb.onNodeDrop) this.cb.onNodeDrop(this.dragNodeId, g.x, g.y);
+    }
+
+    if (wasMode === "selectBox") {
+      const g = this._toGraph(e);
+      if (this.cb.onSelectBox) this.cb.onSelectBox(this._box(g));
+    }
+    if (wasMode === "dragBuilding" && this.dragBuildingId != null) {
+      const g = this._toGraph(e);
+      if (this.cb.onBuildingDrop)
+        this.cb.onBuildingDrop(this.dragBuildingId, g.x, g.y);
+    }
+    if (wasMode === "copyPlace") {
+      const g = this._toGraph(e);
+      if (this.cb.onCopyPlace) this.cb.onCopyPlace(g.x, g.y);
     }
 
     if (
@@ -196,8 +255,24 @@ export class GraphInput {
       this.connectFrom = null;
       this.downLink = null;
       this.downDelete = null;
+      this.dragBuildingId = null;
+      this.boxStart = null;
       this.el.classList.remove("panning");
+      // let GraphView drop any live move/box override if this gesture was
+      // abandoned (e.g. interrupted by a pinch) rather than cleanly dropped.
+      if (this.cb.onPointersCleared) this.cb.onPointersCleared();
     }
+  }
+
+  // Normalized select rectangle (graph coords) from the drag anchor to `g`.
+  _box(g) {
+    const a = this.boxStart || g;
+    return {
+      x: Math.min(a.x, g.x),
+      y: Math.min(a.y, g.y),
+      w: Math.abs(g.x - a.x),
+      h: Math.abs(g.y - a.y),
+    };
   }
 
   _wheel(e) {

@@ -33,11 +33,25 @@ export class GraphView {
     this.selectedLinkId = null;
 
     this.svgEl = svg("svg", { class: "graph-svg" });
+    this.layerBuildings = svg("g", {}); // building outlines/labels, behind all
     this.layerLinks = svg("g", {});
     this.layerNodes = svg("g", {});
+    this.layerOverlay = svg("g", {}); // select box + copy ghost, on top
+    this.svgEl.appendChild(this.layerBuildings);
     this.svgEl.appendChild(this.layerLinks);
     this.svgEl.appendChild(this.layerNodes);
+    this.svgEl.appendChild(this.layerOverlay);
     this.host.appendChild(this.svgEl);
+
+    // Building tool state
+    this._mode = null; // "select" | "copy" | null
+    this.selectedBuildingId = null;
+    this._selectBox = null; // live select rect (graph coords)
+    this._buildingDrag = null; // {id, dx, dy} live move override
+    this._bGrab = null;
+    this._copy = null; // {buildingId, gx, gy} live copy-ghost top-left
+    this.onSelectBuilding = opts.onSelectBuilding || (() => {});
+    this.onModeChange = opts.onModeChange || (() => {});
 
     this.input = new GraphInput(this.svgEl, {
       getView: () => this.view,
@@ -59,6 +73,21 @@ export class GraphView {
       hitLinkDelete: (gx, gy) => this.hitLinkDelete(gx, gy),
       onSelectLink: (id) => this._selectLink(id),
       onDeleteLink: (id) => this._deleteLink(id),
+      getMode: () => this._mode,
+      hitBuilding: (gx, gy) => this.hitBuilding(gx, gy),
+      isGrouped: (id) => this.isGrouped(id),
+      onSelectBuilding: (id) => this._selectBuilding(id),
+      onBuildingGrab: (id, gx, gy) => this._grabBuilding(id, gx, gy),
+      onBuildingDrag: (id, gx, gy) => this._dragBuilding(id, gx, gy),
+      onBuildingDrop: (id, gx, gy) => this._dropBuilding(id, gx, gy),
+      onSelectBoxMove: (rect) => {
+        this._selectBox = rect;
+        this._draw();
+      },
+      onSelectBox: (rect) => this._onSelectBox(rect),
+      onCopyMove: (gx, gy) => this._copyMove(gx, gy),
+      onCopyPlace: (gx, gy) => this._copyPlace(gx, gy),
+      onPointersCleared: () => this._clearTransient(),
       onViewChange: () => this._draw(),
     });
     this._pendingLink = null; // {fromId, gx, gy} live mouse drag-connect preview
@@ -270,19 +299,233 @@ export class GraphView {
 
   _select(id) {
     this.selectedId = id;
+    this.selectedBuildingId = null; // selecting a node clears any building selection
     this.onSelect(id);
     this.selectedLinkId = null;
     this._draw();
   }
 
-  // resolve a node's effective pos: a live drag-nudge overrides the snapshot pos
+  // resolve a node's effective pos: a live drag-nudge (single node) or a live
+  // building-move (whole group) overrides the snapshot pos.
   _pos(n) {
-    return (this._dragPos && this._dragPos[n.id]) || n.pos;
+    if (this._dragPos && this._dragPos[n.id]) return this._dragPos[n.id];
+    if (this._buildingDrag && n.building === this._buildingDrag.id)
+      return {
+        x: n.pos.x + this._buildingDrag.dx,
+        y: n.pos.y + this._buildingDrag.dy,
+      };
+    return n.pos;
+  }
+
+  // ---- Buildings ---------------------------------------------------------
+
+  getMode() {
+    return this._mode;
+  }
+
+  toggleSelectMode() {
+    this._mode = this._mode === "select" ? null : "select";
+    this._copy = null;
+    this._selectBox = null;
+    this._draw();
+    this.onModeChange();
+  }
+
+  startCopy(buildingId) {
+    const b = (this.snap.buildings || []).find((x) => x.id === buildingId);
+    if (!b) return;
+    this._mode = "copy";
+    this._copy = { buildingId, gx: b.rect.x + GRID, gy: b.rect.y + GRID };
+    this._draw();
+    this.onModeChange();
+  }
+
+  cancelMode() {
+    this._mode = null;
+    this._copy = null;
+    this._selectBox = null;
+    this._draw();
+    this.onModeChange();
+  }
+
+  // A gesture ended without a clean drop (e.g. interrupted by a 2nd pinch finger):
+  // drop any live move/box override so it doesn't persist into later renders.
+  // Copy mode (a deliberate tool state) is intentionally left alone.
+  _clearTransient() {
+    if (this._buildingDrag || this._bGrab || this._selectBox) {
+      this._buildingDrag = null;
+      this._bGrab = null;
+      this._selectBox = null;
+      this._draw();
+    }
+  }
+
+  isGrouped(id) {
+    const n = this._nodeAt(id);
+    return !!(n && n.building);
+  }
+
+  _buildingRect(b) {
+    if (this._buildingDrag && this._buildingDrag.id === b.id)
+      return {
+        x: b.rect.x + this._buildingDrag.dx,
+        y: b.rect.y + this._buildingDrag.dy,
+        w: b.rect.w,
+        h: b.rect.h,
+      };
+    return b.rect;
+  }
+
+  // Hit the building's outline BAND or its name label (graph coords). Interior
+  // taps fall through to the machines/links/pan beneath.
+  hitBuilding(gx, gy) {
+    if (!this.snap) return null;
+    const band = 12 / this.view.scale;
+    const lblH = 22 / this.view.scale;
+    for (const b of this.snap.buildings || []) {
+      const r = this._buildingRect(b);
+      if (gx >= r.x && gx <= r.x + r.w && gy >= r.y - lblH && gy < r.y)
+        return b.id; // label strip above the box
+      const onX = gx >= r.x - band && gx <= r.x + r.w + band;
+      const onY = gy >= r.y - band && gy <= r.y + r.h + band;
+      const inX = gx >= r.x + band && gx <= r.x + r.w - band;
+      const inY = gy >= r.y + band && gy <= r.y + r.h - band;
+      if (onX && onY && !(inX && inY)) return b.id; // border band
+    }
+    return null;
+  }
+
+  _selectBuilding(id) {
+    this.selectedBuildingId = id;
+    this.selectedId = null;
+    this.selectedLinkId = null;
+    this.onSelect(null); // close any node inspector
+    this.onSelectBuilding(id);
+    this._draw();
+  }
+
+  _grabBuilding(id, gx, gy) {
+    this._buildingDrag = { id, dx: 0, dy: 0 };
+    this._bGrab = { gx, gy };
+  }
+
+  _dragBuilding(id, gx, gy) {
+    if (!this._buildingDrag || !this._bGrab) return;
+    this._buildingDrag.dx = gx - this._bGrab.gx;
+    this._buildingDrag.dy = gy - this._bGrab.gy;
+    this._draw();
+  }
+
+  _dropBuilding(id, gx, gy) {
+    const d = this._buildingDrag;
+    this._buildingDrag = null;
+    this._bGrab = null;
+    if (!d) {
+      this._draw();
+      return;
+    }
+    // A tap (negligible SCREEN movement) just keeps the selection — don't move.
+    // Threshold in screen px so it's zoom-independent (matches GraphInput's tap).
+    if (Math.hypot(d.dx, d.dy) * this.view.scale < 6) {
+      this._draw();
+      return;
+    }
+    let dx = d.dx,
+      dy = d.dy;
+    if (this.snapEnabled()) {
+      dx = Math.round(dx / GRID) * GRID;
+      dy = Math.round(dy / GRID) * GRID;
+    }
+    if (dx === 0 && dy === 0) {
+      this._draw();
+      return;
+    }
+    this.game.dispatch({
+      type: INTENT.MoveBuilding,
+      buildingId: id,
+      delta: { dx, dy },
+    });
+  }
+
+  // Finalize a select-box: capture machines FULLY inside (and not already
+  // grouped); the engine implies the internal links. Then leave select mode.
+  _onSelectBox(rect) {
+    this._selectBox = null;
+    this._mode = null;
+    this.onModeChange();
+    if (!this.snap || rect.w < 8 || rect.h < 8) {
+      this._draw();
+      return;
+    }
+    const ids = this.snap.nodes
+      .filter(
+        (n) =>
+          !n.building &&
+          n.pos.x >= rect.x &&
+          n.pos.x + NODE_W <= rect.x + rect.w &&
+          n.pos.y >= rect.y &&
+          n.pos.y + NODE_H <= rect.y + rect.h,
+      )
+      .map((n) => n.id);
+    if (ids.length === 0) {
+      this._draw();
+      return;
+    }
+    this.game.dispatch({
+      type: INTENT.CreateBuilding,
+      nodeIds: ids,
+      rect: { x: rect.x, y: rect.y, w: rect.w, h: rect.h },
+    });
+    // select the freshly-created building so its inspector opens immediately
+    const made = (this.game.getSnapshot().buildings || []).find((b) =>
+      b.nodeIds.includes(ids[0]),
+    );
+    if (made) this._selectBuilding(made.id);
+    else this._draw();
+  }
+
+  _copyMove(gx, gy) {
+    if (!this._copy) return;
+    this._copy.gx = gx;
+    this._copy.gy = gy;
+    this._draw();
+  }
+
+  _copyPlace(gx, gy) {
+    const c = this._copy;
+    this._mode = null;
+    this._copy = null;
+    this.onModeChange();
+    if (!c) {
+      this._draw();
+      return;
+    }
+    const b = (this.snap.buildings || []).find((x) => x.id === c.buildingId);
+    if (!b) {
+      this._draw();
+      return;
+    }
+    let dx = gx - b.rect.x,
+      dy = gy - b.rect.y;
+    if (this.snapEnabled()) {
+      dx = Math.round(dx / GRID) * GRID;
+      dy = Math.round(dy / GRID) * GRID;
+    }
+    this.game.dispatch({
+      type: INTENT.CopyBuilding,
+      buildingId: c.buildingId,
+      offset: { dx, dy },
+    });
   }
 
   _draw() {
     if (!this.snap) return;
     const v = this.view;
+    // buildings (behind links + nodes; always visible)
+    this._replace(
+      this.layerBuildings,
+      (this.snap.buildings || []).map((b) => this._drawBuilding(b, v)),
+    );
     // links
     const linkEls = this.snap.links
       .map((l) => {
@@ -390,6 +633,88 @@ export class GraphView {
     const refocus = this._activeNodeId();
     this._replace(this.layerNodes, nodeEls);
     if (refocus != null) this._restoreFocus(refocus);
+
+    // overlay: live select box + copy ghost (on top of everything)
+    this._replace(this.layerOverlay, this._drawOverlay(v));
+  }
+
+  _drawBuilding(b, v) {
+    const r = this._buildingRect(b);
+    const a = graphToScreen(v, r.x, r.y);
+    const g = svg("g", {
+      class:
+        b.id === this.selectedBuildingId ? "building selected" : "building",
+    });
+    g.appendChild(
+      svg("rect", {
+        class: "building-box",
+        x: a.x,
+        y: a.y,
+        width: r.w * v.scale,
+        height: r.h * v.scale,
+        rx: 6,
+      }),
+    );
+    g.appendChild(
+      svg(
+        "text",
+        { class: "building-label", x: a.x + 6, y: a.y - 6 / v.scale },
+        [b.name],
+      ),
+    );
+    return g;
+  }
+
+  _drawOverlay(v) {
+    const els = [];
+    if (this._selectBox) {
+      const a = graphToScreen(v, this._selectBox.x, this._selectBox.y);
+      els.push(
+        svg("rect", {
+          class: "select-box",
+          x: a.x,
+          y: a.y,
+          width: this._selectBox.w * v.scale,
+          height: this._selectBox.h * v.scale,
+        }),
+      );
+    }
+    if (this._copy) {
+      const b = (this.snap.buildings || []).find(
+        (x) => x.id === this._copy.buildingId,
+      );
+      if (b) {
+        const dx = this._copy.gx - b.rect.x,
+          dy = this._copy.gy - b.rect.y;
+        const a = graphToScreen(v, b.rect.x + dx, b.rect.y + dy);
+        els.push(
+          svg("rect", {
+            class: "building-ghost",
+            x: a.x,
+            y: a.y,
+            width: b.rect.w * v.scale,
+            height: b.rect.h * v.scale,
+            rx: 6,
+          }),
+        );
+        for (const nid of b.nodeIds) {
+          const n = this._nodeAt(nid);
+          if (!n) continue;
+          const np = graphToScreen(v, n.pos.x + dx, n.pos.y + dy);
+          els.push(
+            svg("rect", {
+              class: "node-ghost",
+              x: np.x,
+              y: np.y,
+              width: NODE_W * v.scale,
+              height: NODE_H * v.scale,
+              rx: 8,
+            }),
+          );
+        }
+      }
+    }
+    return els;
   }
 
   // Centered first-run hint shown on an empty canvas (screen space, so it stays

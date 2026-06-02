@@ -5,6 +5,7 @@ import { patch, h } from "./Render/Dom.js";
 import { icon } from "./Icons.js";
 import { BuildMenu } from "./BuildMenu.js";
 import { NodeInspector } from "./NodeInspector.js";
+import { BuildingInspector } from "./BuildingInspector.js";
 import { ResearchTree } from "./ResearchTree.js";
 import { ExpeditionBoard } from "./ExpeditionBoard.js";
 import { HeroPanel } from "./HeroPanel.js";
@@ -70,6 +71,8 @@ class AppInstance {
     this._errorTimer = null;
 
     this.selectedNodeId = null;
+    this.selectedBuildingId = null;
+    this.toolbarEl = null;
     this.buildUi = {
       selectedPaletteKind: null,
       setPalette: (k) => {
@@ -114,6 +117,8 @@ class AppInstance {
     this.screenEl.innerHTML = "";
     this.graphView = null;
     this.selectedNodeId = null;
+    this.selectedBuildingId = null;
+    this.toolbarEl = null;
 
     if (route === "factory") {
       const canvas = document.createElement("div");
@@ -121,6 +126,9 @@ class AppInstance {
       this.screenEl.appendChild(canvas);
       this.screenEl.appendChild(this.panelEl);
       this.panelEl.innerHTML = "";
+      this.toolbarEl = document.createElement("div");
+      this.toolbarEl.className = "factory-tools";
+      this.screenEl.appendChild(this.toolbarEl);
       const legend = document.createElement("div");
       legend.className = "factory-legend";
       patch(legend, [
@@ -141,10 +149,18 @@ class AppInstance {
       this.graphView = new GraphView(canvas, this.game, {
         onSelect: (id) => {
           this.selectedNodeId = id;
+          if (id) this.selectedBuildingId = null;
           this.renderNow();
         },
+        onSelectBuilding: (id) => {
+          this.selectedBuildingId = id;
+          this.selectedNodeId = null;
+          this.renderNow();
+        },
+        onModeChange: () => this._renderToolbar(),
         snap: () => !!this.prefs.snapToGrid,
       });
+      this._renderToolbar();
     } else {
       // route-owned panel host
       const host = document.createElement("div");
@@ -200,9 +216,18 @@ class AppInstance {
   _renderPanels(snap) {
     const route = this.activeScreen;
     if (route === "factory") {
+      const inspector =
+        this.selectedBuildingId != null
+          ? BuildingInspector(
+              snap,
+              this.selectedBuildingId,
+              this._buildingHandlers(),
+              this.graphView && this.graphView.getMode() === "copy",
+            )
+          : NodeInspector(snap, this.dispatch, this.selectedNodeId);
       patch(this.panelEl, [
         BuildMenu(snap, this.dispatch, this.buildUi),
-        NodeInspector(snap, this.dispatch, this.selectedNodeId),
+        inspector,
       ]);
       return;
     }
@@ -213,6 +238,61 @@ class AppInstance {
       vnode = ExpeditionBoard(snap, this.dispatch);
     else if (route === "heroes") vnode = HeroPanel(snap, this.dispatch);
     patch(this._routeHost, vnode ? [vnode] : []);
+  }
+
+  _buildingHandlers() {
+    return {
+      onCopy: () => {
+        if (!this.graphView) return;
+        if (this.graphView.getMode() === "copy") this.graphView.cancelMode();
+        else this.graphView.startCopy(this.selectedBuildingId);
+        this.renderNow();
+      },
+      onRename: (name) =>
+        this.dispatch({
+          type: INTENT.RenameBuilding,
+          buildingId: this.selectedBuildingId,
+          name: name || "",
+        }),
+      onUngroup: () => {
+        this.dispatch({
+          type: INTENT.UngroupBuilding,
+          buildingId: this.selectedBuildingId,
+        });
+        this.selectedBuildingId = null;
+        if (this.graphView) this.graphView.selectedBuildingId = null;
+        this.renderNow();
+      },
+    };
+  }
+
+  // The factory "Group" tool toggle (also reflects the active select/copy mode).
+  _renderToolbar() {
+    if (!this.toolbarEl) return;
+    const mode = this.graphView ? this.graphView.getMode() : null;
+    let label;
+    if (mode === "select") label = "Drag a box around machines…";
+    else if (mode === "copy") label = "Tap the canvas to place the copy";
+    else label = [icon("factory"), " Group"];
+    patch(this.toolbarEl, [
+      h(
+        "wa-button",
+        {
+          key: "tool-group",
+          class: "tool-group",
+          size: "s",
+          variant: mode ? "brand" : "neutral",
+          appearance: mode ? "accent" : "outlined",
+          onclick: () => {
+            if (!this.graphView) return;
+            if (mode === "copy") this.graphView.cancelMode();
+            else this.graphView.toggleSelectMode();
+            this.renderNow();
+          },
+        },
+        label,
+      ),
+    ]);
   }
 
   _renderOverlay(snap) {
@@ -350,6 +430,7 @@ class AppInstance {
       save: { status: "ok" },
       nodes: [],
       links: [],
+      buildings: [],
       research: [],
       heroes: [],
       territories: [],

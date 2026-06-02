@@ -157,3 +157,49 @@
   font-weight: 700;
   pointer-events: none;
 }
+
+/* Buildings — always-visible group outline + name label (behind machines).
+   pointer-events:none: GraphInput hit-tests buildings by coordinate, not target. */
+.building {
+  pointer-events: none;
+}
+.building-box {
+  fill: rgba(201, 162, 39, 0.06);
+  stroke: var(--gold);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+}
+.building.selected .building-box {
+  fill: rgba(201, 162, 39, 0.13);
+  stroke-width: 3;
+  stroke-dasharray: none;
+}
+.building-label {
+  fill: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: var(--font-display);
+}
+/* Live select-box while dragging in Select mode */
+.select-box {
+  fill: rgba(201, 162, 39, 0.12);
+  stroke: var(--gold);
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+  pointer-events: none;
+}
+/* Copy ghost (building rect + member outlines) */
+.building-ghost {
+  fill: rgba(201, 162, 39, 0.1);
+  stroke: var(--gold);
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+  pointer-events: none;
+}
+.node-ghost {
+  fill: var(--panel);
+  stroke: var(--iron);
+  stroke-width: 2;
+  opacity: 0.5;
+  pointer-events: none;
+}
