@@ -32,13 +32,20 @@ wa-button::part(base) {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+  /* Drop the filled "pill" (wa-tag paints it on :host via --wa-color-fill-*)
+     and invert: the text now takes the light tone the pill used to be. */
+  background: transparent;
+  border-color: transparent;
+  color: var(--parchment);
 }
 .hud-cur .val {
   font-weight: 700;
+  color: var(--parchment);
 }
 .hud-cur .rate {
   font-size: 0.7rem;
   opacity: 0.8;
+  color: var(--parchment);
 }
 /* Per-currency rate: shown when the "Always show rates" pref adds .show-rates,
    otherwise revealed on hover (pointer devices only). */
@@ -56,8 +63,12 @@ wa-button::part(base) {
 }
 .hud-tabs {
   flex: 0 0 auto;
+  /* kill the full-width underline track beneath the tabs (the gold active-tab
+     indicator stays as the active cue). */
+  --track-color: transparent;
 }
-.hud-tabs::part(base) {
+.hud-tabs::part(base),
+.hud-tabs::part(nav) {
   border-bottom: none;
 }
 .hud i {
