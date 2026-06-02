@@ -32,7 +32,6 @@ export function HeroPanel(snap, dispatch) {
       return h(
         "div",
         { class: "hp-slot" },
-        h("div", { class: "hp-slot-label" }, slot),
         h(
           "wa-select",
           {

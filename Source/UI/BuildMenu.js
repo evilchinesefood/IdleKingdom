@@ -65,7 +65,7 @@ export function BuildMenu(snap, dispatch, ui) {
       );
     }
   } else if (kind === "smelter" || kind === "workshop") {
-    detail.push(h("div", { class: "bm-detail-title" }, "Pick recipe:"));
+    detail.push(h("div", { class: "bm-detail-title" }, "Pick Recipe:"));
     for (const r of bm.unlockedRecipes) {
       const recipe = RECIPES[r];
       if (!recipe || recipe.crafterKind !== kind) continue;

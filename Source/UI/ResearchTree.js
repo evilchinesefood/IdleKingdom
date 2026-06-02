@@ -14,11 +14,11 @@ function depthOf(id, memo) {
   return (memo[id] = d);
 }
 
-const COL_W = 200,
-  ROW_H = 160,
+const COL_W = 210,
+  ROW_H = 195,
   PAD = 24,
-  CARD_W = 160,
-  CARD_H = 88;
+  CARD_W = 170,
+  CARD_H = 108;
 
 // Static layout (positions + dimensions) — derived once from content.
 let _layout = null;
@@ -129,6 +129,7 @@ export function ResearchTree(snap, dispatch) {
       },
       h("div", { class: "res-name", slot: "header" }, r.name),
       h("div", { class: "res-cost" }, icon(r.currency), " " + fmtCost(r.cost)),
+      h("div", { class: "res-desc" }, r.description || ""),
       h("div", { class: "res-eff" }, r.effectsText || ""),
       buyBtn,
     );

@@ -84,6 +84,20 @@ wa-button::part(base) {
 .hud-save {
   font-size: 0.8rem;
 }
+/* Hamburger: hidden at wide widths; the navbar shows the tabs normally. */
+.hud-hamburger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap);
+  min-width: var(--tap);
+  background: none;
+  border: none;
+  color: var(--parchment);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 1.2rem;
+}
 .hud-error {
   position: fixed;
   top: 60px;
@@ -110,7 +124,7 @@ wa-button::part(base) {
   padding: 0.75rem;
 }
 
-/* Mobile-first: tabs become a bottom bar on narrow screens */
+/* Mobile-first: below the breakpoint the tabs collapse behind a hamburger. */
 @media (max-width: 640px) {
   .hud {
     flex-direction: column;
@@ -125,12 +139,21 @@ wa-button::part(base) {
     order: 2;
     align-self: flex-end;
   }
+  .hud-hamburger {
+    display: flex;
+    order: 2;
+    align-self: flex-end;
+  }
   .hud-tabs {
     order: 3;
     width: 100%;
   }
   .hud-tabs::part(nav) {
     justify-content: space-around;
+  }
+  /* hidden until the hamburger toggles .menu-open on the HUD */
+  .hud:not(.menu-open) .hud-tabs {
+    display: none;
   }
 }
 
@@ -182,6 +205,16 @@ wa-button::part(base) {
   top: 0.5rem;
   left: 0.5rem;
   z-index: 30;
+}
+/* Group button: white fill when idle (gold accent when select/copy mode is active). */
+.tool-group:not([appearance="accent"])::part(base) {
+  background: #fff;
+  color: var(--ink);
+  border-color: var(--line);
+}
+.tool-group:not([appearance="accent"]) i {
+  --fa-primary-color: var(--ink) !important;
+  --fa-secondary-color: var(--gold) !important;
 }
 
 /* Building inspector (mirrors the node inspector) */
@@ -251,15 +284,47 @@ wa-button.hp-recruit {
   flex-direction: column;
   gap: 0.25rem;
 }
-.bm-detail-title,
+.bm-detail-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
 .hp-slot-label {
   font-size: 0.8rem;
   color: var(--ink-soft);
 }
-.ni-line,
+.ni-line {
+  font-size: 1rem;
+  margin: 0.15rem 0;
+}
 .ni-stock {
   font-size: 0.85rem;
   margin: 0.15rem 0;
+}
+/* Stock section: bordered box with a centered title */
+.ni-stock-section {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.4rem 0.5rem;
+  margin: 0.4rem 0;
+}
+.ni-stock-title {
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 0.25rem;
+}
+/* Dropdown options: stronger highlight that fills the option vertically. */
+.ni-recipe wa-option,
+.ni-gatherer wa-option,
+.ni-storage wa-option,
+.hp-equip wa-option {
+  --wa-color-neutral-fill-normal: var(--gold-lt);
+}
+.ni-recipe wa-option::part(base),
+.ni-gatherer wa-option::part(base),
+.ni-storage wa-option::part(base),
+.hp-equip wa-option::part(base) {
+  padding-block: 0.55em;
 }
 .ni-sell {
   margin-left: 0.4rem;
@@ -312,11 +377,22 @@ wa-button.hp-recruit {
 .res-cost {
   font-size: 0.8rem;
 }
-.res-eff {
+.res-desc {
   font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0.15rem 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.res-eff {
+  font-size: 0.72rem;
+  font-style: italic;
   color: var(--ink-soft);
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -332,6 +408,13 @@ wa-button.hp-recruit {
   padding: 1rem;
   overflow-y: auto;
   height: 100%;
+  /* Give the cards a distinct (tan) surface so they read clearly against the grid. */
+  --wa-color-surface-default: var(--parchment-dk);
+}
+/* Power / duration messages need room on all sides. */
+.exp-power,
+.exp-dur {
+  padding: 0.25rem 0.4rem;
 }
 .exp-card.victory {
   outline: 3px solid #8f6f10;
@@ -395,6 +478,7 @@ wa-button.hp-recruit {
 .hp-level {
   margin: 0.25rem 0;
   display: inline-block;
+  padding-inline: 0.55rem;
 }
 .hp-name {
   font-weight: 700;
@@ -612,10 +696,29 @@ wa-button.hp-recruit {
 }
 .node-inspector .ni-badge {
   margin-inline-start: 8px;
+  margin-inline-end: 0.4rem;
   vertical-align: middle;
-  padding: 0.3rem 0.55rem;
+  padding: 0.3rem 0.6rem;
 }
+/* High-contrast badge icons: white on the green MAX fill, ink on the gold LOW fill. */
+.node-inspector .ni-badge.max i {
+  --fa-primary-color: #fff !important;
+  --fa-secondary-color: #fff !important;
+  --fa-secondary-opacity: 0.85 !important;
+}
+.node-inspector .ni-badge.starved {
+  --wa-color-warning-on-loud: var(--ink);
+}
+.node-inspector .ni-badge.starved i {
+  --fa-primary-color: var(--ink) !important;
+  --fa-secondary-color: var(--ink) !important;
+  --fa-secondary-opacity: 0.7 !important;
+}
+/* Level tag: centered and full width. */
 .ni-level {
+  display: flex;
+  width: 100%;
+  justify-content: center;
   padding-inline: 0.55rem;
 }
 .node-inspector .ni-title {
@@ -644,5 +747,11 @@ wa-button.hp-recruit {
 .ni-upgrade i {
   --fa-primary-color: var(--ink) !important;
   --fa-secondary-color: var(--ink) !important;
+  --fa-secondary-opacity: 0.7 !important;
+}
+/* The Remove (trash) icon should read red, matching the danger button. */
+.ni-remove i {
+  --fa-primary-color: var(--bad) !important;
+  --fa-secondary-color: var(--bad) !important;
   --fa-secondary-opacity: 0.7 !important;
 }

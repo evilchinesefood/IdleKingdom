@@ -48,6 +48,7 @@ export class Hud {
       if (name && this.router && typeof this.router.navigate === "function") {
         this.router.navigate(name);
       }
+      this.el.classList.remove("menu-open"); // collapse the mobile menu on choose
     };
   }
 
@@ -83,6 +84,18 @@ export class Hud {
             },
             [startIcon("save_fail"), " save failed"],
           ),
+      // Hamburger (shown only below the navbar breakpoint via CSS): toggles the
+      // .menu-open class on the HUD header to reveal/hide the collapsed tabs.
+      h(
+        "button",
+        {
+          class: "hud-hamburger",
+          key: "hamburger",
+          "aria-label": "Menu",
+          onclick: () => this.el.classList.toggle("menu-open"),
+        },
+        [icon("menu", { noTone: true })],
+      ),
       h(
         "wa-tab-group",
         {

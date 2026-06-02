@@ -204,7 +204,37 @@ class AppInstance {
     const snap = this.game.getSnapshot();
     this.lastSnap = snap;
     this.hud.render(snap);
-    this._renderPanels(snap);
+    // Don't rebuild the interactive panels while the user is editing a control
+    // there (an OPEN wa-select or a focused name input) — re-patching closes/
+    // blurs it. Affordability refreshes on the next idle tick or any action.
+    if (!this._panelHasFocus()) this._renderPanels(snap);
+  }
+
+  _panelHasFocus() {
+    try {
+      const a = document.activeElement;
+      if (!a || a === document.body || a === document.documentElement)
+        return false;
+      const tag = (a.tagName || "").toUpperCase();
+      if (
+        tag === "WA-SELECT" ||
+        tag === "WA-INPUT" ||
+        tag === "INPUT" ||
+        tag === "TEXTAREA"
+      )
+        return true;
+      if (this.panelEl && this.panelEl.contains && this.panelEl.contains(a))
+        return true;
+      if (
+        this.overlayEl &&
+        this.overlayEl.contains &&
+        this.overlayEl.contains(a)
+      )
+        return true;
+      return false;
+    } catch {
+      return false;
+    }
   }
 
   _renderScreen(snap) {
@@ -271,9 +301,9 @@ class AppInstance {
     if (!this.toolbarEl) return;
     const mode = this.graphView ? this.graphView.getMode() : null;
     let label;
-    if (mode === "select") label = "Drag a box around machines…";
+    if (mode === "select") label = "Hold Shift and drag a box around machines…";
     else if (mode === "copy") label = "Tap the canvas to place the copy";
-    else label = [icon("factory"), " Group"];
+    else label = [icon("group"), " Group"];
     patch(this.toolbarEl, [
       h(
         "wa-button",

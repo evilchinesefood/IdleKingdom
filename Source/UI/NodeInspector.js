@@ -57,13 +57,14 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
     }),
   ];
 
-  // Stockpile + manual sell
+  // Stockpile + manual sell — grouped into a bordered "Stock" section
   const sp = node.stockpile || {};
+  const stockRows = [];
   for (const [resId, qty] of Object.entries(sp)) {
     if (qty <= 0) continue;
     const res = RESOURCES[resId];
     if (!res) continue;
-    rows.push(
+    stockRows.push(
       h(
         "div",
         { class: "ni-stock" },
@@ -87,6 +88,17 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
               "Sell",
             )
           : null,
+      ),
+    );
+  }
+
+  if (stockRows.length) {
+    rows.push(
+      h(
+        "div",
+        { class: "ni-stock-section" },
+        h("div", { class: "ni-stock-title" }, "Stock"),
+        ...stockRows,
       ),
     );
   }
