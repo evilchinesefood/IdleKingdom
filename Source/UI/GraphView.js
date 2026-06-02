@@ -56,7 +56,9 @@ export class GraphView {
       onTapPort: (nodeId, dir) => this._tapPort(nodeId, dir),
       onSelect: (id) => this._select(id),
       hitLink: (gx, gy) => this.hitLink(gx, gy),
+      hitLinkDelete: (gx, gy) => this.hitLinkDelete(gx, gy),
       onSelectLink: (id) => this._selectLink(id),
+      onDeleteLink: (id) => this._deleteLink(id),
       onViewChange: () => this._draw(),
     });
     this._pendingLink = null; // {fromId, gx, gy} live mouse drag-connect preview
@@ -84,6 +86,32 @@ export class GraphView {
   // overlay orthogonal to inspector selection; only _select clears the link.
   _selectLink(id) {
     this.selectedLinkId = this.selectedLinkId === id ? null : id;
+    this._draw();
+  }
+
+  // Hit-test the delete "×" of the currently-revealed link (graph coords). Lets
+  // GraphInput route a tap there to DELETE instead of toggling the reveal off —
+  // the pointer-captured SVG never lets the ×'s own onclick fire.
+  hitLinkDelete(gx, gy) {
+    if (!this.snap || this.selectedLinkId == null) return null;
+    const l = this.snap.links.find((x) => x.id === this.selectedLinkId);
+    if (!l) return null;
+    const from = this._nodeAt(l.from),
+      to = this._nodeAt(l.to);
+    if (!from || !to) return null;
+    const fp = this._pos(from),
+      tp = this._pos(to);
+    // mirror the × placement in _draw (graph-space midpoint + 6px screen offset)
+    const mx = (fp.x + NODE_W + tp.x) / 2;
+    const my =
+      (fp.y + NODE_H / 2 + (tp.y + NODE_H / 2)) / 2 + 6 / this.view.scale;
+    const r = 16 / this.view.scale;
+    return Math.hypot(gx - mx, gy - my) <= r ? l.id : null;
+  }
+
+  _deleteLink(id) {
+    this.game.dispatch({ type: INTENT.RemoveLink, linkId: id });
+    this.selectedLinkId = null;
     this._draw();
   }
 

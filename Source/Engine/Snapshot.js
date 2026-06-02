@@ -62,13 +62,18 @@ export function build(state, solved, content, lastError = null) {
 
   const links = state.graph.links.map((l) => {
     const flow = (solved.linkFlow && solved.linkFlow[l.id]) || 0;
+    // fedPct = how much of the consumer's demand for this resource is met. < 1
+    // means the connection is under-feeding (producer is the bottleneck) and the
+    // link renders starved/dashed. Markets/producers have no demand-want -> 1.
+    const fed = solved.fedFrac && solved.fedFrac[l.to + "|" + l.resourceId];
+    const fedPct = flow <= 0 ? 0 : fed == null ? 1 : fed;
     return {
       id: l.id,
       from: l.from,
       to: l.to,
       resourceId: l.resourceId,
       flow,
-      fedPct: flow > 0 ? 1 : 0,
+      fedPct,
     };
   });
 

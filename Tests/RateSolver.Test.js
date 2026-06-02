@@ -73,6 +73,21 @@ describe("RateSolver Pass 1 — crafter throughput", () => {
       1e-9,
     ); // 0.3
   });
+  it("under-fed consumer reports fedFrac < 1 (drives the starved-link cue)", () => {
+    const { state, content } = bottleneckGraph();
+    const solved = solve(state, content);
+    // gatherer makes 0.6 ore/s; smelter L1 wants cap*inputs = 0.5*2 = 1.0/s, so
+    // the flow is producer-bound at 0.6 and the consumer is only 60% fed.
+    expect(solved.linkFlow["l0"]).toBeCloseTo(0.6, 1e-9);
+    expect(solved.fedFrac["s|iron_ore"]).toBeCloseTo(0.6, 1e-9);
+  });
+  it("a fully-fed consumer reports fedFrac === 1", () => {
+    const { state, content } = bottleneckGraph();
+    state.unlocks.productionBonuses.gatherer = 2.0; // 2.0 ore/s out-produces the 1.0/s want
+    delete state._solved;
+    const solved = solve(state, content);
+    expect(solved.fedFrac["s|iron_ore"]).toBeCloseTo(1, 1e-9);
+  });
   it("r_steel fed 0.5 iron_bar/s + 0.10 coal/s -> 0.10 steel/s (coal binds)", () => {
     // Direct pinned-supply graph: two gatherers emitting the intermediates at exact rates.
     const pinnedNodes = [

@@ -17,6 +17,7 @@ export class GraphInput {
     this.dragNodeId = null;
     this.connectFrom = null; // {nodeId, dir, gx, gy} during a mouse drag-connect
     this.downLink = null; // link under the pointer at _down (reveal toggles on a tap in _up)
+    this.downDelete = null; // revealed link's delete-× under the pointer at _down
     this.startScreen = null;
     this.pinchDist = 0;
     this._bind();
@@ -55,6 +56,14 @@ export class GraphInput {
     }
 
     const g = this._toGraph(e);
+    // The delete-× of a revealed link wins over link-reveal/pan: a tap here must
+    // delete the connection (the ×'s own onclick can't fire under SVG pointer capture).
+    const del = this.cb.hitLinkDelete ? this.cb.hitLinkDelete(g.x, g.y) : null;
+    if (del != null) {
+      this.downDelete = del;
+      this.mode = "linkDelete";
+      return;
+    }
     const port = this.cb.hitPort(g.x, g.y);
     if (port) {
       // mouse: begin a drag-connect; touch: armed for tap-port-then-port (resolved on up)
@@ -142,6 +151,14 @@ export class GraphInput {
       if (this.cb.onNodeDrop) this.cb.onNodeDrop(this.dragNodeId, g.x, g.y);
     }
 
+    if (
+      wasMode === "linkDelete" &&
+      this.downDelete != null &&
+      moved <= TAP_MOVE_PX
+    ) {
+      if (this.cb.onDeleteLink) this.cb.onDeleteLink(this.downDelete);
+    }
+
     if (wasMode === "pan" && this.downLink && moved <= TAP_MOVE_PX) {
       if (this.cb.onSelectLink) this.cb.onSelectLink(this.downLink);
     } else if (
@@ -178,6 +195,7 @@ export class GraphInput {
       this.dragNodeId = null;
       this.connectFrom = null;
       this.downLink = null;
+      this.downDelete = null;
       this.el.classList.remove("panning");
     }
   }

@@ -3,15 +3,21 @@ import { topoSort } from "./Topology.js";
 /** Capacity per kind (level adds to the relevant base; bonus = productionBonuses[kind] ?? 1.0). */
 export function capacity(node, state, content) {
   const m = content.machines[node.kind];
-  const bonus = (state.unlocks.productionBonuses && state.unlocks.productionBonuses[node.kind]) ?? 1.0;
-  if (node.kind === "gatherer") return (m.baseOutput + m.rateGain * (node.level - 1)) * bonus;
+  const bonus =
+    (state.unlocks.productionBonuses &&
+      state.unlocks.productionBonuses[node.kind]) ??
+    1.0;
+  if (node.kind === "gatherer")
+    return (m.baseOutput + m.rateGain * (node.level - 1)) * bonus;
   if (node.kind === "smelter" || node.kind === "workshop") {
     const r = content.recipes[node.recipeId];
     if (!r) return 0;
     return (r.baseOut + m.rateGain * (node.level - 1)) * bonus; // level adds to recipe base output
   }
-  if (node.kind === "market") return (m.baseOutput + m.rateGain * (node.level - 1)) * bonus;
-  if (node.kind === "scholar") return (m.baseOutput + m.rateGain * (node.level - 1)) * bonus;
+  if (node.kind === "market")
+    return (m.baseOutput + m.rateGain * (node.level - 1)) * bonus;
+  if (node.kind === "scholar")
+    return (m.baseOutput + m.rateGain * (node.level - 1)) * bonus;
   return 0;
 }
 
@@ -47,6 +53,7 @@ export function solve(state, content) {
   const surplusRate = {}; // nodeId -> {resId: units/s to own stockpile}
   const capacityByNode = {};
   const perNodeDraw = {}; // nodeId -> {resId: units/s consumed}
+  const fedFrac = {}; // `${consumerId}|${resId}` -> received/want in [0,1] (under-feed signal)
   const goldByNode = {}; // nodeId -> gold/s
   const researchByNode = {}; // nodeId -> research/s (scholar + market tithe)
 
@@ -56,7 +63,9 @@ export function solve(state, content) {
   const totalWant = {}; // `${producerId}|${resId}` -> Σ want over that producer's outbound links of resId
   for (const l of links) {
     const consumer = byId.get(l.to);
-    const w = consumer ? linkWant(consumer, l.resourceId, capacityByNode[l.to], content) : 0;
+    const w = consumer
+      ? linkWant(consumer, l.resourceId, capacityByNode[l.to], content)
+      : 0;
     wantByLink[l.id] = w;
     const k = l.from + "|" + l.resourceId;
     totalWant[k] = (totalWant[k] || 0) + w;
@@ -92,6 +101,13 @@ export function solve(state, content) {
         const draw = {};
         for (const inId in r.inputs) draw[inId] = out * r.inputs[inId];
         perNodeDraw[id] = draw;
+        // fed fraction per input resource = received / capacity-want (drives the
+        // under-fed "starved link" cue; flow can't exceed upstream supply).
+        for (const inId in r.inputs) {
+          const want = cap * r.inputs[inId];
+          fedFrac[id + "|" + inId] =
+            want > 0 ? Math.min(1, (incoming[inId] || 0) / want) : 1;
+        }
       }
     } else if (node.kind === "scholar") {
       const parch = incoming["parchment"] || 0;
@@ -99,12 +115,17 @@ export function solve(state, content) {
       availableOut[id] = {};
       perNodeDraw[id] = { parchment: out };
       researchByNode[id] = out;
+      fedFrac[id + "|parchment"] = cap > 0 ? Math.min(1, parch / cap) : 1;
     } else if (node.kind === "market") {
       const sellable = {};
       let total = 0;
       for (const resId in incoming) {
         const res = content.resources[resId];
-        if (state.unlocks.marketListings.includes(resId) && res && res.basePrice != null) {
+        if (
+          state.unlocks.marketListings.includes(resId) &&
+          res &&
+          res.basePrice != null
+        ) {
           sellable[resId] = incoming[resId];
           total += incoming[resId];
         }
@@ -137,7 +158,8 @@ export function solve(state, content) {
         const w = wantByLink[L.id];
         let flow;
         if (tw <= 0) flow = 0;
-        else if (tw <= out) flow = w; // demand fits: each consumer gets its full want
+        else if (tw <= out)
+          flow = w; // demand fits: each consumer gets its full want
         else flow = out * (w / tw); // demand exceeds supply: proportional fair share
         linkFlow[L.id] = flow;
         dispatched += flow;
@@ -163,5 +185,6 @@ export function solve(state, content) {
     goldRate,
     researchRate,
     perNodeDraw,
+    fedFrac,
   };
 }
