@@ -382,6 +382,12 @@ wa-button.hp-recruit {
 }
 .overlay-layer wa-dialog {
   pointer-events: auto;
+  --width: 36rem; /* larger modal (WA default is 31rem) */
+  font-size: 1.05rem;
+}
+/* Modal + onboarding-tooltip buttons: horizontal breathing room. */
+.overlay-layer wa-button::part(base) {
+  padding-inline: 1.1rem;
 }
 
 /* Onboarding tooltip: kept positioning host; inner is a wa-callout. */
@@ -390,13 +396,14 @@ wa-button.hp-recruit {
   left: 50%;
   bottom: 1.5rem;
   transform: translateX(-50%);
-  max-width: 340px;
+  max-width: 440px;
 }
 .tooltip {
   width: 100%;
 }
 .tip-text {
-  line-height: 1.4;
+  font-size: 1.1rem;
+  line-height: 1.45;
 }
 .tip-dismiss {
   margin-top: 0.4rem;
@@ -405,7 +412,7 @@ wa-button.hp-recruit {
 
 /* Dialog bodies */
 .os-elapsed {
-  font-size: 0.95rem;
+  font-size: 1.1rem;
   margin-bottom: 0.5rem;
 }
 .os-gained {
@@ -419,19 +426,24 @@ wa-button.hp-recruit {
 }
 .os-title,
 .victory-title {
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   font-weight: 700;
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
 }
 .victory-text {
-  line-height: 1.45;
+  font-size: 1.1rem;
+  line-height: 1.5;
 }
 .victory-sub {
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   color: var(--ink-soft);
   margin-top: 0.5rem;
+}
+/* Settings modal rows a touch larger to match the bigger dialog. */
+.settings-row {
+  font-size: 1.05rem;
 }
 
 /* HUD error flash: imperative host + reconciled wa-callout child */
