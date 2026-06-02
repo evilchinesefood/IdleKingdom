@@ -15,31 +15,31 @@ import {
 const HOUR = 3600 * 1000;
 
 describe("Offline.applyOffline within cap", () => {
-  it("2h within 8h cap gains 14400 gold and 720 research", () => {
+  it("30min within the 1h cap gains 3600 gold and 180 research", () => {
     const clock = new FakeClock(0);
     const state = seededState(clock);
     state.lastSeen = 0;
-    const now = 2 * HOUR;
+    const now = 0.5 * HOUR;
     const summary = applyOffline(state, content, now);
-    expect(summary.appliedMs).toBe(2 * HOUR);
+    expect(summary.appliedMs).toBe(0.5 * HOUR);
     expect(summary.clamped).toBe(false);
-    expect(summary.gained.gold).toBeCloseTo(14400, 1e-6);
-    expect(summary.gained.research).toBeCloseTo(720, 1e-6);
-    expect(state.currencies.gold).toBeCloseTo(25.0 + 14400, 1e-6); // seed 25 + gained
+    expect(summary.gained.gold).toBeCloseTo(3600, 1e-6);
+    expect(summary.gained.research).toBeCloseTo(180, 1e-6);
+    expect(state.currencies.gold).toBeCloseTo(25.0 + 3600, 1e-6); // seed 25 + gained
     expect(state.lastSeen).toBe(now);
   });
 });
 
 describe("Offline.applyOffline clamps to cap", () => {
-  it("3-day gap clamps to 8h => 57600 gold, clamped:true", () => {
+  it("3-day gap clamps to the 1h cap => 7200 gold, clamped:true", () => {
     const clock = new FakeClock(0);
     const state = seededState(clock);
     state.lastSeen = 0;
     const now = 3 * 24 * HOUR; // 72h
     const summary = applyOffline(state, content, now);
-    expect(summary.appliedMs).toBe(8 * HOUR);
+    expect(summary.appliedMs).toBe(1 * HOUR);
     expect(summary.clamped).toBe(true);
-    expect(summary.gained.gold).toBeCloseTo(57600, 1e-6);
+    expect(summary.gained.gold).toBeCloseTo(7200, 1e-6); // 2.0 gold/s * 3600s
     expect(state.lastSeen).toBe(now); // lastSeen advances to real now, not the clamp
   });
 
@@ -79,7 +79,7 @@ describe("Offline expedition fast-forward", () => {
       durationMs: TERRITORIES.t_gatehouse.durationMs, // 120000
       heroId: "h_0",
     };
-    const now = 2 * HOUR; // far past completion, within 8h cap
+    const now = 2 * HOUR; // gap clamps to the 1h cap, but the 2-min expedition resolves inside it
     const beforeRenown = state.currencies.renown;
     const summary = applyOffline(state, content, now);
 
@@ -161,7 +161,7 @@ describe("Offline auto-sell one-shot dump", () => {
 });
 
 describe("Persistence + Offline integration", () => {
-  it("save with lastSeen=0, reload at 2h => 14400 gold via applyOffline", () => {
+  it("save with lastSeen=0, reload at 30min => 3600 gold via applyOffline", () => {
     const clock = new FakeClock(0);
     const storage = new MemoryStorageAdapter();
     const state = seededState(clock);
@@ -170,8 +170,8 @@ describe("Persistence + Offline integration", () => {
     // ...later...
     const loaded = deserialize(storage.get(SAVE_KEY), clock);
     expect(loaded.lastSeen).toBe(0);
-    const summary = applyOffline(loaded, content, 2 * HOUR);
-    expect(summary.gained.gold).toBeCloseTo(14400, 1e-6);
-    expect(loaded.lastSeen).toBe(2 * HOUR);
+    const summary = applyOffline(loaded, content, 0.5 * HOUR);
+    expect(summary.gained.gold).toBeCloseTo(3600, 1e-6);
+    expect(loaded.lastSeen).toBe(0.5 * HOUR);
   });
 });

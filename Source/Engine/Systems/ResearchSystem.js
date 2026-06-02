@@ -49,11 +49,8 @@ const EFFECTS = {
     { type: "marketCapacityBonus", mult: 1.3 },
     { type: "titheRate", value: 0.07 },
   ],
-  res_ledgers: [{ type: "offlineCapHours", value: 12 }],
-  res_logistics: [
-    { type: "offlineCapHours", value: 24 },
-    { type: "globalRateBonus", mult: 1.1 },
-  ],
+  res_ledgers: [{ type: "marketCapacityBonus", mult: 1.4 }],
+  res_logistics: [{ type: "globalRateBonus", mult: 1.1 }],
   res_grand_design: [
     { type: "globalRateBonus", mult: 1.2 },
     { type: "scholarBonus", mult: 1.5 },
@@ -141,7 +138,8 @@ export function applyEffects(state, content, effects) {
         u.titheRate = e.value;
         break;
       case "offlineCapHours":
-        u.offlineCapHours = e.value;
+        // 1h is a hard maximum: clamp so no effect can ever raise the offline cap past it.
+        u.offlineCapHours = Math.min(e.value, 1);
         break;
       case "heroSlot":
         u.heroSlots = (u.heroSlots || 1) + e.count;

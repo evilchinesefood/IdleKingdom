@@ -89,6 +89,19 @@ export function migrate6to7(blob) {
   return next;
 }
 
+export function migrate7to8(blob) {
+  // Offline progress is now hard-capped at 1 hour. Clamp any save that earned a higher
+  // cap from the old research/territory effects (those grants have been retired).
+  const next = { ...blob, version: 8 };
+  if (next.unlocks) {
+    next.unlocks.offlineCapHours = Math.min(
+      next.unlocks.offlineCapHours ?? 1,
+      1,
+    );
+  }
+  return next;
+}
+
 export const MIGRATIONS = {
   1: migrate1to2,
   2: migrate2to3,
@@ -96,4 +109,5 @@ export const MIGRATIONS = {
   4: migrate4to5,
   5: migrate5to6,
   6: migrate6to7,
+  7: migrate7to8,
 };

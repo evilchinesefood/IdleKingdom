@@ -130,9 +130,13 @@ export function solve(state, content) {
       let total = 0;
       for (const resId in incoming) {
         const res = content.resources[resId];
-        // The Market sells ANY resource that has a price (selling is no longer gated
-        // by marketListings); only price-less inputs like parchment can't be sold.
-        if (res && res.basePrice != null) {
+        // Selling is a research-gated progression: only LISTED, priced resources sell
+        // (raws + iron_bar are listed from the start; the rest are unlocked by research).
+        if (
+          state.unlocks.marketListings.includes(resId) &&
+          res &&
+          res.basePrice != null
+        ) {
           sellable[resId] = incoming[resId];
           total += incoming[resId];
         }

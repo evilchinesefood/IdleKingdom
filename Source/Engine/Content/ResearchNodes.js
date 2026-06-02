@@ -195,9 +195,10 @@ export const RESEARCH_NODES = {
     cost: 600,
     prereqs: ["res_trade_routes"],
     requiresTerritory: null,
-    effects: [{ type: "offlineCapHours", value: 12 }],
-    description: "Raises the offline-progress cap to 12 hours.",
-    flavor: "Clerks keep the books running while the city sleeps.",
+    effects: [{ type: "marketCapacityBonus", mult: 1.4 }],
+    description:
+      "+40% Market sell capacity for the larger volumes you now move.",
+    flavor: "Clerks tally ever-bigger caravans rolling through the gates.",
   },
   res_logistics: {
     id: "res_logistics",
@@ -206,12 +207,9 @@ export const RESEARCH_NODES = {
     cost: 1800,
     prereqs: ["res_ledgers", "res_assembly_jigs"],
     requiresTerritory: null,
-    effects: [
-      { type: "offlineCapHours", value: 24 },
-      { type: "globalRateBonus", mult: 1.1 },
-    ],
+    effects: [{ type: "globalRateBonus", mult: 1.1 }],
     description:
-      "Raises the offline cap to 24 hours and grants +10% output to all production (gatherers, smelters, workshops).",
+      "+10% output to all production (gatherers, smelters, workshops).",
     flavor: "A kingdom that runs itself is a kingdom that endures.",
   },
   res_grand_design: {
