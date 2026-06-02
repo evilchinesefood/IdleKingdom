@@ -58,6 +58,34 @@
   --fa-secondary-opacity: 0.7;
 }
 
+/* Shared "working" indicator — spinning gears, shown only on actively-producing
+   (fed, not idle/blocked) nodes; one animation for every machine type. */
+.node-working {
+  overflow: visible;
+  pointer-events: none; /* purely decorative — never intercept a port tap */
+}
+.node-working i {
+  font-size: 14px;
+  line-height: 16px;
+  display: block;
+  text-align: center;
+  --fa-primary-color: var(--gold);
+  --fa-secondary-color: var(--ink);
+  --fa-secondary-opacity: 0.55;
+  transform-origin: 50% 50%;
+  animation: ik-working-spin 2.4s linear infinite;
+}
+@keyframes ik-working-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .node-working i {
+    animation: none;
+  }
+}
+
 /* capacity bar */
 .cap-bg {
   fill: var(--parchment-dk);

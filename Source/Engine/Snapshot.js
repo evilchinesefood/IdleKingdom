@@ -47,34 +47,44 @@ export function build(state, solved, content, lastError = null) {
     // so it must not read as starved when running below it (gatherers take no input).
     const takesInput = node.kind !== "gatherer" && node.kind !== "storage";
     const EPS = 1e-6;
-    const atCapacity = cap > 0 && throughput >= cap - EPS;
+    const heldIds = node.kind === "storage" ? node.resourceIds || [] : null;
+    // storage passes each held type through up to `cap`, so its effective ceiling
+    // for the bar / MAX is cap * (number of held types), not a single `cap`.
+    const capBasis =
+      node.kind === "storage" ? cap * Math.max(1, heldIds.length) : cap;
+    const atCapacity = capBasis > 0 && throughput >= capBasis - EPS;
     const starved = cap > 0 && takesInput && throughput < cap - EPS;
+    // "working" = actively producing and adequately fed (drives the moving-parts
+    // animation); idle (throughput 0) and blocked (starved) machines don't animate.
+    const working = throughput > EPS && !starved;
     const cost = upgradeCost(node.kind, node.level, content);
     return {
       id: node.id,
       kind: node.kind,
       level: node.level,
       resourceId: node.resourceId,
+      resourceIds: heldIds, // storage: the resource types it holds (null otherwise)
       recipeId: node.recipeId,
       pos: { x: node.pos.x, y: node.pos.y },
       capacity: cap,
       effectiveRate: producerRate,
       throughput,
-      capacityPct: cap > 0 ? throughput / cap : 0,
+      capacityPct: capBasis > 0 ? Math.min(1, throughput / capBasis) : 0,
       atCapacity,
       starved,
+      working,
       draw: drawMap,
       surplus: (solved.surplusRate && solved.surplusRate[node.id]) || {},
       stockpile: { ...node.stockpile },
       upgradeCost: cost,
       canAfford: state.currencies.gold >= cost,
       building: nodeBuilding[node.id] || null,
-      // storage room: how much it's holding of its configured resource vs. its cap
+      // storage room: per-type hold cap + total currently held across all its types
       storageCap:
         node.kind === "storage" ? storageCapacity(node, content) : null,
       storedTotal:
-        node.kind === "storage" && node.resourceId && node.stockpile
-          ? node.stockpile[node.resourceId] || 0
+        node.kind === "storage" && node.stockpile
+          ? (heldIds || []).reduce((a, r) => a + (node.stockpile[r] || 0), 0)
           : 0,
       // headline output for nodes that produce currency, not a resource
       goldOut: (solved.goldByNode && solved.goldByNode[node.id]) || 0,
@@ -187,6 +197,18 @@ export function build(state, solved, content, lastError = null) {
       }
     : null;
 
+  // Resources the player has actually unlocked: gatherable raws + the inputs/outputs
+  // of unlocked recipes. Drives the Storage Room's "holds" multi-select (so it lists
+  // only items the player can handle, not every resource in the game).
+  const unlockedRes = new Set(["iron_ore"]);
+  for (const r of state.unlocks.gathererResources || []) unlockedRes.add(r);
+  for (const rid of state.unlocks.recipesUnlocked) {
+    const rec = content.recipes[rid];
+    if (!rec) continue;
+    if (rec.output) unlockedRes.add(rec.output);
+    for (const inId in rec.inputs || {}) unlockedRes.add(inId);
+  }
+
   const snap = {
     currencies: {
       gold: state.currencies.gold,
@@ -214,6 +236,7 @@ export function build(state, solved, content, lastError = null) {
       gathererResources: ["iron_ore"].concat(
         (state.unlocks.gathererResources || []).filter((r) => r !== "iron_ore"),
       ),
+      unlockedResources: [...unlockedRes],
     },
     gearTiers: state.unlocks.gearTiersUnlocked.map((g) => ({
       itemId: g.itemId,

@@ -200,13 +200,40 @@ export function reduce(state, intent, content) {
       const node = nodeById(next, intent.nodeId);
       if (!node || node.kind !== "storage")
         return reject(state, "not a storage room");
-      if (!content.resources[intent.resourceId])
-        return reject(state, "unknown resource");
-      // changing what a room holds dumps the old contents (can't keep mismatched stock)
-      if (node.resourceId && node.resourceId !== intent.resourceId)
-        node.stockpile = {};
-      node.resourceId = intent.resourceId;
+      // A storage room holds up to `level` distinct resource types (upgrading raises
+      // the limit). Keep only known resources, capped at the level.
+      const ids = (
+        Array.isArray(intent.resourceIds) ? intent.resourceIds : []
+      ).filter((r) => content.resources[r]);
+      const kept = ids.slice(0, node.level);
+      // dump stock for any resource the room no longer holds
+      const keep = new Set(kept);
+      if (node.stockpile)
+        for (const r of Object.keys(node.stockpile))
+          if (!keep.has(r)) delete node.stockpile[r];
+      node.resourceIds = kept;
+      delete node.resourceId; // migrated to the array form
       structural = true;
+      break;
+    }
+    case "AddToBuilding": {
+      const node = nodeById(next, intent.nodeId);
+      if (!node) return reject(state, "no such node");
+      const b = next.graph.buildings.find((x) => x.id === intent.buildingId);
+      if (!b) return reject(state, "no such building");
+      const grouped = new Set(next.graph.buildings.flatMap((x) => x.nodeIds));
+      if (grouped.has(intent.nodeId))
+        return reject(state, "already in a building");
+      b.nodeIds.push(intent.nodeId);
+      // grow the box to enclose the added machine (NODE_W/H mirror the UI)
+      const NW = 120,
+        NH = 64,
+        PAD = 14;
+      const x0 = Math.min(b.rect.x, node.pos.x - PAD);
+      const y0 = Math.min(b.rect.y, node.pos.y - PAD);
+      const x1 = Math.max(b.rect.x + b.rect.w, node.pos.x + NW + PAD);
+      const y1 = Math.max(b.rect.y + b.rect.h, node.pos.y + NH + PAD);
+      b.rect = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
       break;
     }
     case "RemoveNode": {

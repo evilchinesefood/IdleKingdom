@@ -13,14 +13,13 @@ export function applyTick(state, solved, dtSeconds) {
   const byId = state.graph.nodes;
   for (const nodeId in surplus) {
     const node = byId.find((n) => n.id === nodeId);
-    if (!node) continue;
+    // Only Storage Rooms hold inventory now — other machines' undrained surplus is
+    // discarded (their production is lost if nothing downstream consumes it).
+    if (!node || node.kind !== "storage") continue;
     if (!node.stockpile) node.stockpile = {};
+    const m = MACHINES.storage;
+    const capTotal = m.baseCap + m.capGain * (node.level - 1); // per-type hold cap
     const rates = surplus[nodeId];
-    let capTotal = Infinity;
-    if (node.kind === "storage") {
-      const m = MACHINES.storage;
-      capTotal = m.baseCap + m.capGain * (node.level - 1);
-    }
     for (const resId in rates) {
       let v = (node.stockpile[resId] || 0) + rates[resId] * dtSeconds;
       if (v > capTotal) v = capTotal;

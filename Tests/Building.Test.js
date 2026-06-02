@@ -248,6 +248,29 @@ describe("Building — ungroup / rename / node removal", () => {
     ).toBe(false);
   });
 
+  it("AddToBuilding adds an ungrouped machine to an existing building", () => {
+    const { game, g, s } = setup();
+    group(game, [g.id]); // building with just the gatherer
+    const bId = game.getSnapshot().buildings[0].id;
+    const out = game.dispatch({
+      type: INTENT.AddToBuilding,
+      nodeId: s.id,
+      buildingId: bId,
+    });
+    expect(out.ok).toBe(true);
+    const b = game.getSnapshot().buildings[0];
+    expect(b.nodeIds.includes(s.id)).toBe(true);
+    expect(b.nodeIds.length).toBe(2);
+    // a machine already in a building can't be re-added
+    expect(
+      game.dispatch({
+        type: INTENT.AddToBuilding,
+        nodeId: s.id,
+        buildingId: bId,
+      }).ok,
+    ).toBe(false);
+  });
+
   it("rename updates the displayed name", () => {
     const { game, g, s } = setup();
     group(game, [g.id, s.id]);

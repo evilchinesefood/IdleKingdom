@@ -25,6 +25,7 @@ const UNDOABLE = new Set([
   "CopyBuilding",
   "UngroupBuilding",
   "RemoveFromBuilding",
+  "AddToBuilding",
   "RenameBuilding",
   "BuyResearch",
 ]);

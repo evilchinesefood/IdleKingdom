@@ -1,7 +1,7 @@
 import { NewGame, validate } from "../GameState.js";
 import { MIGRATIONS } from "./Migrations.js";
 
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 export const SAVE_KEY = "idlekingdom.save";
 
 /** Strips _solved + _topo, stamps savedAt + lastSeen, JSON.stringify. */
