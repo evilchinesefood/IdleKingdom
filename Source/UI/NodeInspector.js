@@ -98,7 +98,7 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
       .map((r) =>
         h(
           "wa-option",
-          { value: r },
+          { key: "opt-" + r, value: r },
           h("span", { slot: "start" }, icon(RECIPES[r].output)),
           RESOURCES[RECIPES[r].output].display,
         ),
@@ -129,7 +129,7 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
       .map((rid) =>
         h(
           "wa-option",
-          { value: rid },
+          { key: "opt-" + rid, value: rid },
           h("span", { slot: "start" }, icon(rid)),
           RESOURCES[rid].display,
         ),

@@ -24,7 +24,7 @@ export function HeroPanel(snap, dispatch) {
       const tierOpts = tiersFor(snap, itemId).map((tier) =>
         h(
           "wa-option",
-          { value: String(tier) },
+          { key: "tier-" + tier, value: String(tier) },
           icon(itemId),
           ` ${res.display} T${tier}`,
         ),
@@ -53,7 +53,7 @@ export function HeroPanel(snap, dispatch) {
               });
             },
           },
-          h("wa-option", { value: "" }, "— none —"),
+          h("wa-option", { key: "none", value: "" }, "— none —"),
           ...tierOpts,
         ),
       );
