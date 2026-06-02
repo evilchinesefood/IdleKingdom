@@ -43,7 +43,8 @@ function outputsOf(node, content) {
     const r = content.recipes[node.recipeId];
     return r ? [r.output] : [];
   }
-  if (node.kind === "storage") return node.resourceId ? [node.resourceId] : [];
+  if (node.kind === "storage")
+    return Array.isArray(node.resourceIds) ? node.resourceIds.slice() : [];
   return []; // market and scholar are sinks, never producers
 }
 
@@ -55,7 +56,8 @@ function acceptsOf(node, content) {
   }
   if (node.kind === "scholar") return ["parchment"];
   if (node.kind === "market") return null; // market accepts any listed resource (checked at solve time)
-  if (node.kind === "storage") return node.resourceId ? [node.resourceId] : [];
+  if (node.kind === "storage")
+    return Array.isArray(node.resourceIds) ? node.resourceIds.slice() : [];
   return []; // gatherer takes no inputs
 }
 

@@ -33,7 +33,7 @@ function linkWant(consumer, resourceId, cap, content) {
   if (consumer.kind === "scholar") return resourceId === "parchment" ? cap : 0;
   if (consumer.kind === "market") return cap; // shared sell capacity
   if (consumer.kind === "storage")
-    return resourceId === consumer.resourceId ? cap : 0;
+    return (consumer.resourceIds || []).includes(resourceId) ? cap : 0;
   return 0; // gatherers take no inputs
 }
 
@@ -147,16 +147,23 @@ export function solve(state, content) {
       availableOut[id] = {};
       perNodeDraw[id] = nodeSold;
     } else if (node.kind === "storage") {
-      // Capped pass-through: accept up to `cap` of the configured resource, expose
-      // it as output for downstream links; whatever isn't drawn becomes surplus and
+      // Capped pass-through per held resource: accept up to `cap` of each configured
+      // resource and expose it as output; whatever isn't drawn becomes surplus and
       // accrues to the (hard-capped) stockpile in applyTick. Not an active source.
-      // No fedFrac is emitted: `cap` here is the passthrough ceiling, not a demand, so
-      // a feed link below it must NOT render as starved (mirrors the market sink).
-      const rid = node.resourceId;
-      const inflow = rid ? incoming[rid] || 0 : 0;
-      const pass = Math.min(cap, inflow);
-      availableOut[id] = rid && pass > 0 ? { [rid]: pass } : {};
-      perNodeDraw[id] = rid && pass > 0 ? { [rid]: pass } : {};
+      // No fedFrac is emitted: `cap` is the passthrough ceiling, not a demand, so a
+      // feed link below it must NOT render as starved (mirrors the market sink).
+      const held = node.resourceIds || [];
+      const out = {};
+      const draw = {};
+      for (const rid of held) {
+        const pass = Math.min(cap, incoming[rid] || 0);
+        if (pass > 0) {
+          out[rid] = pass;
+          draw[rid] = pass;
+        }
+      }
+      availableOut[id] = out;
+      perNodeDraw[id] = draw;
     } else {
       availableOut[id] = {};
       perNodeDraw[id] = {};

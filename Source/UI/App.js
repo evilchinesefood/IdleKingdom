@@ -14,6 +14,7 @@ import { Tooltip } from "./Tooltip.js";
 import { Victory } from "./Victory.js";
 import { Settings } from "./Settings.js";
 import { loadPrefs, savePrefs } from "./Prefs.js";
+import * as Sound from "./Sound.js";
 import { victoryReady } from "./Logic/Selectors.js";
 import { INTENT } from "../Engine/Intents.js";
 import { SAVE_KEY } from "../Engine/Persistence/SaveManager.js";
@@ -39,7 +40,11 @@ class AppInstance {
     this.root = rootEl;
     this.game = game;
     this.router = new Router();
-    this.dispatch = (intent) => this.game.dispatch(intent);
+    this.dispatch = (intent) => {
+      const res = this.game.dispatch(intent);
+      this._playSfx(intent, res);
+      return res;
+    };
 
     this.hudEl = document.createElement("header");
     this.hudEl.className = "hud";
@@ -79,6 +84,7 @@ class AppInstance {
     this.buildUi = {
       selectedPaletteKind: null,
       setPalette: (k) => {
+        Sound.play("click");
         this.buildUi.selectedPaletteKind = k;
         this.renderNow();
       },
@@ -98,6 +104,15 @@ class AppInstance {
     this.router.onChange(() => this._mountScreen());
     this.game.onSnapshot((snap) => this._onSnapshot(snap));
     document.addEventListener("keydown", (e) => this._handleGlobalKey(e));
+    // Browsers block audio until the user interacts — start the ambient pad on the
+    // first pointer/key gesture (once), respecting the current Disable-sounds pref.
+    const startAudio = () => {
+      Sound.startAmbient();
+      document.removeEventListener("pointerdown", startAudio);
+      document.removeEventListener("keydown", startAudio);
+    };
+    document.addEventListener("pointerdown", startAudio);
+    document.addEventListener("keydown", startAudio);
     this.router.start();
     this._mountScreen();
   }
@@ -225,9 +240,47 @@ class AppInstance {
 
   _applyPrefs() {
     this.hudEl.classList.toggle("show-rates", !!this.prefs.alwaysShowRates);
+    Sound.setEnabled(!this.prefs.soundDisabled);
+  }
+
+  // Map an accepted/rejected intent to a sound effect (rejected -> error chime).
+  _playSfx(intent, res) {
+    if (!intent) return;
+    if (res && res.ok === false) {
+      // Only "can't afford / can't do that" failures get the error chime; benign
+      // no-op rejects (empty Sell, re-selecting a value) stay silent.
+      const ERR = new Set([
+        "UpgradeNode",
+        "CopyBuilding",
+        "BuyResearch",
+        "RecruitHero",
+        "LevelUpHero",
+        "StartExpedition",
+        "PlaceNode",
+      ]);
+      if (ERR.has(intent.type)) Sound.play("error");
+      return;
+    }
+    const SFX = {
+      PlaceNode: "place",
+      UpgradeNode: "upgrade",
+      ConnectLink: "connect",
+      RemoveNode: "delete",
+      RemoveLink: "delete",
+      CopyBuilding: "copy",
+      CreateBuilding: "group",
+      AddToBuilding: "group",
+      UngroupBuilding: "group",
+      RemoveFromBuilding: "group",
+      StartExpedition: "expedition",
+      BuyResearch: "research",
+    };
+    const s = SFX[intent.type];
+    if (s) Sound.play(s);
   }
 
   openSettings() {
+    Sound.play("click");
     this.showSettings = true;
     this.renderNow();
   }
@@ -239,6 +292,7 @@ class AppInstance {
       return;
     }
     this._flushPendingRename(); // commit a half-typed name before leaving the factory
+    Sound.play("click"); // tab/route switch
     this.activeScreen = route;
     this.screenEl.innerHTML = "";
     this.graphView = null;
@@ -397,7 +451,7 @@ class AppInstance {
       const factoryPanels = [];
       if (!this._buildMenuHidden)
         factoryPanels.push(BuildMenu(snap, this.dispatch, this.buildUi));
-      factoryPanels.push(inspector);
+      if (inspector) factoryPanels.push(inspector); // null when nothing selected
       patch(this.panelEl, factoryPanels);
       return;
     }
@@ -486,6 +540,7 @@ class AppInstance {
           appearance: mode ? "accent" : "outlined",
           onclick: () => {
             if (!this.graphView) return;
+            Sound.play("click");
             if (mode === "copy") this.graphView.cancelMode();
             else this.graphView.toggleSelectMode();
             this.renderNow();
@@ -503,15 +558,13 @@ class AppInstance {
           variant: this._buildMenuHidden ? "neutral" : "brand",
           appearance: this._buildMenuHidden ? "outlined" : "accent",
           onclick: () => {
+            Sound.play("click");
             this._buildMenuHidden = !this._buildMenuHidden;
             this._renderToolbar();
             this.renderNow();
           },
         },
-        [
-          icon("factory"),
-          this._buildMenuHidden ? " Show Build" : " Hide Build",
-        ],
+        [icon("factory"), " Build"],
       ),
     ]);
   }
@@ -542,6 +595,9 @@ class AppInstance {
             this.prefs[k] = !this.prefs[k];
             savePrefs(this.prefs);
             this._applyPrefs();
+            // toggling sound back on is itself a user gesture -> safe to (re)start
+            // the ambient pad now (setEnabled no longer auto-starts it).
+            if (!this.prefs.soundDisabled) Sound.startAmbient();
             this.renderNow();
           },
           onReset: () => {

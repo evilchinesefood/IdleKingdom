@@ -31,6 +31,7 @@ export function Settings(prefs, handlers) {
     h("div", { class: "settings-modal" }, [
       toggleRow("snapToGrid", "Snap nodes to grid"),
       toggleRow("alwaysShowRates", "Always show rates"),
+      toggleRow("soundDisabled", "Disable sounds"),
     ]),
     h(
       "div",

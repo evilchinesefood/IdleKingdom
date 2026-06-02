@@ -19,7 +19,11 @@ describe("Prefs", () => {
   it("round-trips saved prefs", () => {
     const s = fakeStore();
     savePrefs({ snapToGrid: false, alwaysShowRates: true }, s);
-    expect(loadPrefs(s)).toEqual({ snapToGrid: false, alwaysShowRates: true });
+    expect(loadPrefs(s)).toEqual({
+      snapToGrid: false,
+      alwaysShowRates: true,
+      soundDisabled: false,
+    });
   });
   it("merges partial/unknown stored prefs over defaults", () => {
     const s = fakeStore({

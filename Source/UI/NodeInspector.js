@@ -7,13 +7,8 @@ import { INTENT } from "../Engine/Intents.js";
 
 export function NodeInspector(snap, dispatch, selectedNodeId) {
   const node = (snap.nodes || []).find((n) => n.id === selectedNodeId);
-  if (!node)
-    return h(
-      "wa-card",
-      { key: "inspector", class: "node-inspector empty", id: "NodeInspector" },
-      h("span", { class: "ni-empty-ico" }, icon("settings")),
-      " Select a node",
-    );
+  // Nothing selected -> render no inspector at all (no empty-state card).
+  if (!node) return null;
 
   const pct = Math.max(0, Math.min(1, node.capacityPct || 0));
 
@@ -57,39 +52,45 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
     }),
   ];
 
-  // Stockpile + manual sell — grouped into a bordered "Stock" section
+  // Stock section — ONLY Storage Rooms hold inventory now. List each held resource
+  // as `qty / cap`, with a Sell button for sellable (listed) resources.
   const sp = node.stockpile || {};
   const stockRows = [];
-  for (const [resId, qty] of Object.entries(sp)) {
-    if (qty <= 0) continue;
-    const res = RESOURCES[resId];
-    if (!res) continue;
-    stockRows.push(
-      h(
-        "div",
-        { class: "ni-stock" },
-        [icon(resId), ` ${res.display}: ${fmtNum(qty)}`],
-        res.basePrice != null
-          ? h(
-              "wa-button",
-              {
-                key: "ni-sell-" + resId,
-                class: "ni-sell",
-                size: "s",
-                appearance: "outlined",
-                onclick: () =>
-                  dispatch({
-                    type: INTENT.SellFromStockpile,
-                    nodeId: node.id,
-                    resId,
-                  }),
-              },
-              h("span", { slot: "start" }, icon("sell")),
-              "Sell",
-            )
-          : null,
-      ),
-    );
+  if (node.kind === "storage") {
+    for (const resId of node.resourceIds || []) {
+      const res = RESOURCES[resId];
+      if (!res) continue;
+      const qty = sp[resId] || 0;
+      stockRows.push(
+        h(
+          "div",
+          { class: "ni-stock", key: "stk-" + resId },
+          [
+            icon(resId),
+            ` ${res.display}: ${fmtNum(qty)} / ${fmtNum(node.storageCap || 0)}`,
+          ],
+          res.basePrice != null
+            ? h(
+                "wa-button",
+                {
+                  key: "ni-sell-" + resId,
+                  class: "ni-sell",
+                  size: "s",
+                  appearance: "outlined",
+                  onclick: () =>
+                    dispatch({
+                      type: INTENT.SellFromStockpile,
+                      nodeId: node.id,
+                      resId,
+                    }),
+                },
+                h("span", { slot: "start" }, icon("sell")),
+                "Sell",
+              )
+            : null,
+        ),
+      );
+    }
   }
 
   if (stockRows.length) {
@@ -166,36 +167,70 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
       ),
     );
   } else if (node.kind === "storage") {
-    rows.push(
-      h(
-        "div",
-        { class: "ni-line" },
-        `Stored ${fmtNum(node.storedTotal || 0)} / ${fmtNum(node.storageCap || 0)}`,
-      ),
-    );
-    const opts = Object.keys(RESOURCES).map((rid) =>
-      h(
-        "wa-option",
-        { key: "opt-" + rid, value: rid },
-        h("span", { slot: "start" }, icon(rid)),
-        RESOURCES[rid].display,
-      ),
-    );
+    // Multi-select of UNLOCKED resources; the room holds up to `level` types.
+    const unlocked = (snap.buildMenu && snap.buildMenu.unlockedResources) || [];
+    const opts = unlocked
+      .filter((rid) => RESOURCES[rid])
+      .map((rid) =>
+        h(
+          "wa-option",
+          { key: "opt-" + rid, value: rid },
+          h("span", { slot: "start" }, icon(rid)),
+          RESOURCES[rid].display,
+        ),
+      );
     rows.push(
       h(
         "wa-select",
         {
           key: "storage-" + node.id,
           class: "ni-storage",
-          label: "Holds (accepts & outputs)",
+          label: `Holds — up to ${node.level} type${node.level === 1 ? "" : "s"}`,
           appearance: "filled",
-          "prop:value": node.resourceId || "",
+          multiple: true,
+          "prop:value": node.resourceIds || [],
           onchange: (e) =>
             dispatch({
               type: INTENT.SetStorageRule,
               nodeId: node.id,
-              resourceId: e.target.value,
+              resourceIds: Array.isArray(e.target.value)
+                ? e.target.value
+                : e.target.value
+                  ? [e.target.value]
+                  : [],
             }),
+        },
+        ...opts,
+      ),
+    );
+  }
+
+  // Add to an existing building (only when this machine isn't already grouped).
+  if (!node.building && (snap.buildings || []).length) {
+    const opts = [
+      h("wa-option", { key: "ab-none", value: "" }, "— add to building —"),
+    ].concat(
+      (snap.buildings || []).map((b) =>
+        h("wa-option", { key: "ab-" + b.id, value: b.id }, b.name),
+      ),
+    );
+    rows.push(
+      h(
+        "wa-select",
+        {
+          key: "addbuilding-" + node.id,
+          class: "ni-addbuilding",
+          label: "Add to building",
+          appearance: "filled",
+          "prop:value": "",
+          onchange: (e) => {
+            if (e.target.value)
+              dispatch({
+                type: INTENT.AddToBuilding,
+                nodeId: node.id,
+                buildingId: e.target.value,
+              });
+          },
         },
         ...opts,
       ),

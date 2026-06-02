@@ -299,6 +299,10 @@ export class GraphView {
     if (fromNode.resourceId) return fromNode.resourceId; // gatherer
     if (fromNode.recipeId)
       return this.game.content.recipes[fromNode.recipeId]?.output ?? null;
+    // storage holds an array; an outbound link carries its first held type
+    // (multi-type rooms route their primary resource via a drawn port link).
+    if (Array.isArray(fromNode.resourceIds) && fromNode.resourceIds.length)
+      return fromNode.resourceIds[0];
     return null;
   }
 
@@ -983,6 +987,22 @@ export class GraphView {
     iEl.setAttribute("aria-hidden", "true");
     fo.appendChild(iEl);
     g.appendChild(fo);
+    // Shared "working" animation: a spinning gears cog shown ONLY while the machine
+    // is actively producing and fed (n.working). Idle/blocked/full nodes are still.
+    if (n.working) {
+      const wfo = svg("foreignObject", {
+        x: NODE_W - 22,
+        y: NODE_H - 30,
+        width: 16,
+        height: 16,
+        class: "node-working",
+      });
+      const wi = document.createElement("i");
+      wi.className = "fa-duotone fa-solid fa-gears";
+      wi.setAttribute("aria-hidden", "true");
+      wfo.appendChild(wi);
+      g.appendChild(wfo);
+    }
     // Markets/scholars produce currency, not a resource — show that at a glance
     // (their effectiveRate is 0 because they don't output a graph resource).
     let subRate;

@@ -229,12 +229,14 @@ wa-button::part(base) {
   max-width: calc(100% - 340px);
 }
 /* Group button: white fill when idle (gold accent when select/copy mode is active). */
-.tool-group:not([appearance="accent"])::part(base) {
+.tool-group:not([appearance="accent"])::part(base),
+.tool-build:not([appearance="accent"])::part(base) {
   background: #fff;
   color: var(--ink);
   border-color: var(--line);
 }
-.tool-group:not([appearance="accent"]) i {
+.tool-group:not([appearance="accent"]) i,
+.tool-build:not([appearance="accent"]) i {
   --fa-primary-color: var(--ink) !important;
   --fa-secondary-color: var(--gold) !important;
 }

@@ -23,22 +23,14 @@ describe("Tick.applyTick — currencies", () => {
 });
 
 describe("Tick.applyTick — surplus into stockpiles", () => {
-  it("accrues surplus into the node's sparse stockpile", () => {
+  it("does NOT accrue surplus on non-storage nodes (only storage rooms store)", () => {
     const { state, content } = surplusGraph();
     const solved = solve(state, content);
-    const node = state.graph.nodes.find((n) => n.id === "m");
+    const node = state.graph.nodes.find((n) => n.id === "m"); // a gatherer with surplus
     node.stockpile = {};
     applyTick(state, solved, 3.0);
-    expect(node.stockpile["iron_ore"]).toBeCloseTo(3.0, 1e-9); // 1.0/s * 3s
-  });
-  it("accumulates across multiple ticks", () => {
-    const { state, content } = surplusGraph();
-    const solved = solve(state, content);
-    const node = state.graph.nodes.find((n) => n.id === "m");
-    node.stockpile = {};
-    applyTick(state, solved, 1.0);
-    applyTick(state, solved, 1.0);
-    expect(node.stockpile["iron_ore"]).toBeCloseTo(2.0, 1e-9);
+    expect(node.stockpile["iron_ore"]).toBe(undefined); // discarded, not stored
+    expect(Object.keys(node.stockpile).length).toBe(0);
   });
   it("does not create stockpile keys for nodes with no surplus", () => {
     const { state, content } = seedGraph();

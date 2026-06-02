@@ -775,23 +775,35 @@ step(
       `no Sword craft button; got ${labels}`,
     );
 
-    // --- Market sale yields gold + research tithe (via NodeInspector Sell button) ---
-    // Put sellable stock on the seed market-feeding smelter and sell it through the UI.
-    const node = game
+    // --- Sale from a Storage Room's stock via the NodeInspector Sell button ---
+    // Only Storage Rooms hold inventory now: place one, set it to hold iron_bar,
+    // seed its stock, and sell through the UI.
+    game.dispatch({
+      type: "PlaceNode",
+      kind: "storage",
+      pos: { x: 600, y: 600 },
+    });
+    const sid = game
       .getState()
-      .graph.nodes.find((n) => n.id === "n_smelter_0");
+      .graph.nodes.filter((n) => n.kind === "storage")
+      .pop().id;
+    game.dispatch({
+      type: "SetStorageRule",
+      nodeId: sid,
+      resourceIds: ["iron_bar"],
+    });
+    // re-fetch after the dispatch (the reducer clones state)
+    const node = game.getState().graph.nodes.find((n) => n.id === sid);
     node.stockpile.iron_bar = 10;
     delete game.getState()._solved;
     const goldBefore = game.getState().currencies.gold;
     const resBefore = game.getState().currencies.research;
     const sellDispatch = recordingDispatch(game);
-    const niHost = renderPanel(
-      NodeInspector(snap(game), sellDispatch, "n_smelter_0"),
-    );
+    const niHost = renderPanel(NodeInspector(snap(game), sellDispatch, sid));
     const sellBtn = niHost.querySelector(".ni-sell");
     assert(
       sellBtn,
-      "NodeInspector rendered no Sell button for stocked smelter",
+      "NodeInspector rendered no Sell button for stocked storage room",
     );
     sellBtn.onclick(); // [click]
     assert(
