@@ -18,12 +18,18 @@ export function applyTick(state, solved, dtSeconds) {
     if (!node || node.kind !== "storage") continue;
     if (!node.stockpile) node.stockpile = {};
     const m = MACHINES.storage;
-    const capTotal = m.baseCap + m.capGain * (node.level - 1); // per-type hold cap
+    // SHARED total hold cap across all held types (cap = baseCap + capGain*(L-1)).
+    const cap = m.baseCap + m.capGain * (node.level - 1);
+    let total = 0;
+    for (const k in node.stockpile) total += node.stockpile[k] || 0;
     const rates = surplus[nodeId];
     for (const resId in rates) {
-      let v = (node.stockpile[resId] || 0) + rates[resId] * dtSeconds;
-      if (v > capTotal) v = capTotal;
-      node.stockpile[resId] = v;
+      const room = Math.max(0, cap - total); // remaining shared room
+      const add = Math.min(rates[resId] * dtSeconds, room); // overflow is lost
+      if (add > 0) {
+        node.stockpile[resId] = (node.stockpile[resId] || 0) + add;
+        total += add;
+      }
     }
   }
 }

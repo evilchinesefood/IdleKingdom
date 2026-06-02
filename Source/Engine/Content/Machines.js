@@ -32,15 +32,17 @@ export const MACHINES = {
     rateGain: 0.25,
     upgradeBase: 35,
   },
-  // Storage Room: high passthrough (baseOutput/rateGain) so it never bottlenecks
-  // a chain; baseCap/capGain set how much it can HOLD (cap = baseCap + capGain*(L-1)).
+  // Storage Room: high passthrough (baseOutput/rateGain) so it never bottlenecks a
+  // chain. baseCap/capGain are the SHARED total hold capacity across ALL held types
+  // (cap = baseCap + capGain*(L-1) = 200*L: L1 200, L2 400, L3 600...). The NUMBER of
+  // distinct types it can hold equals its level.
   storage: {
     kind: "storage",
     baseOutput: 10.0,
     rateGain: 5.0,
     upgradeBase: 20,
-    baseCap: 100,
-    capGain: 100,
+    baseCap: 200,
+    capGain: 200,
   },
 };
 

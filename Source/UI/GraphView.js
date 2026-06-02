@@ -295,6 +295,20 @@ export class GraphView {
     }
   }
 
+  // The machine's display icon reflects WHAT it handles, not just its kind: a
+  // gatherer shows its resource, a crafter its recipe output, a storage its first
+  // held type. Market/scholar (no single resource) keep their kind icon.
+  _nodeIcon(n) {
+    if (n.kind === "gatherer" && n.resourceId) return iconName(n.resourceId);
+    if (n.kind === "smelter" || n.kind === "workshop") {
+      const r = n.recipeId && this.game.content.recipes[n.recipeId];
+      if (r && r.output) return iconName(r.output);
+    }
+    if (n.kind === "storage" && n.resourceIds && n.resourceIds.length)
+      return iconName(n.resourceIds[0]);
+    return iconName(n.kind);
+  }
+
   _inferResource(fromNode) {
     if (fromNode.resourceId) return fromNode.resourceId; // gatherer
     if (fromNode.recipeId)
@@ -1008,7 +1022,7 @@ export class GraphView {
       class: "node-ico",
     });
     const iEl = document.createElement("i");
-    iEl.className = `fa-duotone fa-solid fa-${iconName(n.kind)}`;
+    iEl.className = `fa-duotone fa-solid fa-${this._nodeIcon(n)}`;
     iEl.setAttribute("aria-hidden", "true");
     fo.appendChild(iEl);
     g.appendChild(fo);

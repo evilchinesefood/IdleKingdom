@@ -59,9 +59,10 @@ export function storageCapacity(node, content) {
 }
 
 export function isListed(state, content, resourceId) {
+  // Anything with a price is sellable (selling is no longer gated by marketListings;
+  // price-less inputs like parchment have no basePrice and stay unsellable).
   const res = content.resources[resourceId];
-  if (!res || res.basePrice == null) return false;
-  return state.unlocks.marketListings.includes(resourceId);
+  return !!(res && res.basePrice != null);
 }
 
 export function sellFromStockpile(state, content, nodeId, resId) {

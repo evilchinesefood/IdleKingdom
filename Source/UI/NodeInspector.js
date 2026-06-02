@@ -63,11 +63,19 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
     }),
   ];
 
-  // Stock section — ONLY Storage Rooms hold inventory now. List each held resource
-  // as `qty / cap`, with a Sell button for sellable (listed) resources.
+  // Stock section — ONLY Storage Rooms hold inventory now. Capacity is a SHARED pool
+  // across all held types, so show a Total/cap line + each held type's quantity (with
+  // a Sell button for sellable resources).
   const sp = node.stockpile || {};
   const stockRows = [];
   if (node.kind === "storage") {
+    stockRows.push(
+      h(
+        "div",
+        { class: "ni-stock ni-stock-total", key: "stk-total" },
+        `Total: ${fmtNum(node.storedTotal || 0)} / ${fmtNum(node.storageCap || 0)}`,
+      ),
+    );
     for (const resId of node.resourceIds || []) {
       const res = RESOURCES[resId];
       if (!res) continue;
@@ -76,10 +84,7 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
         h(
           "div",
           { class: "ni-stock", key: "stk-" + resId },
-          [
-            icon(resId),
-            ` ${res.display}: ${fmtNum(qty)} / ${fmtNum(node.storageCap || 0)}`,
-          ],
+          [icon(resId), ` ${res.display}: ${fmtNum(qty)}`],
           res.basePrice != null
             ? h(
                 "wa-button",

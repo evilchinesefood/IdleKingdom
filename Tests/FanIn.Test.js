@@ -123,3 +123,35 @@ describe("Snapshot — working flag", () => {
     expect(snap.nodes.find((n) => n.id === m).working).toBe(true);
   });
 });
+
+describe("Reducer — outbound links follow a machine's new output", () => {
+  it("retyping a gatherer re-points its outbound link's resource", () => {
+    const game = newGame();
+    const st = game.getState();
+    st.unlocks.gathererResources = ["timber"]; // enable timber gathering
+    delete st._solved;
+    const g = place(game, "gatherer", { resourceId: "iron_ore" }, 0);
+    const s = place(game, "smelter", { recipeId: "r_iron_bar" }, 200);
+    link(game, g, s, "iron_ore");
+    expect(game.getState().graph.links[0].resourceId).toBe("iron_ore");
+    game.dispatch({
+      type: INTENT.SetGathererResource,
+      nodeId: g,
+      resourceId: "timber",
+    });
+    expect(game.getState().graph.links[0].resourceId).toBe("timber");
+  });
+
+  it("retyping a crafter re-points its outbound link to the new recipe output", () => {
+    const game = newGame();
+    const st = game.getState();
+    st.unlocks.recipesUnlocked.push("r_plank");
+    delete st._solved;
+    const s = place(game, "smelter", { recipeId: "r_iron_bar" }, 0);
+    const m = place(game, "market", {}, 200);
+    link(game, s, m, "iron_bar"); // smelter -> market carrying iron_bar
+    game.dispatch({ type: INTENT.SetRecipe, nodeId: s, recipeId: "r_plank" });
+    const lnk = game.getState().graph.links.find((l) => l.from === s);
+    expect(lnk.resourceId).toBe("plank"); // follows the new output
+  });
+});
