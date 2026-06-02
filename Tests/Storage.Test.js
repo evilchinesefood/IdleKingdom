@@ -332,23 +332,42 @@ describe("Storage Room — offline auto-sell exclusion", () => {
 });
 
 describe("Storage Room — capacity & stockpile clamp", () => {
-  it("capacity grows with level", () => {
-    expect(storageCapacity({ kind: "storage", level: 1 }, content)).toBe(100);
-    expect(storageCapacity({ kind: "storage", level: 2 }, content)).toBe(200);
+  it("capacity grows with level (shared total = 200*level)", () => {
+    expect(storageCapacity({ kind: "storage", level: 1 }, content)).toBe(200);
+    expect(storageCapacity({ kind: "storage", level: 2 }, content)).toBe(400);
+    expect(storageCapacity({ kind: "storage", level: 3 }, content)).toBe(600);
     expect(storageCapacity({ kind: "gatherer", level: 5 }, content)).toBe(0);
   });
 
-  it("undrained inflow accrues to the stockpile, clamped at capacity", () => {
+  it("undrained inflow accrues to the stockpile, clamped at the shared cap", () => {
     const game = newGame();
     const { sid } = chain(game, false); // no market -> all passthrough is surplus
     const state = game.getState();
     const node = state.graph.nodes.find((n) => n.id === sid);
     node.stockpile = {};
     const solved = solve(state, content);
-    applyTick(state, solved, 50); // 1/s * 50s
-    expect(node.stockpile.iron_ore).toBeCloseTo(50, 1e-9);
-    applyTick(state, solved, 100); // would be 150, clamps at baseCap 100
-    expect(node.stockpile.iron_ore).toBeCloseTo(100, 1e-9);
+    applyTick(state, solved, 150); // 1/s * 150s
+    expect(node.stockpile.iron_ore).toBeCloseTo(150, 1e-9);
+    applyTick(state, solved, 100); // would be 250, clamps at L1 cap 200
+    expect(node.stockpile.iron_ore).toBeCloseTo(200, 1e-9);
+  });
+
+  it("the cap is a SHARED pool across types, not per-type", () => {
+    // L2 storage (cap 400) holding two types: the SUM is clamped at 400, not 2*400.
+    const game = newGame();
+    const sid = place(game, "storage", {}, 0);
+    game.dispatch({ type: INTENT.UpgradeNode, nodeId: sid }); // -> L2, cap 400, 2 types
+    game.dispatch({
+      type: INTENT.SetStorageRule,
+      nodeId: sid,
+      resourceIds: ["iron_ore", "timber"],
+    });
+    const node = game.getState().graph.nodes.find((n) => n.id === sid);
+    node.stockpile = { iron_ore: 150, timber: 150 }; // 300 total, 100 room left
+    const solved = { surplusRate: { [sid]: { iron_ore: 100, timber: 100 } } };
+    applyTick(game.getState(), solved, 1); // try to add 200 more (only 100 fits)
+    const total = (node.stockpile.iron_ore || 0) + (node.stockpile.timber || 0);
+    expect(total).toBeCloseTo(400, 1e-9); // clamped at the shared 400, not 500
   });
 
   it("non-storage machines do NOT accrue a stockpile", () => {
@@ -369,7 +388,7 @@ describe("Storage Room — capacity & stockpile clamp", () => {
     state.graph.nodes.find((n) => n.id === sid).stockpile = { iron_ore: 30 };
     delete state._solved;
     const sn = game.getSnapshot().nodes.find((n) => n.id === sid);
-    expect(sn.storageCap).toBe(100);
+    expect(sn.storageCap).toBe(200);
     expect(sn.storedTotal).toBeCloseTo(30, 1e-9);
   });
 });

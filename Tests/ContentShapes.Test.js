@@ -45,8 +45,8 @@ describe("Machines content", () => {
     expect(MACHINES.gatherer.upgradeBase).toBe(15);
     expect(MACHINES.market.baseOutput).toBe(5.0);
     expect(MACHINES.scholar.baseOutput).toBe(0.5);
-    expect(MACHINES.storage.baseCap).toBe(100);
-    expect(MACHINES.storage.capGain).toBe(100);
+    expect(MACHINES.storage.baseCap).toBe(200); // shared total cap = 200*level
+    expect(MACHINES.storage.capGain).toBe(200);
   });
   it("gatherer variants reference real resources", () => {
     for (const v of Object.values(GATHERER_VARIANTS)) {

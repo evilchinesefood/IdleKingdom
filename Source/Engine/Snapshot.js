@@ -96,7 +96,7 @@ export function build(state, solved, content, lastError = null) {
       upgradeCost: cost,
       canAfford: state.currencies.gold >= cost,
       building: nodeBuilding[node.id] || null,
-      // storage room: per-type hold cap + total currently held across all its types
+      // storage room: SHARED total hold cap (across all held types) + total currently held
       storageCap:
         node.kind === "storage" ? storageCapacity(node, content) : null,
       storedTotal:

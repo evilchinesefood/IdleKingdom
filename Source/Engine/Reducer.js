@@ -178,6 +178,10 @@ export function reduce(state, intent, content) {
       if (!recipe || recipe.crafterKind !== node.kind)
         return reject(state, "recipe/crafter mismatch");
       node.recipeId = intent.recipeId;
+      // Re-point this crafter's outbound connections at its NEW output resource so a
+      // copied+retyped chain isn't stuck carrying the old one (links auto-follow output).
+      for (const l of next.graph.links)
+        if (l.from === node.id) l.resourceId = recipe.output;
       structural = true;
       break;
     }
@@ -193,6 +197,9 @@ export function reduce(state, intent, content) {
       );
       if (!enabled && !startable) return reject(state, "resource not enabled");
       node.resourceId = intent.resourceId;
+      // outbound connections follow the gatherer's new resource
+      for (const l of next.graph.links)
+        if (l.from === node.id) l.resourceId = intent.resourceId;
       structural = true;
       break;
     }

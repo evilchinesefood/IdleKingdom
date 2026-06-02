@@ -12,6 +12,7 @@ import {
   migrate1to2,
   migrate2to3,
   migrate5to6,
+  migrate6to7,
   MIGRATIONS,
 } from "../Source/Engine/Persistence/Migrations.js";
 import SaveV1 from "./Fixtures/SaveV1.json" with { type: "json" };
@@ -24,7 +25,7 @@ describe("SaveManager.serialize", () => {
     const json = serialize(state);
     const blob = JSON.parse(json);
     expect(blob.version).toBe(SAVE_VERSION);
-    expect(SAVE_VERSION).toBe(6);
+    expect(SAVE_VERSION).toBe(7);
     expect(SAVE_KEY).toBe("idlekingdom.save");
     expect(typeof blob.savedAt).toBe("number");
     expect(typeof blob.lastSeen).toBe("number");
@@ -138,6 +139,7 @@ describe("Migrations", () => {
     expect(typeof MIGRATIONS[3]).toBe("function");
     expect(typeof MIGRATIONS[4]).toBe("function"); // v4->v5 adds storage room
     expect(typeof MIGRATIONS[5]).toBe("function"); // v5->v6 storage resourceId->resourceIds
+    expect(typeof MIGRATIONS[6]).toBe("function"); // v6->v7 storage shared-cap clamp
   });
 
   it("5->6 converts storage resourceId -> resourceIds[] (gatherers untouched)", () => {
@@ -161,6 +163,26 @@ describe("Migrations", () => {
   it("5->6 is safe on a blob with no graph/nodes", () => {
     expect(migrate5to6({ version: 5 }).version).toBe(6);
   });
+
+  it("6->7 scales an over-cap storage stockpile down to the shared cap", () => {
+    const v7 = migrate6to7({
+      version: 6,
+      graph: {
+        nodes: [
+          {
+            id: "s",
+            kind: "storage",
+            level: 2,
+            resourceIds: ["iron_ore", "timber"],
+            stockpile: { iron_ore: 400, timber: 400 }, // 800 > L2 shared cap 400
+          },
+        ],
+      },
+    });
+    expect(v7.version).toBe(7);
+    const s = v7.graph.nodes[0];
+    expect(s.stockpile.iron_ore + s.stockpile.timber).toBeCloseTo(400, 1e-9);
+  });
 });
 
 describe("SaveManager.deserialize", () => {
@@ -182,10 +204,10 @@ describe("SaveManager.deserialize", () => {
     expect(back.version).toBe(SAVE_VERSION);
   });
 
-  it("migrates SaveV1 fixture all the way to v6", () => {
+  it("migrates SaveV1 fixture all the way to v7", () => {
     const clock = new FakeClock(5000);
     const state = deserialize(JSON.stringify(SaveV1), clock);
-    expect(state.version).toBe(6);
+    expect(state.version).toBe(7);
     expect(state.meta.tutorialFlags.seenGoldTip).toBe(false);
     expect(state.unlocks.offlineCapHours).toBe(8);
     expect(state.unlocks.offlineCap).toBe(undefined);

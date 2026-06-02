@@ -71,10 +71,29 @@ export function migrate5to6(blob) {
   return next;
 }
 
+export function migrate6to7(blob) {
+  // Storage hold cap became a SHARED total (200*level) instead of per-type. An old
+  // multi-type storage could be over the new shared cap; scale its contents down to fit.
+  const next = { ...blob, version: 7 };
+  const nodes = (next.graph && next.graph.nodes) || [];
+  for (const n of nodes) {
+    if (n.kind !== "storage" || !n.stockpile) continue;
+    const cap = 200 * (n.level || 1);
+    let total = 0;
+    for (const k in n.stockpile) total += n.stockpile[k] || 0;
+    if (total > cap && total > 0) {
+      const scale = cap / total;
+      for (const k in n.stockpile) n.stockpile[k] *= scale;
+    }
+  }
+  return next;
+}
+
 export const MIGRATIONS = {
   1: migrate1to2,
   2: migrate2to3,
   3: migrate3to4,
   4: migrate4to5,
   5: migrate5to6,
+  6: migrate6to7,
 };
