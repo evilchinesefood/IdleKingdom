@@ -26,7 +26,10 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
     " ",
     cap(node.kind),
   ];
-  if (node.atCapacity) {
+  // MAX only when the node is actually shipping output (matches the canvas gear);
+  // a fully-fed producer whose output goes nowhere shows neither MAX nor a gear.
+  const atMax = node.atCapacity && node.working;
+  if (atMax) {
     headerKids.push(
       h(
         "wa-badge",
