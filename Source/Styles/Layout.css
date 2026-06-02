@@ -144,12 +144,21 @@ wa-button::part(base) {
     order: 4;
     width: 100%;
   }
+  /* inside the hamburger menu the tabs stack as a vertical list */
   .hud-tabs::part(nav) {
-    justify-content: space-around;
+    flex-direction: column;
+    align-items: stretch;
   }
   .hud-settings {
     order: 5;
     width: 100%;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    padding-inline: 0.5rem;
+  }
+  /* show the "Settings" label next to the gear in the collapsed menu */
+  .hud-settings::after {
+    content: "Settings";
   }
   /* both the tabs and the settings gear collapse into the hamburger menu */
   .hud:not(.menu-open) .hud-tabs,
@@ -170,7 +179,7 @@ wa-button::part(base) {
   top: 0.5rem;
   bottom: 0.5rem;
   right: 0.5rem;
-  width: 260px;
+  width: 310px;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -413,19 +422,14 @@ wa-button.hp-recruit {
   font-weight: 600;
   color: var(--ink);
   margin: 0.15rem 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  /* wrap fully — never truncate the effect text */
+  overflow-wrap: anywhere;
 }
 .res-eff {
   font-size: 0.72rem;
   font-style: italic;
   color: var(--ink-soft);
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 .res-node:hover {
   z-index: 2;
@@ -540,6 +544,36 @@ wa-button.hp-recruit {
   padding: 1rem;
   overflow-y: auto;
   height: 100%;
+  --wa-color-surface-default: var(--parchment);
+}
+/* Same per-panel background cycle as the expedition board so neighbouring hero/
+   recruit cards read as separate panels (5 muted parchment-family tints). */
+.hero-panel > wa-card:nth-child(5n + 1) {
+  --wa-color-surface-default: var(--parchment);
+}
+.hero-panel > wa-card:nth-child(5n + 2) {
+  --wa-color-surface-default: color-mix(
+    in srgb,
+    var(--parchment) 86%,
+    var(--gold)
+  );
+}
+.hero-panel > wa-card:nth-child(5n + 3) {
+  --wa-color-surface-default: color-mix(
+    in srgb,
+    var(--parchment) 88%,
+    var(--good)
+  );
+}
+.hero-panel > wa-card:nth-child(5n + 4) {
+  --wa-color-surface-default: color-mix(
+    in srgb,
+    var(--parchment) 88%,
+    var(--iron-lt)
+  );
+}
+.hero-panel > wa-card:nth-child(5n + 5) {
+  --wa-color-surface-default: var(--parchment-dk);
 }
 .hp-level {
   margin: 0.25rem 0;

@@ -19,6 +19,9 @@ export function Settings(prefs, handlers) {
       id: "Settings",
       key: "settings",
       open: true,
+      // WA dialogs are NOT light-dismiss by default; opt in so a click on the
+      // overlay (outside the modal) closes it (fires wa-hide -> onClose).
+      "light-dismiss": true,
       onWaHide: onClose,
     },
     h("div", { slot: "label", class: "os-title" }, [
@@ -33,7 +36,8 @@ export function Settings(prefs, handlers) {
       "div",
       {
         slot: "footer",
-        style: "display: flex; gap: 0.5rem; justify-content: flex-end;",
+        // Reset on the LEFT, Close on the right.
+        style: "display: flex; gap: 0.5rem; justify-content: space-between;",
       },
       [
         h(

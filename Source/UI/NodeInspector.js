@@ -222,6 +222,29 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
     ),
   );
 
+  // Ungroup — shown when this machine belongs to a building, so the player can
+  // dissolve the group from any of its members (not only by tapping the outline).
+  if (node.building) {
+    rows.push(
+      h(
+        "wa-button",
+        {
+          key: "ni-ungroup-" + node.id,
+          class: "ni-ungroup",
+          variant: "neutral",
+          appearance: "outlined",
+          onclick: () =>
+            dispatch({
+              type: INTENT.UngroupBuilding,
+              buildingId: node.building,
+            }),
+        },
+        h("span", { slot: "start" }, icon("group")),
+        "Ungroup building",
+      ),
+    );
+  }
+
   // Remove
   rows.push(
     h(

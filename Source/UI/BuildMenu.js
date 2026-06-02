@@ -40,7 +40,7 @@ export function BuildMenu(snap, dispatch, ui) {
   const detail = [];
   const kind = ui.selectedPaletteKind;
   if (kind === "gatherer") {
-    detail.push(h("div", { class: "bm-detail-title" }, "Assign raw:"));
+    detail.push(h("div", { class: "bm-detail-title" }, "Pick Recipe:"));
     for (const rid of bm.gathererResources || []) {
       const res = RESOURCES[rid];
       if (!res) continue;
