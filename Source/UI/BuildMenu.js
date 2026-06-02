@@ -13,32 +13,10 @@ function variantLabel(resourceId) {
   return "Gatherer";
 }
 
-export function BuildMenu(snap, dispatch, ui) {
-  const bm = snap.buildMenu || {
-    placeableMachines: [],
-    unlockedRecipes: [],
-    gathererResources: [],
-  };
-
-  const machineButtons = bm.placeableMachines.map((kind) =>
-    h(
-      "wa-button",
-      {
-        key: "bm-machine-" + kind,
-        class:
-          "bm-machine" + (ui.selectedPaletteKind === kind ? " selected" : ""),
-        size: "s",
-        pill: true,
-        appearance: ui.selectedPaletteKind === kind ? "accent" : "outlined",
-        onclick: () => ui.setPalette(kind),
-      },
-      h("span", { slot: "start" }, icon(kind)),
-      cap(kind),
-    ),
-  );
-
+// Build the placement buttons for a given machine kind (same controls as before,
+// now hosted inside the per-type popover).
+function detailForKind(kind, bm, dispatch, ui) {
   const detail = [];
-  const kind = ui.selectedPaletteKind;
   if (kind === "gatherer") {
     detail.push(h("div", { class: "bm-detail-title" }, "Machine Recipe:"));
     for (const rid of bm.gathererResources || []) {
@@ -91,7 +69,7 @@ export function BuildMenu(snap, dispatch, ui) {
         ),
       );
     }
-  } else if (kind) {
+  } else {
     detail.push(h("div", { class: "bm-detail-title" }, "Machine Recipe:"));
     detail.push(
       h(
@@ -108,12 +86,76 @@ export function BuildMenu(snap, dispatch, ui) {
       ),
     );
   }
+  return detail;
+}
+
+function toggleBtn(ui) {
+  return h(
+    "wa-button",
+    {
+      key: "bm-toggle",
+      class: "bm-toggle",
+      size: "s",
+      appearance: "outlined",
+      onclick: () => ui.toggleBuildMenu && ui.toggleBuildMenu(),
+    },
+    h("span", { slot: "start" }, icon("factory")),
+  );
+}
+
+export function BuildMenu(snap, dispatch, ui) {
+  const bm = snap.buildMenu || {
+    placeableMachines: [],
+    unlockedRecipes: [],
+    gathererResources: [],
+  };
+
+  // Collapsed: render only the small re-open toggle.
+  if (ui.buildMenuHidden && ui.buildMenuHidden()) {
+    return h(
+      "div",
+      { key: "buildbar", class: "build-bar-inner collapsed", id: "BuildMenu" },
+      toggleBtn(ui),
+    );
+  }
+
+  const machineCells = bm.placeableMachines.map((kind) => {
+    const selected = ui.selectedPaletteKind === kind;
+    const cellChildren = [
+      h(
+        "wa-button",
+        {
+          key: "bm-machine-" + kind,
+          class: "bm-machine" + (selected ? " selected" : ""),
+          size: "s",
+          pill: true,
+          appearance: selected ? "accent" : "outlined",
+          onclick: () => ui.setPalette(selected ? null : kind),
+        },
+        h("span", { slot: "start" }, icon(kind)),
+        cap(kind),
+      ),
+    ];
+    if (selected) {
+      cellChildren.push(
+        h(
+          "div",
+          { key: "bm-popover-" + kind, class: "bm-popover" },
+          ...detailForKind(kind, bm, dispatch, ui),
+        ),
+      );
+    }
+    return h(
+      "div",
+      { key: "bm-cell-" + kind, class: "bm-cell" },
+      ...cellChildren,
+    );
+  });
 
   return h(
-    "wa-card",
-    { key: "buildmenu", class: "build-menu", id: "BuildMenu" },
-    h("div", { class: "bm-title" }, h("span", {}, icon("factory")), " Build"),
-    h("div", { class: "bm-machines" }, ...machineButtons),
-    h("div", { class: "bm-detail" }, ...detail),
+    "div",
+    { key: "buildbar", class: "build-bar-inner", id: "BuildMenu" },
+    h("div", { class: "bm-machines" }, ...machineCells),
+    toggleBtn(ui),
   );
 }

@@ -91,6 +91,12 @@ class AppInstance {
         this.graphView && this.graphView.centerGraphPos
           ? this.graphView.centerGraphPos()
           : { x: 300, y: 320 },
+      buildMenuHidden: () => this._buildMenuHidden,
+      toggleBuildMenu: () => {
+        Sound.play("click");
+        this._buildMenuHidden = !this._buildMenuHidden;
+        this.renderNow();
+      },
     };
 
     this.pendingOfflineSummary = null;
@@ -280,8 +286,10 @@ class AppInstance {
     this.activeScreen = route;
     this.screenEl.innerHTML = "";
     this.graphView = null;
+    this.buildBarEl = null;
     this.selectedNodeId = null;
     this.selectedBuildingId = null;
+    if (this.buildUi) this.buildUi.selectedPaletteKind = null; // re-enter the bar closed
     this.toolbarEl = null;
 
     if (route === "factory") {
@@ -310,6 +318,9 @@ class AppInstance {
         ),
       ]);
       this.screenEl.appendChild(legend);
+      this.buildBarEl = document.createElement("div");
+      this.buildBarEl.className = "build-bar";
+      this.screenEl.appendChild(this.buildBarEl);
       this.graphView = new GraphView(canvas, this.game, {
         onSelect: (id) => {
           this._flushPendingRename(); // commit a half-typed name before deselecting
@@ -432,10 +443,12 @@ class AppInstance {
             )
           : NodeInspector(snap, this.dispatch, this.selectedNodeId);
       const factoryPanels = [];
-      if (!this._buildMenuHidden)
-        factoryPanels.push(BuildMenu(snap, this.dispatch, this.buildUi));
       if (inspector) factoryPanels.push(inspector); // null when nothing selected
       patch(this.panelEl, factoryPanels);
+      // The build menu is its own bottom-centered bar (BuildMenu renders the
+      // collapsed toggle itself, so patch it unconditionally).
+      if (this.buildBarEl)
+        patch(this.buildBarEl, [BuildMenu(snap, this.dispatch, this.buildUi)]);
       return;
     }
     if (!this._routeHost) return;
@@ -502,8 +515,8 @@ class AppInstance {
     this.dispatch({ type: INTENT.RenameBuilding, buildingId: id, name: nm });
   }
 
-  // The factory toolbar: the Select tool (marquee → selection + floating bar)
-  // and the Build-menu toggle.
+  // The factory toolbar: the Select tool (marquee → selection + floating bar).
+  // The Build-menu toggle now lives in the bottom build bar.
   _renderToolbar() {
     if (!this.toolbarEl) return;
     const mode = this.graphView ? this.graphView.getMode() : null;
@@ -528,24 +541,6 @@ class AppInstance {
           },
         },
         selectLabel,
-      ),
-      // Show/hide the Build menu panel.
-      h(
-        "wa-button",
-        {
-          key: "tool-build",
-          class: "tool-build",
-          size: "s",
-          variant: this._buildMenuHidden ? "neutral" : "brand",
-          appearance: this._buildMenuHidden ? "outlined" : "accent",
-          onclick: () => {
-            Sound.play("click");
-            this._buildMenuHidden = !this._buildMenuHidden;
-            this._renderToolbar();
-            this.renderNow();
-          },
-        },
-        [icon("factory"), " Build"],
       ),
     ]);
   }
