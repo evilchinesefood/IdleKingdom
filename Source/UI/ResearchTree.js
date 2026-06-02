@@ -14,11 +14,11 @@ function depthOf(id, memo) {
   return (memo[id] = d);
 }
 
-const COL_W = 210,
-  ROW_H = 195,
+const COL_W = 300,
+  ROW_H = 250,
   PAD = 24,
-  CARD_W = 170,
-  CARD_H = 108;
+  CARD_W = 240,
+  CARD_H = 120;
 
 // Static layout (positions + dimensions) — derived once from content.
 let _layout = null;
