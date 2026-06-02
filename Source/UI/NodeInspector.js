@@ -49,7 +49,7 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
     h(
       "div",
       { class: "ni-line" },
-      `Rate ${fmtRate(node.throughput)} / cap ${fmtRate(node.capacity)}`,
+      `Rate ${fmtRate(node.throughput)}  |  Cap ${fmtRate(node.capacity)}`,
     ),
     h("wa-progress-bar", {
       class: "ni-cap" + (node.starved ? " starved" : ""),
@@ -222,8 +222,8 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
     ),
   );
 
-  // Ungroup — shown when this machine belongs to a building, so the player can
-  // dissolve the group from any of its members (not only by tapping the outline).
+  // Ungroup — shown when this machine belongs to a building: removes THIS machine
+  // from the group (the rest of the building stays intact), reachable from any member.
   if (node.building) {
     rows.push(
       h(
@@ -235,12 +235,12 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
           appearance: "outlined",
           onclick: () =>
             dispatch({
-              type: INTENT.UngroupBuilding,
-              buildingId: node.building,
+              type: INTENT.RemoveFromBuilding,
+              nodeId: node.id,
             }),
         },
         h("span", { slot: "start" }, icon("group")),
-        "Ungroup building",
+        "Ungroup Machine",
       ),
     );
   }

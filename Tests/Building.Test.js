@@ -221,6 +221,33 @@ describe("Building — ungroup / rename / node removal", () => {
     expect(snap.nodes.length).toBe(2); // machines remain
   });
 
+  it("RemoveFromBuilding drops one machine but keeps the rest of the group", () => {
+    const { game, g, s } = setup();
+    group(game, [g.id, s.id]); // building with both machines
+    const bId = game.getSnapshot().buildings[0].id;
+    const out = game.dispatch({
+      type: INTENT.RemoveFromBuilding,
+      nodeId: g.id,
+    });
+    expect(out.ok).toBe(true);
+    let snap = game.getSnapshot();
+    expect(snap.buildings.length).toBe(1); // building survives with the smelter
+    expect(snap.buildings[0].id).toBe(bId);
+    expect(snap.buildings[0].nodeIds).toEqual([s.id]);
+    expect(snap.nodes.find((n) => n.id === g.id).building).toBe(null); // freed
+    expect(snap.nodes.length).toBe(2); // both machines still exist
+    // removing the last member drops the (now empty) building
+    game.dispatch({ type: INTENT.RemoveFromBuilding, nodeId: s.id });
+    expect(game.getSnapshot().buildings.length).toBe(0);
+  });
+
+  it("rejects RemoveFromBuilding for a machine not in any building", () => {
+    const { game, g } = setup();
+    expect(
+      game.dispatch({ type: INTENT.RemoveFromBuilding, nodeId: g.id }).ok,
+    ).toBe(false);
+  });
+
   it("rename updates the displayed name", () => {
     const { game, g, s } = setup();
     group(game, [g.id, s.id]);

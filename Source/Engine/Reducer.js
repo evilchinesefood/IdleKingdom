@@ -352,6 +352,22 @@ export function reduce(state, intent, content) {
       next.graph.buildings.splice(idx, 1);
       break;
     }
+    case "RemoveFromBuilding": {
+      // Drop a SINGLE machine from its building (the rest of the group stays).
+      const node = nodeById(next, intent.nodeId);
+      if (!node) return reject(state, "no such node");
+      let found = false;
+      for (const b of next.graph.buildings) {
+        if (b.nodeIds.includes(intent.nodeId)) found = true;
+        b.nodeIds = b.nodeIds.filter((id) => id !== intent.nodeId);
+      }
+      if (!found) return reject(state, "node not in a building");
+      // a building emptied by the removal is dropped
+      next.graph.buildings = next.graph.buildings.filter(
+        (b) => b.nodeIds.length > 0,
+      );
+      break;
+    }
     case "RenameBuilding": {
       const b = next.graph.buildings.find((x) => x.id === intent.buildingId);
       if (!b) return reject(state, "no such building");

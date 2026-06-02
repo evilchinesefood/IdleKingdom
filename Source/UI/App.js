@@ -75,6 +75,7 @@ class AppInstance {
     this.toolbarEl = null;
     this._copiedBuilding = null; // building id stashed by Ctrl/Cmd+C for paste
     this._pendingRename = null; // un-committed building-name keystrokes (flushed on deselect)
+    this._buildMenuHidden = false; // toggled by the toolbar Build button
     this.buildUi = {
       selectedPaletteKind: null,
       setPalette: (k) => {
@@ -354,6 +355,15 @@ class AppInstance {
         return true;
       if (this.panelEl && this.panelEl.contains && this.panelEl.contains(a))
         return true;
+      // route-owned panels (Research / Expeditions / Heroes) live in _routeHost,
+      // not panelEl — without this, an open wa-select there is closed by the 2s
+      // passive refresh (the "dropdown closes after ~1s" bug).
+      if (
+        this._routeHost &&
+        this._routeHost.contains &&
+        this._routeHost.contains(a)
+      )
+        return true;
       if (
         this.overlayEl &&
         this.overlayEl.contains &&
@@ -384,10 +394,11 @@ class AppInstance {
               this.graphView && this.graphView.getMode() === "copy",
             )
           : NodeInspector(snap, this.dispatch, this.selectedNodeId);
-      patch(this.panelEl, [
-        BuildMenu(snap, this.dispatch, this.buildUi),
-        inspector,
-      ]);
+      const factoryPanels = [];
+      if (!this._buildMenuHidden)
+        factoryPanels.push(BuildMenu(snap, this.dispatch, this.buildUi));
+      factoryPanels.push(inspector);
+      patch(this.panelEl, factoryPanels);
       return;
     }
     if (!this._routeHost) return;
@@ -481,6 +492,26 @@ class AppInstance {
           },
         },
         label,
+      ),
+      // Show/hide the Build menu panel.
+      h(
+        "wa-button",
+        {
+          key: "tool-build",
+          class: "tool-build",
+          size: "s",
+          variant: this._buildMenuHidden ? "neutral" : "brand",
+          appearance: this._buildMenuHidden ? "outlined" : "accent",
+          onclick: () => {
+            this._buildMenuHidden = !this._buildMenuHidden;
+            this._renderToolbar();
+            this.renderNow();
+          },
+        },
+        [
+          icon("factory"),
+          this._buildMenuHidden ? " Show Build" : " Hide Build",
+        ],
       ),
     ]);
   }
