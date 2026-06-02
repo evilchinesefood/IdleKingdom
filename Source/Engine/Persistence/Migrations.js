@@ -102,6 +102,14 @@ export function migrate7to8(blob) {
   return next;
 }
 
+export function migrate8to9(blob) {
+  // Buildings gained an optional `children` (nested groups). Default it to [].
+  const next = { ...blob, version: 9 };
+  const buildings = (next.graph && next.graph.buildings) || [];
+  for (const b of buildings) if (!Array.isArray(b.children)) b.children = [];
+  return next;
+}
+
 export const MIGRATIONS = {
   1: migrate1to2,
   2: migrate2to3,
@@ -110,4 +118,5 @@ export const MIGRATIONS = {
   5: migrate5to6,
   6: migrate6to7,
   7: migrate7to8,
+  8: migrate8to9,
 };

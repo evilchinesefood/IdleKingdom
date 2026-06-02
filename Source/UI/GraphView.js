@@ -383,15 +383,37 @@ export class GraphView {
   }
 
   // resolve a node's effective pos: a live drag-nudge (single node) or a live
-  // building-move (whole group) overrides the snapshot pos.
+  // building-move (whole subtree) overrides the snapshot pos.
   _pos(n) {
     if (this._dragPos && this._dragPos[n.id]) return this._dragPos[n.id];
-    if (this._buildingDrag && n.building === this._buildingDrag.id)
+    if (
+      this._buildingDrag &&
+      n.building &&
+      this._subtreeBuildingIds(this._buildingDrag.id).has(n.building)
+    )
       return {
         x: n.pos.x + this._buildingDrag.dx,
         y: n.pos.y + this._buildingDrag.dy,
       };
     return n.pos;
+  }
+
+  // The building `id` plus every group nested under it via `children` (snapshot,
+  // cycle-guarded, includes id). Used to move/redraw a whole subtree as one unit.
+  _subtreeBuildingIds(id) {
+    const byId = new Map((this.snap.buildings || []).map((b) => [b.id, b]));
+    const out = new Set([id]);
+    const walk = (cur) => {
+      const b = byId.get(cur);
+      if (!b || !Array.isArray(b.children)) return;
+      for (const cid of b.children)
+        if (!out.has(cid)) {
+          out.add(cid);
+          walk(cid);
+        }
+    };
+    walk(id);
+    return out;
   }
 
   // ---- Buildings ---------------------------------------------------------
@@ -452,7 +474,11 @@ export class GraphView {
 
   _buildingRect(b) {
     if (this._resize && this._resize.id === b.id) return this._resize.rect;
-    if (this._buildingDrag && this._buildingDrag.id === b.id)
+    // a live building-move nudges the dragged group AND every nested descendant.
+    if (
+      this._buildingDrag &&
+      this._subtreeBuildingIds(this._buildingDrag.id).has(b.id)
+    )
       return {
         x: b.rect.x + this._buildingDrag.dx,
         y: b.rect.y + this._buildingDrag.dy,
@@ -541,22 +567,33 @@ export class GraphView {
   }
 
   // Hit the building's outline BAND or its name label (graph coords). Interior
-  // taps fall through to the machines/links/pan beneath.
+  // taps fall through to the machines/links/pan beneath. With nested groups a
+  // parent border can overlap a child's; return the SMALLEST (innermost) match so
+  // children stay selectable.
   hitBuilding(gx, gy) {
     if (!this.snap) return null;
     const band = 12 / this.view.scale;
     const lblH = 22 / this.view.scale;
+    let best = null,
+      bestArea = Infinity;
     for (const b of this.snap.buildings || []) {
       const r = this._buildingRect(b);
-      if (gx >= r.x && gx <= r.x + r.w && gy >= r.y - lblH && gy < r.y)
-        return b.id; // label strip above the box
+      const onLabel =
+        gx >= r.x && gx <= r.x + r.w && gy >= r.y - lblH && gy < r.y;
       const onX = gx >= r.x - band && gx <= r.x + r.w + band;
       const onY = gy >= r.y - band && gy <= r.y + r.h + band;
       const inX = gx >= r.x + band && gx <= r.x + r.w - band;
       const inY = gy >= r.y + band && gy <= r.y + r.h - band;
-      if (onX && onY && !(inX && inY)) return b.id; // border band
+      const onBand = onX && onY && !(inX && inY);
+      if (onLabel || onBand) {
+        const area = r.w * r.h;
+        if (area < bestArea) {
+          bestArea = area;
+          best = b.id;
+        }
+      }
     }
-    return null;
+    return best;
   }
 
   _selectBuilding(id) {
@@ -716,16 +753,21 @@ export class GraphView {
   // All member node ids: the selected loose nodes plus every node in a selected building.
   _selectionMemberIds() {
     const ids = new Set(this.selNodes);
+    // A selected group contributes ALL its machines, recursively through nested
+    // children (so copying a parent group copies the whole unit, not just its
+    // direct members). _subtreeBuildingIds includes the building itself.
     for (const bid of this.selBuildings) {
-      const b = (this.snap.buildings || []).find((x) => x.id === bid);
-      if (b) for (const nid of b.nodeIds) ids.add(nid);
+      const subtree = this._subtreeBuildingIds(bid);
+      for (const n of this.snap.nodes || [])
+        if (n.building && subtree.has(n.building)) ids.add(n.id);
     }
     return [...ids];
   }
 
-  // Bar action: group the selected loose nodes into a new building.
+  // Bar action: group the selected loose nodes AND selected groups into a new
+  // parent building (the selected groups become its nested children).
   _groupSelection() {
-    if (this.selNodes.size === 0) return;
+    if (this.selNodes.size === 0 && this.selBuildings.size === 0) return;
     const PAD = 14;
     let x = Infinity,
       y = Infinity,
@@ -739,6 +781,14 @@ export class GraphView {
       right = Math.max(right, n.pos.x + NODE_W + PAD);
       bottom = Math.max(bottom, n.pos.y + NODE_H + PAD);
     }
+    for (const id of this.selBuildings) {
+      const b = (this.snap.buildings || []).find((x2) => x2.id === id);
+      if (!b) continue;
+      x = Math.min(x, b.rect.x - PAD);
+      y = Math.min(y, b.rect.y - PAD);
+      right = Math.max(right, b.rect.x + b.rect.w + PAD);
+      bottom = Math.max(bottom, b.rect.y + b.rect.h + PAD);
+    }
     if (x === Infinity) return;
     if (this.snapEnabled()) {
       x = Math.floor(x / GRID) * GRID;
@@ -747,14 +797,20 @@ export class GraphView {
       bottom = Math.ceil(bottom / GRID) * GRID;
     }
     const nodeIds = [...this.selNodes];
+    const children = [...this.selBuildings];
     this.game.dispatch({
       type: INTENT.CreateBuilding,
       nodeIds,
+      children,
       rect: { x, y, w: right - x, h: bottom - y },
     });
     this._clearSelectionSets();
+    // select the new parent: it's the building that owns nodeIds[0] (if any loose
+    // nodes) or lists children[0] as a child.
     const made = (this.game.getSnapshot().buildings || []).find((b) =>
-      b.nodeIds.includes(nodeIds[0]),
+      nodeIds.length
+        ? b.nodeIds.includes(nodeIds[0])
+        : (b.children || []).includes(children[0]),
     );
     if (made) this._selectBuilding(made.id);
     else this._draw();
@@ -879,7 +935,10 @@ export class GraphView {
       };
       bar.appendChild(b);
     };
-    if (this.selNodes.size > 0) mkBtn("Group", () => this._groupSelection());
+    // Group is available when grouping would nest at least one thing: any loose
+    // node, or 2+ selected groups (one lone group has nothing to nest under).
+    if (this.selNodes.size > 0 || this.selBuildings.size >= 2)
+      mkBtn("Group", () => this._groupSelection());
     mkBtn("Copy", () => this._copySelection(true));
     mkBtn("Copy struct", () => this._copySelection(false));
     if (this._clipboard) mkBtn("Paste", () => this._pasteSelection());
@@ -1037,6 +1096,11 @@ export class GraphView {
     const r = this._buildingRect(b);
     const a = graphToScreen(v, r.x, r.y);
     let bCls = "building";
+    // nested child groups get a subtler outline so the parent reads as the unit.
+    const isChild = (this.snap.buildings || []).some((p) =>
+      (p.children || []).includes(b.id),
+    );
+    if (isChild) bCls += " nested";
     if (b.id === this.selectedBuildingId) bCls += " selected";
     if (this.selBuildings.has(b.id)) bCls += " multiselect";
     const g = svg("g", { class: bCls });

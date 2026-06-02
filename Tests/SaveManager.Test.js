@@ -14,6 +14,7 @@ import {
   migrate5to6,
   migrate6to7,
   migrate7to8,
+  migrate8to9,
   MIGRATIONS,
 } from "../Source/Engine/Persistence/Migrations.js";
 import SaveV1 from "./Fixtures/SaveV1.json" with { type: "json" };
@@ -26,7 +27,7 @@ describe("SaveManager.serialize", () => {
     const json = serialize(state);
     const blob = JSON.parse(json);
     expect(blob.version).toBe(SAVE_VERSION);
-    expect(SAVE_VERSION).toBe(8);
+    expect(SAVE_VERSION).toBe(9);
     expect(SAVE_KEY).toBe("idlekingdom.save");
     expect(typeof blob.savedAt).toBe("number");
     expect(typeof blob.lastSeen).toBe("number");
@@ -141,6 +142,7 @@ describe("Migrations", () => {
     expect(typeof MIGRATIONS[4]).toBe("function"); // v4->v5 adds storage room
     expect(typeof MIGRATIONS[5]).toBe("function"); // v5->v6 storage resourceId->resourceIds
     expect(typeof MIGRATIONS[6]).toBe("function"); // v6->v7 storage shared-cap clamp
+    expect(MIGRATIONS[8]).toBe(migrate8to9); // v8->v9 building children default
   });
 
   it("5->6 converts storage resourceId -> resourceIds[] (gatherers untouched)", () => {
@@ -194,6 +196,25 @@ describe("Migrations", () => {
   it("7->8 is safe on a blob with no unlocks", () => {
     expect(migrate7to8({ version: 7 }).version).toBe(8);
   });
+
+  it("8->9 defaults building children to [] (leaves existing arrays)", () => {
+    const v9 = migrate8to9({
+      version: 8,
+      graph: {
+        buildings: [
+          { id: "b_0", nodeIds: ["n0"] }, // no children -> []
+          { id: "b_1", nodeIds: [], children: ["b_0"] }, // kept
+        ],
+      },
+    });
+    expect(v9.version).toBe(9);
+    expect(v9.graph.buildings[0].children).toEqual([]);
+    expect(v9.graph.buildings[1].children).toEqual(["b_0"]);
+  });
+
+  it("8->9 is safe on a blob with no graph/buildings", () => {
+    expect(migrate8to9({ version: 8 }).version).toBe(9);
+  });
 });
 
 describe("SaveManager.deserialize", () => {
@@ -215,10 +236,10 @@ describe("SaveManager.deserialize", () => {
     expect(back.version).toBe(SAVE_VERSION);
   });
 
-  it("migrates SaveV1 fixture all the way to v8", () => {
+  it("migrates SaveV1 fixture all the way to v9", () => {
     const clock = new FakeClock(5000);
     const state = deserialize(JSON.stringify(SaveV1), clock);
-    expect(state.version).toBe(8);
+    expect(state.version).toBe(9);
     expect(state.meta.tutorialFlags.seenGoldTip).toBe(false);
     expect(state.unlocks.offlineCapHours).toBe(1); // v3 default 8, clamped to 1 by v7->v8
     expect(state.unlocks.offlineCap).toBe(undefined);

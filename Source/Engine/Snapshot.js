@@ -117,6 +117,7 @@ export function build(state, solved, content, lastError = null) {
       id: b.id,
       name: b.name,
       nodeIds: b.nodeIds.slice(),
+      children: (b.children || []).slice(),
       rect: { x: b.rect.x, y: b.rect.y, w: b.rect.w, h: b.rect.h },
       copyCost,
       copyCostStructure,

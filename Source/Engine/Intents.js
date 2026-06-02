@@ -57,7 +57,13 @@ const SHAPES = {
     i.pos &&
     Number.isFinite(i.pos.x) &&
     Number.isFinite(i.pos.y),
-  CreateBuilding: (i) => isStrArr(i.nodeIds) && isRect(i.rect),
+  CreateBuilding: (i) =>
+    isRect(i.rect) &&
+    (isStrArr(i.nodeIds) || isStrArr(i.children)) &&
+    (i.nodeIds === undefined ||
+      (Array.isArray(i.nodeIds) && i.nodeIds.every(isStr))) &&
+    (i.children === undefined ||
+      (Array.isArray(i.children) && i.children.every(isStr))),
   MoveBuilding: (i) => isStr(i.buildingId) && isDelta(i.delta),
   ResizeBuilding: (i) =>
     isStr(i.buildingId) && isRect(i.rect) && Array.isArray(i.nodeIds),

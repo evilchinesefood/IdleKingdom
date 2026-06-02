@@ -20,6 +20,48 @@ function nodeById(state, id) {
   return state.graph.nodes.find((n) => n.id === id);
 }
 
+// All buildings transitively reachable via `children` from `id` (excludes `id`).
+// Cycle-guarded via a visited set.
+export function descendantBuildingIds(buildings, id) {
+  const byId = new Map(buildings.map((b) => [b.id, b]));
+  const out = new Set();
+  const walk = (cur) => {
+    const b = byId.get(cur);
+    if (!b || !Array.isArray(b.children)) return;
+    for (const cid of b.children) {
+      if (out.has(cid)) continue;
+      out.add(cid);
+      walk(cid);
+    }
+  };
+  walk(id);
+  out.delete(id); // contract: excludes `id` even if a corrupted save forms a cycle
+  return out;
+}
+
+// Every node id in `id` plus all its descendant buildings (own nodeIds + recursive).
+export function buildingMemberNodeIds(buildings, id) {
+  const byId = new Map(buildings.map((b) => [b.id, b]));
+  const ids = new Set();
+  const self = byId.get(id);
+  if (!self) return [];
+  for (const nid of self.nodeIds || []) ids.add(nid);
+  for (const did of descendantBuildingIds(buildings, id)) {
+    const b = byId.get(did);
+    if (b) for (const nid of b.nodeIds || []) ids.add(nid);
+  }
+  return [...ids];
+}
+
+// Drop any child id that no longer points at a surviving building (run after a
+// filter/splice that removed building objects).
+function pruneChildren(buildings) {
+  const live = new Set(buildings.map((b) => b.id));
+  for (const b of buildings)
+    if (Array.isArray(b.children))
+      b.children = b.children.filter((cid) => live.has(cid));
+}
+
 export function reduce(state, intent, content) {
   const v = validate(intent);
   if (!v.ok) return reject(state, v.error);
@@ -250,30 +292,48 @@ export function reduce(state, intent, content) {
       next.graph.links = next.graph.links.filter(
         (l) => l.from !== intent.nodeId && l.to !== intent.nodeId,
       );
-      // drop it from any building; remove buildings left empty
+      // drop it from any building; remove buildings left empty (a building with
+      // children survives even when its own nodeIds is empty).
       for (const b of next.graph.buildings)
         b.nodeIds = b.nodeIds.filter((id) => id !== intent.nodeId);
       next.graph.buildings = next.graph.buildings.filter(
-        (b) => b.nodeIds.length > 0,
+        (b) => b.nodeIds.length > 0 || (b.children && b.children.length > 0),
       );
+      pruneChildren(next.graph.buildings);
       structural = true;
       break;
     }
     case "CreateBuilding": {
-      const exist = intent.nodeIds.filter((id) => nodeById(next, id));
+      const exist = (intent.nodeIds || []).filter((id) => nodeById(next, id));
       const grouped = new Set(next.graph.buildings.flatMap((b) => b.nodeIds));
       const free = exist.filter((id) => !grouped.has(id));
-      if (free.length === 0)
-        return reject(state, "no ungrouped nodes to group");
       const seq = next.graph.nextBuildingSeq;
+      const newId = "b_" + seq;
+      // child buildings to nest: must exist, be currently top-level (not already
+      // any building's child), not be the new building, no dup.
+      const childOf = new Set(
+        next.graph.buildings.flatMap((b) => b.children || []),
+      );
+      const childCand = Array.isArray(intent.children) ? intent.children : [];
+      const children = [];
+      const seen = new Set();
+      for (const cid of childCand) {
+        if (cid === newId || seen.has(cid) || childOf.has(cid)) continue;
+        if (!next.graph.buildings.find((b) => b.id === cid)) continue;
+        seen.add(cid);
+        children.push(cid);
+      }
+      if (free.length + children.length === 0)
+        return reject(state, "nothing to group");
       const name =
         typeof intent.name === "string" && intent.name.trim()
           ? intent.name.trim()
           : "Building " + (seq + 1);
       next.graph.buildings.push({
-        id: "b_" + seq,
+        id: newId,
         name,
         nodeIds: free,
+        children,
         rect: {
           x: intent.rect.x,
           y: intent.rect.y,
@@ -288,9 +348,18 @@ export function reduce(state, intent, content) {
       const b = next.graph.buildings.find((x) => x.id === intent.buildingId);
       if (!b) return reject(state, "no such building");
       const { dx, dy } = intent.delta;
-      b.rect.x += dx;
-      b.rect.y += dy;
-      for (const nid of b.nodeIds) {
+      // move the whole subtree: this building's rect + every descendant's rect,
+      // and all member node positions (own + nested).
+      const ids = new Set([
+        b.id,
+        ...descendantBuildingIds(next.graph.buildings, b.id),
+      ]);
+      for (const x of next.graph.buildings) {
+        if (!ids.has(x.id)) continue;
+        x.rect.x += dx;
+        x.rect.y += dy;
+      }
+      for (const nid of buildingMemberNodeIds(next.graph.buildings, b.id)) {
         const n = nodeById(next, nid);
         if (n) n.pos = { x: n.pos.x + dx, y: n.pos.y + dy };
       }
@@ -372,6 +441,7 @@ export function reduce(state, intent, content) {
         id: "b_" + bseq,
         name: b.name + " copy",
         nodeIds: newIds,
+        children: [],
         rect: { x: b.rect.x + dx, y: b.rect.y + dy, w: b.rect.w, h: b.rect.h },
       });
       next.graph.nextBuildingSeq = bseq + 1;
@@ -429,19 +499,32 @@ export function reduce(state, intent, content) {
         (x) => x.id === intent.buildingId,
       );
       if (idx < 0) return reject(state, "no such building");
+      // remove ONLY this building: its direct nodes become loose, its children
+      // become top-level (they survive as independent groups). No recursion.
       next.graph.buildings.splice(idx, 1);
+      pruneChildren(next.graph.buildings);
       break;
     }
     case "DeleteBuilding": {
-      // Remove the building AND every machine in it (plus any link touching them).
+      // Remove the building, every nested descendant building, AND every machine
+      // in any of them (plus any link touching those machines).
       const b = next.graph.buildings.find((x) => x.id === intent.buildingId);
       if (!b) return reject(state, "no such building");
-      const members = new Set(b.nodeIds);
+      const members = new Set(
+        buildingMemberNodeIds(next.graph.buildings, b.id),
+      );
+      const gone = new Set([
+        b.id,
+        ...descendantBuildingIds(next.graph.buildings, b.id),
+      ]);
       next.graph.nodes = next.graph.nodes.filter((n) => !members.has(n.id));
       next.graph.links = next.graph.links.filter(
         (l) => !members.has(l.from) && !members.has(l.to),
       );
-      next.graph.buildings = next.graph.buildings.filter((x) => x.id !== b.id);
+      next.graph.buildings = next.graph.buildings.filter(
+        (x) => !gone.has(x.id),
+      );
+      pruneChildren(next.graph.buildings);
       structural = true;
       break;
     }
@@ -455,10 +538,11 @@ export function reduce(state, intent, content) {
         b.nodeIds = b.nodeIds.filter((id) => id !== intent.nodeId);
       }
       if (!found) return reject(state, "node not in a building");
-      // a building emptied by the removal is dropped
+      // a building emptied by the removal is dropped (unless it still has children)
       next.graph.buildings = next.graph.buildings.filter(
-        (b) => b.nodeIds.length > 0,
+        (b) => b.nodeIds.length > 0 || (b.children && b.children.length > 0),
       );
+      pruneChildren(next.graph.buildings);
       break;
     }
     case "RenameBuilding": {
