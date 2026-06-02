@@ -234,17 +234,45 @@ wa-button::part(base) {
      instead of running under them */
   max-width: calc(100% - 340px);
 }
-/* Group button: white fill when idle (gold accent when select/copy mode is active). */
-.tool-group:not([appearance="accent"])::part(base),
+/* Toolbar buttons: white fill when idle (gold accent when the mode is active). */
+.tool-select:not([appearance="accent"])::part(base),
 .tool-build:not([appearance="accent"])::part(base) {
   background: #fff;
   color: var(--ink);
   border-color: var(--line);
 }
-.tool-group:not([appearance="accent"]) i,
+.tool-select:not([appearance="accent"]) i,
 .tool-build:not([appearance="accent"]) i {
   --fa-primary-color: var(--ink) !important;
   --fa-secondary-color: var(--gold) !important;
+}
+
+/* Floating selection action bar — pinned above the selection bbox (positioned
+   by GraphView; .graph-host is the absolute anchor). */
+.sel-actions {
+  position: absolute;
+  z-index: 40;
+  display: flex;
+  gap: 4px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 6px;
+  box-shadow: var(--shadow);
+}
+.sel-act {
+  min-height: 28px;
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.sel-act:hover {
+  background: var(--parchment);
 }
 
 /* Building inspector (mirrors the node inspector) */
@@ -264,35 +292,11 @@ wa-button::part(base) {
   color: var(--ink-soft);
   margin-bottom: 0.4rem;
 }
-.bi-copy,
-.bi-copy-structure,
 .bi-ungroup,
 .bi-delete {
   display: block;
   width: 100%;
   margin: 4px 0;
-}
-/* The "Copy + upgrades" button has a gold accent fill; force its copy + coin
-   icons to ink so they don't blend into the background (per-kind inline tones
-   are overridden via !important). The outlined structure button keeps its tones. */
-.bi-copy i {
-  --fa-primary-color: var(--ink) !important;
-  --fa-secondary-color: var(--ink) !important;
-  --fa-secondary-opacity: 0.7 !important;
-}
-/* Let the copy labels wrap to two lines so the text (longer at the +20% scale)
-   stays within the button instead of overflowing its bounds. */
-.bi-copy::part(base),
-.bi-copy-structure::part(base) {
-  height: auto;
-  min-height: var(--tap);
-  white-space: normal;
-  padding-block: 0.4rem;
-  line-height: 1.2;
-}
-.bi-copy::part(label),
-.bi-copy-structure::part(label) {
-  white-space: normal;
 }
 .bm-title,
 .ni-title {

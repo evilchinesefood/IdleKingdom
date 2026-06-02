@@ -19,6 +19,7 @@ export const INTENT = {
   MoveBuilding: "MoveBuilding",
   ResizeBuilding: "ResizeBuilding",
   CopyBuilding: "CopyBuilding",
+  PasteNodes: "PasteNodes",
   UngroupBuilding: "UngroupBuilding",
   DeleteBuilding: "DeleteBuilding",
   RemoveFromBuilding: "RemoveFromBuilding",
@@ -61,6 +62,12 @@ const SHAPES = {
   ResizeBuilding: (i) =>
     isStr(i.buildingId) && isRect(i.rect) && Array.isArray(i.nodeIds),
   CopyBuilding: (i) => isStr(i.buildingId) && isDelta(i.offset),
+  PasteNodes: (i) =>
+    isPos(i.at) &&
+    Array.isArray(i.nodes) &&
+    i.nodes.length > 0 &&
+    i.nodes.every((n) => n && isStr(n.kind)) &&
+    Array.isArray(i.links),
   UngroupBuilding: (i) => isStr(i.buildingId),
   DeleteBuilding: (i) => isStr(i.buildingId),
   RemoveFromBuilding: (i) => isStr(i.nodeId),

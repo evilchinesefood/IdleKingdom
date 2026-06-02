@@ -378,6 +378,52 @@ export function reduce(state, intent, content) {
       structural = true;
       break;
     }
+    case "PasteNodes": {
+      // Every pasted node must be a real machine kind (guards pasteCost's machine
+      // lookup and keeps the link index map aligned — reject rather than skip).
+      if (!intent.nodes.every((n) => content.machines[n.kind]))
+        return reject(state, "unknown machine in paste");
+      const cost = Economy.pasteCost(intent.nodes, content);
+      if (next.currencies.gold < cost) return reject(state, "cannot afford");
+      next.currencies.gold -= cost;
+      const { x: ax, y: ay } = intent.at;
+      const idMap = []; // index -> new node id
+      let nseq = next.graph.nextNodeSeq;
+      intent.nodes.forEach((src) => {
+        const id = "n_" + src.kind + "_" + nseq;
+        nseq += 1;
+        const node = {
+          id,
+          kind: src.kind,
+          level: src.level || 1,
+          resourceId: src.resourceId || null,
+          recipeId: src.recipeId || null,
+          stockpile: {},
+          pos: { x: ax + (src.dx || 0), y: ay + (src.dy || 0) },
+        };
+        if (Array.isArray(src.resourceIds))
+          node.resourceIds = [...src.resourceIds];
+        next.graph.nodes.push(node);
+        idMap.push(id);
+      });
+      next.graph.nextNodeSeq = nseq;
+      let lseq = next.graph.nextLinkSeq;
+      for (const l of intent.links) {
+        const from = idMap[l.fromIdx],
+          to = idMap[l.toIdx];
+        if (!from || !to) continue;
+        next.graph.links.push({
+          id: "l_" + lseq,
+          from,
+          to,
+          resourceId: l.resourceId,
+        });
+        lseq += 1;
+      }
+      next.graph.nextLinkSeq = lseq;
+      structural = true;
+      break;
+    }
     case "UngroupBuilding": {
       const idx = next.graph.buildings.findIndex(
         (x) => x.id === intent.buildingId,

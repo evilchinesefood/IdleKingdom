@@ -51,6 +51,18 @@ export function buildingCopyCost(
   return total;
 }
 
+/** Cost to paste a loose set of cloned nodes: each node's structure (L0->L1) plus
+ *  its upgrade ladder up to its target level. Mirrors buildingCopyCost's pricing. */
+export function pasteCost(nodes, content) {
+  let t = 0;
+  for (const n of nodes) {
+    t += upgradeCost(n.kind, 0, content);
+    for (let L = 1; L < (n.level || 1); L++)
+      t += upgradeCost(n.kind, L, content);
+  }
+  return t;
+}
+
 /** A storage room's total holding capacity: cap = baseCap + capGain*(level-1). */
 export function storageCapacity(node, content) {
   if (!node || node.kind !== "storage") return 0;

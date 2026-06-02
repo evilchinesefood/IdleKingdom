@@ -43,6 +43,16 @@ export class GraphView {
     this.svgEl.appendChild(this.layerOverlay);
     this.host.appendChild(this.svgEl);
 
+    // Multi-selection set + floating action bar (HTML, anchored to the host).
+    this.selNodes = new Set();
+    this.selBuildings = new Set();
+    this._clipboard = null; // {nodes:[{kind,level,recipeId,resourceId,resourceIds,dx,dy}], links:[{fromIdx,toIdx,resourceId}]}
+    this._paste = null; // {gx,gy} live paste-ghost top-left while in paste mode
+    this.actionBarEl = document.createElement("div");
+    this.actionBarEl.className = "sel-actions";
+    this.actionBarEl.style.display = "none";
+    this.host.appendChild(this.actionBarEl);
+
     // Building tool state
     this._mode = null; // "select" | "copy" | null
     this.selectedBuildingId = null;
@@ -92,6 +102,9 @@ export class GraphView {
       onSelectBox: (rect) => this._onSelectBox(rect),
       onCopyMove: (gx, gy) => this._copyMove(gx, gy),
       onCopyPlace: (gx, gy) => this._copyPlace(gx, gy),
+      onToggleSelect: (id, isBuilding) => this._toggleSelect(id, isBuilding),
+      onPasteMove: (gx, gy) => this._pasteMove(gx, gy),
+      onPastePlace: (gx, gy) => this._pastePlace(gx, gy),
       onPointersCleared: () => this._clearTransient(),
       onViewChange: () => this._draw(),
     });
@@ -339,8 +352,33 @@ export class GraphView {
   _select(id) {
     this.selectedId = id;
     this.selectedBuildingId = null; // selecting a node clears any building selection
+    this._clearSelectionSets(); // single-inspect and multi-select never coexist
     this.onSelect(id);
     this.selectedLinkId = null;
+    this._draw();
+  }
+
+  // Empty the multi-selection sets (without the redraw/bar-hide of _clearSelection).
+  _clearSelectionSets() {
+    this.selNodes.clear();
+    this.selBuildings.clear();
+  }
+
+  hasSelection() {
+    return this.selNodes.size + this.selBuildings.size > 0;
+  }
+
+  // Bar action: drop the whole multi-selection and hide the action bar.
+  _clearSelection() {
+    this._clearSelectionSets();
+    this._draw();
+  }
+
+  // Ctrl/Cmd+click toggle: add/remove an item from the multi-selection.
+  _toggleSelect(id, isBuilding) {
+    const set = isBuilding ? this.selBuildings : this.selNodes;
+    if (set.has(id)) set.delete(id);
+    else set.add(id);
     this._draw();
   }
 
@@ -365,15 +403,7 @@ export class GraphView {
   toggleSelectMode() {
     this._mode = this._mode === "select" ? null : "select";
     this._copy = null;
-    this._selectBox = null;
-    this._draw();
-    this.onModeChange();
-  }
-
-  // Bulk-delete mode: drag a box; every building it touches is deleted (machines too).
-  toggleDeleteMode() {
-    this._mode = this._mode === "delete" ? null : "delete";
-    this._copy = null;
+    this._paste = null; // a stale paste ghost must not survive entering select mode
     this._selectBox = null;
     this._draw();
     this.onModeChange();
@@ -396,6 +426,7 @@ export class GraphView {
   cancelMode() {
     this._mode = null;
     this._copy = null;
+    this._paste = null;
     this._selectBox = null;
     this._draw();
     this.onModeChange();
@@ -532,6 +563,7 @@ export class GraphView {
     this.selectedBuildingId = id;
     this.selectedId = null;
     this.selectedLinkId = null;
+    this._clearSelectionSets(); // single-inspect and multi-select never coexist
     this.onSelect(null); // close any node inspector
     this.onSelectBuilding(id);
     this._draw();
@@ -580,10 +612,10 @@ export class GraphView {
     });
   }
 
-  // Finalize a select-box: capture machines FULLY inside (and not already
-  // grouped); the engine implies the internal links. Then leave select mode.
+  // Finalize a select-box: REPLACE the selection set with every node fully inside
+  // the rect and every building whose rect intersects it. Does NOT group/delete —
+  // those are now floating-bar actions. Then leave select mode (bar appears).
   _onSelectBox(rect) {
-    const wasDelete = this._mode === "delete";
     this._selectBox = null;
     this._mode = null;
     this.onModeChange();
@@ -591,46 +623,31 @@ export class GraphView {
       this._draw();
       return;
     }
-    if (wasDelete) {
-      // delete every building whose rect intersects the box (machines included)
-      const hits = (this.snap.buildings || []).filter(
-        (b) =>
-          rect.x < b.rect.x + b.rect.w &&
-          rect.x + rect.w > b.rect.x &&
-          rect.y < b.rect.y + b.rect.h &&
-          rect.y + rect.h > b.rect.y,
-      );
-      for (const b of hits)
-        this.game.dispatch({ type: INTENT.DeleteBuilding, buildingId: b.id });
-      this.selectedBuildingId = null;
-      this._draw();
-      return;
-    }
-    const ids = this.snap.nodes
-      .filter(
-        (n) =>
-          !n.building &&
-          n.pos.x >= rect.x &&
-          n.pos.x + NODE_W <= rect.x + rect.w &&
-          n.pos.y >= rect.y &&
-          n.pos.y + NODE_H <= rect.y + rect.h,
+    this.selNodes.clear();
+    this.selBuildings.clear();
+    for (const n of this.snap.nodes) {
+      // Skip already-grouped machines: an enclosed building is represented in
+      // selBuildings, so adding its members to selNodes would make "Group" a no-op
+      // (the reducer rejects a group of only-already-grouped nodes).
+      if (
+        !n.building &&
+        n.pos.x >= rect.x &&
+        n.pos.x + NODE_W <= rect.x + rect.w &&
+        n.pos.y >= rect.y &&
+        n.pos.y + NODE_H <= rect.y + rect.h
       )
-      .map((n) => n.id);
-    if (ids.length === 0) {
-      this._draw();
-      return;
+        this.selNodes.add(n.id);
     }
-    this.game.dispatch({
-      type: INTENT.CreateBuilding,
-      nodeIds: ids,
-      rect: { x: rect.x, y: rect.y, w: rect.w, h: rect.h },
-    });
-    // select the freshly-created building so its inspector opens immediately
-    const made = (this.game.getSnapshot().buildings || []).find((b) =>
-      b.nodeIds.includes(ids[0]),
-    );
-    if (made) this._selectBuilding(made.id);
-    else this._draw();
+    for (const b of this.snap.buildings || []) {
+      if (
+        rect.x < b.rect.x + b.rect.w &&
+        rect.x + rect.w > b.rect.x &&
+        rect.y < b.rect.y + b.rect.h &&
+        rect.y + rect.h > b.rect.y
+      )
+        this.selBuildings.add(b.id);
+    }
+    this._draw();
   }
 
   _copyMove(gx, gy) {
@@ -666,6 +683,231 @@ export class GraphView {
       offset: { dx, dy },
       withUpgrades: c.withUpgrades !== false,
     });
+  }
+
+  // ---- Multi-selection bbox + bar actions --------------------------------
+
+  // Union bbox (graph coords) of the current selection (nodes + buildings), or null.
+  _selectionBBox() {
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
+    for (const id of this.selNodes) {
+      const n = this._nodeAt(id);
+      if (!n) continue;
+      minX = Math.min(minX, n.pos.x);
+      minY = Math.min(minY, n.pos.y);
+      maxX = Math.max(maxX, n.pos.x + NODE_W);
+      maxY = Math.max(maxY, n.pos.y + NODE_H);
+    }
+    for (const id of this.selBuildings) {
+      const b = (this.snap.buildings || []).find((x) => x.id === id);
+      if (!b) continue;
+      minX = Math.min(minX, b.rect.x);
+      minY = Math.min(minY, b.rect.y);
+      maxX = Math.max(maxX, b.rect.x + b.rect.w);
+      maxY = Math.max(maxY, b.rect.y + b.rect.h);
+    }
+    if (minX === Infinity) return null;
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }
+
+  // All member node ids: the selected loose nodes plus every node in a selected building.
+  _selectionMemberIds() {
+    const ids = new Set(this.selNodes);
+    for (const bid of this.selBuildings) {
+      const b = (this.snap.buildings || []).find((x) => x.id === bid);
+      if (b) for (const nid of b.nodeIds) ids.add(nid);
+    }
+    return [...ids];
+  }
+
+  // Bar action: group the selected loose nodes into a new building.
+  _groupSelection() {
+    if (this.selNodes.size === 0) return;
+    const PAD = 14;
+    let x = Infinity,
+      y = Infinity,
+      right = -Infinity,
+      bottom = -Infinity;
+    for (const id of this.selNodes) {
+      const n = this._nodeAt(id);
+      if (!n) continue;
+      x = Math.min(x, n.pos.x - PAD);
+      y = Math.min(y, n.pos.y - PAD);
+      right = Math.max(right, n.pos.x + NODE_W + PAD);
+      bottom = Math.max(bottom, n.pos.y + NODE_H + PAD);
+    }
+    if (x === Infinity) return;
+    if (this.snapEnabled()) {
+      x = Math.floor(x / GRID) * GRID;
+      y = Math.floor(y / GRID) * GRID;
+      right = Math.ceil(right / GRID) * GRID;
+      bottom = Math.ceil(bottom / GRID) * GRID;
+    }
+    const nodeIds = [...this.selNodes];
+    this.game.dispatch({
+      type: INTENT.CreateBuilding,
+      nodeIds,
+      rect: { x, y, w: right - x, h: bottom - y },
+    });
+    this._clearSelectionSets();
+    const made = (this.game.getSnapshot().buildings || []).find((b) =>
+      b.nodeIds.includes(nodeIds[0]),
+    );
+    if (made) this._selectBuilding(made.id);
+    else this._draw();
+  }
+
+  // Bar action: copy the selection to the clipboard (relative offsets + internal
+  // links). `withUpgrades` keeps levels; otherwise members reset to level 1.
+  _copySelection(withUpgrades) {
+    const memberIds = this._selectionMemberIds();
+    if (memberIds.length === 0) return;
+    const members = memberIds.map((id) => this._nodeAt(id)).filter(Boolean);
+    if (members.length === 0) return;
+    let minX = Infinity,
+      minY = Infinity;
+    for (const n of members) {
+      minX = Math.min(minX, n.pos.x);
+      minY = Math.min(minY, n.pos.y);
+    }
+    const idxOf = new Map();
+    const nodes = members.map((n, i) => {
+      idxOf.set(n.id, i);
+      const out = {
+        kind: n.kind,
+        level: withUpgrades ? n.level : 1,
+        recipeId: n.recipeId || null,
+        resourceId: n.resourceId || null,
+        dx: n.pos.x - minX,
+        dy: n.pos.y - minY,
+      };
+      if (Array.isArray(n.resourceIds)) out.resourceIds = [...n.resourceIds];
+      return out;
+    });
+    const member = new Set(memberIds);
+    const links = [];
+    for (const l of this.snap.links) {
+      if (member.has(l.from) && member.has(l.to))
+        links.push({
+          fromIdx: idxOf.get(l.from),
+          toIdx: idxOf.get(l.to),
+          resourceId: l.resourceId,
+        });
+    }
+    this._clipboard = { nodes, links };
+    this._draw();
+  }
+
+  // Bar action: enter paste mode; a ghost follows the pointer until placed.
+  _pasteSelection() {
+    if (!this._clipboard) return;
+    const c = this.centerGraphPos();
+    this._mode = "paste";
+    this._paste = { gx: c.x, gy: c.y };
+    this._draw();
+    this.onModeChange();
+  }
+
+  _pasteMove(gx, gy) {
+    if (!this._paste) return;
+    this._paste.gx = gx;
+    this._paste.gy = gy;
+    this._draw();
+  }
+
+  _pastePlace(gx, gy) {
+    this._mode = null;
+    this._paste = null;
+    this.onModeChange();
+    if (!this._clipboard) {
+      this._draw();
+      return;
+    }
+    let at = { x: gx, y: gy };
+    if (this.snapEnabled()) at = snapToGrid(at, GRID);
+    this.game.dispatch({
+      type: INTENT.PasteNodes,
+      nodes: this._clipboard.nodes,
+      links: this._clipboard.links,
+      at,
+    });
+    this._draw(); // clipboard persists for repeat paste
+  }
+
+  // Bar action: delete the selection — whole buildings, then any loose nodes.
+  _deleteSelection() {
+    for (const bid of this.selBuildings)
+      this.game.dispatch({ type: INTENT.DeleteBuilding, buildingId: bid });
+    const deleted = new Set();
+    for (const bid of this.selBuildings) {
+      const b = (this.snap.buildings || []).find((x) => x.id === bid);
+      if (b) for (const nid of b.nodeIds) deleted.add(nid);
+    }
+    for (const nid of this.selNodes)
+      if (!deleted.has(nid))
+        this.game.dispatch({ type: INTENT.RemoveNode, nodeId: nid });
+    this._clearSelectionSets();
+    this._draw();
+  }
+
+  // Build + position the floating action bar above the selection bbox. Re-run
+  // every _draw so it follows pan/zoom/selection. Guarded for the headless shim
+  // (no getBoundingClientRect → skip positioning).
+  _renderActionBar() {
+    const bar = this.actionBarEl;
+    if (!bar) return;
+    if (!this.hasSelection() || this._mode === "paste") {
+      bar.style.display = "none";
+      return;
+    }
+    const bbox = this._selectionBBox();
+    if (!bbox) {
+      bar.style.display = "none";
+      return;
+    }
+    while (bar.firstChild) bar.removeChild(bar.firstChild);
+    const mkBtn = (label, fn) => {
+      const b = document.createElement("button");
+      b.className = "sel-act";
+      b.textContent = label;
+      b.onclick = (e) => {
+        if (e && e.stopPropagation) e.stopPropagation();
+        fn();
+      };
+      bar.appendChild(b);
+    };
+    if (this.selNodes.size > 0) mkBtn("Group", () => this._groupSelection());
+    mkBtn("Copy", () => this._copySelection(true));
+    mkBtn("Copy struct", () => this._copySelection(false));
+    if (this._clipboard) mkBtn("Paste", () => this._pasteSelection());
+    mkBtn("Delete", () => this._deleteSelection());
+    mkBtn("✕", () => this._clearSelection());
+
+    bar.style.display = "flex";
+    const cx = bbox.x + bbox.w / 2;
+    const screen = graphToScreen(this.view, cx, bbox.y);
+    let hostRect = null,
+      barRect = null;
+    try {
+      if (this.host.getBoundingClientRect)
+        hostRect = this.host.getBoundingClientRect();
+      if (bar.getBoundingClientRect) barRect = bar.getBoundingClientRect();
+    } catch {}
+    if (!hostRect || !barRect || !barRect.width) return; // headless: skip positioning
+    const barW = barRect.width,
+      barH = barRect.height;
+    let left = screen.x - barW / 2;
+    left = Math.max(4, Math.min(left, hostRect.width - barW - 4));
+    let top = screen.y - barH - 8;
+    if (top < 4) {
+      const bottom = graphToScreen(this.view, cx, bbox.y + bbox.h).y;
+      top = bottom + 8;
+    }
+    bar.style.left = left + "px";
+    bar.style.top = top + "px";
   }
 
   _draw() {
@@ -786,15 +1028,18 @@ export class GraphView {
 
     // overlay: live select box + copy ghost (on top of everything)
     this._replace(this.layerOverlay, this._drawOverlay(v));
+
+    // floating action bar follows the selection bbox
+    this._renderActionBar();
   }
 
   _drawBuilding(b, v) {
     const r = this._buildingRect(b);
     const a = graphToScreen(v, r.x, r.y);
-    const g = svg("g", {
-      class:
-        b.id === this.selectedBuildingId ? "building selected" : "building",
-    });
+    let bCls = "building";
+    if (b.id === this.selectedBuildingId) bCls += " selected";
+    if (this.selBuildings.has(b.id)) bCls += " multiselect";
+    const g = svg("g", { class: bCls });
     g.appendChild(
       svg("rect", {
         class: "building-box",
@@ -821,7 +1066,7 @@ export class GraphView {
       const a = graphToScreen(v, this._selectBox.x, this._selectBox.y);
       els.push(
         svg("rect", {
-          class: "select-box" + (this._mode === "delete" ? " delete" : ""),
+          class: "select-box",
           x: a.x,
           y: a.y,
           width: this._selectBox.w * v.scale,
@@ -862,6 +1107,26 @@ export class GraphView {
             }),
           );
         }
+      }
+    }
+    // paste ghost: one node outline per clipboard node at the live paste origin
+    if (this._paste && this._clipboard) {
+      for (const cn of this._clipboard.nodes) {
+        const np = graphToScreen(
+          v,
+          this._paste.gx + (cn.dx || 0),
+          this._paste.gy + (cn.dy || 0),
+        );
+        els.push(
+          svg("rect", {
+            class: "node-ghost",
+            x: np.x,
+            y: np.y,
+            width: NODE_W * v.scale,
+            height: NODE_H * v.scale,
+            rx: 8,
+          }),
+        );
       }
     }
     // resize handles on the selected building (drag an edge/corner to resize)
@@ -1007,8 +1272,11 @@ export class GraphView {
       : n.starved
         ? ", low on input"
         : "";
+    let nodeCls = "node-card";
+    if (n.id === this.selectedId) nodeCls += " selected";
+    if (this.selNodes.has(n.id)) nodeCls += " multiselect";
     const g = svg("g", {
-      class: n.id === this.selectedId ? "node-card selected" : "node-card",
+      class: nodeCls,
       transform: `translate(${p.x} ${p.y}) scale(${v.scale})`,
       // Keyboard a11y: each node is a focusable button (Enter/arrows/C/Delete).
       tabindex: 0,

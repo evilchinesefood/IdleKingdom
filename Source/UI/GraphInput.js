@@ -65,12 +65,33 @@ export class GraphInput {
       if (this.cb.onCopyMove) this.cb.onCopyMove(g.x, g.y);
       return;
     }
-    if (mode === "select" || mode === "delete" || e.shiftKey) {
-      // Select/Delete mode (toolbar) OR holding Shift while dragging starts a box.
+    if (mode === "paste") {
+      this.mode = "pastePlace";
+      if (this.cb.onPasteMove) this.cb.onPasteMove(g.x, g.y);
+      return;
+    }
+    if (mode === "select" || e.shiftKey) {
+      // Select mode (toolbar) OR holding Shift while dragging starts a box.
       this.mode = "selectBox";
       this.boxStart = g;
       if (this.cb.onSelectBoxMove) this.cb.onSelectBoxMove(this._box(g));
       return;
+    }
+    // Ctrl/Cmd+click toggles a node or building into the multi-selection (no
+    // drag, no inspect). A modifier-click on empty space falls through to pan.
+    if ((e.ctrlKey || e.metaKey) && this.cb.onToggleSelect) {
+      const ctrlNode = this.cb.hitNode(g.x, g.y);
+      if (ctrlNode) {
+        this.cb.onToggleSelect(ctrlNode, false);
+        this.mode = "selectOnly";
+        return;
+      }
+      const ctrlB = this.cb.hitBuilding ? this.cb.hitBuilding(g.x, g.y) : null;
+      if (ctrlB != null) {
+        this.cb.onToggleSelect(ctrlB, true);
+        this.mode = "selectOnly";
+        return;
+      }
     }
     // A resize handle of the selected building wins over everything (so you can
     // grab a corner/edge even when it overlaps a node).
@@ -184,6 +205,11 @@ export class GraphInput {
       if (this.cb.onCopyMove) this.cb.onCopyMove(g.x, g.y);
       return;
     }
+    if (this.mode === "pastePlace") {
+      const g = this._toGraph(e);
+      if (this.cb.onPasteMove) this.cb.onPasteMove(g.x, g.y);
+      return;
+    }
     if (this.mode === "pan") {
       const dx = e.clientX - prev.x,
         dy = e.clientY - prev.y;
@@ -225,6 +251,10 @@ export class GraphInput {
     if (wasMode === "copyPlace") {
       const g = this._toGraph(e);
       if (this.cb.onCopyPlace) this.cb.onCopyPlace(g.x, g.y);
+    }
+    if (wasMode === "pastePlace") {
+      const g = this._toGraph(e);
+      if (this.cb.onPastePlace) this.cb.onPastePlace(g.x, g.y);
     }
     if (wasMode === "resizeBuilding") {
       if (this.cb.onResizeDrop) this.cb.onResizeDrop();
