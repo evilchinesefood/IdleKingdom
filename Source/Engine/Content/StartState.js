@@ -15,7 +15,7 @@ export const START_STATE = {
   unlocks: {
     researchOwned: [],
     recipesUnlocked: ["r_iron_bar"],
-    machinesUnlocked: ["gatherer", "smelter", "market"],
+    machinesUnlocked: ["gatherer", "smelter", "market", "storage"],
     marketListings: [
       "iron_ore",
       "timber",
@@ -32,6 +32,7 @@ export const START_STATE = {
       workshop: 1.0,
       market: 1.0,
       scholar: 1.0,
+      storage: 1.0,
     },
     gearTiersUnlocked: [
       { itemId: "sword", tier: 1 },

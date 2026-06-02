@@ -165,6 +165,41 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
         ...opts,
       ),
     );
+  } else if (node.kind === "storage") {
+    rows.push(
+      h(
+        "div",
+        { class: "ni-line" },
+        `Stored ${fmtNum(node.storedTotal || 0)} / ${fmtNum(node.storageCap || 0)}`,
+      ),
+    );
+    const opts = Object.keys(RESOURCES).map((rid) =>
+      h(
+        "wa-option",
+        { key: "opt-" + rid, value: rid },
+        h("span", { slot: "start" }, icon(rid)),
+        RESOURCES[rid].display,
+      ),
+    );
+    rows.push(
+      h(
+        "wa-select",
+        {
+          key: "storage-" + node.id,
+          class: "ni-storage",
+          label: "Holds (accepts & outputs)",
+          appearance: "filled",
+          "prop:value": node.resourceId || "",
+          onchange: (e) =>
+            dispatch({
+              type: INTENT.SetStorageRule,
+              nodeId: node.id,
+              resourceId: e.target.value,
+            }),
+        },
+        ...opts,
+      ),
+    );
   }
 
   // Upgrade

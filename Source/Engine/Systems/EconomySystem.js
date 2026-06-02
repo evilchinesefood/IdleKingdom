@@ -30,6 +30,13 @@ export function buildingCopyCost(building, state, content) {
   return total;
 }
 
+/** A storage room's total holding capacity: cap = baseCap + capGain*(level-1). */
+export function storageCapacity(node, content) {
+  if (!node || node.kind !== "storage") return 0;
+  const m = content.machines.storage;
+  return m.baseCap + m.capGain * (node.level - 1);
+}
+
 export function isListed(state, content, resourceId) {
   const res = content.resources[resourceId];
   if (!res || res.basePrice == null) return false;

@@ -18,6 +18,8 @@ export function capacity(node, state, content) {
     return (m.baseOutput + m.rateGain * (node.level - 1)) * bonus;
   if (node.kind === "scholar")
     return (m.baseOutput + m.rateGain * (node.level - 1)) * bonus;
+  if (node.kind === "storage")
+    return (m.baseOutput + m.rateGain * (node.level - 1)) * bonus; // passthrough rate
   return 0;
 }
 
@@ -30,6 +32,8 @@ function linkWant(consumer, resourceId, cap, content) {
   }
   if (consumer.kind === "scholar") return resourceId === "parchment" ? cap : 0;
   if (consumer.kind === "market") return cap; // shared sell capacity
+  if (consumer.kind === "storage")
+    return resourceId === consumer.resourceId ? cap : 0;
   return 0; // gatherers take no inputs
 }
 
@@ -142,6 +146,17 @@ export function solve(state, content) {
       researchByNode[id] = gold * state.unlocks.titheRate;
       availableOut[id] = {};
       perNodeDraw[id] = nodeSold;
+    } else if (node.kind === "storage") {
+      // Capped pass-through: accept up to `cap` of the configured resource, expose
+      // it as output for downstream links; whatever isn't drawn becomes surplus and
+      // accrues to the (hard-capped) stockpile in applyTick. Not an active source.
+      // No fedFrac is emitted: `cap` here is the passthrough ceiling, not a demand, so
+      // a feed link below it must NOT render as starved (mirrors the market sink).
+      const rid = node.resourceId;
+      const inflow = rid ? incoming[rid] || 0 : 0;
+      const pass = Math.min(cap, inflow);
+      availableOut[id] = rid && pass > 0 ? { [rid]: pass } : {};
+      perNodeDraw[id] = rid && pass > 0 ? { [rid]: pass } : {};
     } else {
       availableOut[id] = {};
       perNodeDraw[id] = {};

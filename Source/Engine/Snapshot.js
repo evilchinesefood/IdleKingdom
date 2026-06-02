@@ -1,4 +1,8 @@
-import { upgradeCost, buildingCopyCost } from "./Systems/EconomySystem.js";
+import {
+  upgradeCost,
+  buildingCopyCost,
+  storageCapacity,
+} from "./Systems/EconomySystem.js";
 import {
   heroPower,
   levelCost,
@@ -39,7 +43,9 @@ export function build(state, solved, content, lastError = null) {
     const consumerRate = Object.values(drawMap).reduce((a, b) => a + b, 0);
     const isConsumer = node.kind === "scholar" || node.kind === "market";
     const throughput = isConsumer ? consumerRate : producerRate;
-    const takesInput = node.kind !== "gatherer";
+    // storage is excluded: its `cap` is an oversized passthrough ceiling, not a demand,
+    // so it must not read as starved when running below it (gatherers take no input).
+    const takesInput = node.kind !== "gatherer" && node.kind !== "storage";
     const EPS = 1e-6;
     const atCapacity = cap > 0 && throughput >= cap - EPS;
     const starved = cap > 0 && takesInput && throughput < cap - EPS;
@@ -63,6 +69,13 @@ export function build(state, solved, content, lastError = null) {
       upgradeCost: cost,
       canAfford: state.currencies.gold >= cost,
       building: nodeBuilding[node.id] || null,
+      // storage room: how much it's holding of its configured resource vs. its cap
+      storageCap:
+        node.kind === "storage" ? storageCapacity(node, content) : null,
+      storedTotal:
+        node.kind === "storage" && node.resourceId && node.stockpile
+          ? node.stockpile[node.resourceId] || 0
+          : 0,
       // headline output for nodes that produce currency, not a resource
       goldOut: (solved.goldByNode && solved.goldByNode[node.id]) || 0,
       researchOut:

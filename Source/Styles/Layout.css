@@ -408,7 +408,37 @@ wa-button.hp-recruit {
   padding: 1rem;
   overflow-y: auto;
   height: 100%;
-  /* Give the cards a distinct (tan) surface so they read clearly against the grid. */
+  /* Default card surface; each card overrides with a cycling tint below. */
+  --wa-color-surface-default: var(--parchment);
+}
+/* Each expedition panel gets a different background so neighbouring panels read
+   as separate cards (a cycle of 5 muted parchment-family tints, all kept light
+   enough for ink text). The status outlines (.active/.victory/...) layer on top. */
+.exp-card:nth-child(5n + 1) {
+  --wa-color-surface-default: var(--parchment);
+}
+.exp-card:nth-child(5n + 2) {
+  --wa-color-surface-default: color-mix(
+    in srgb,
+    var(--parchment) 86%,
+    var(--gold)
+  );
+}
+.exp-card:nth-child(5n + 3) {
+  --wa-color-surface-default: color-mix(
+    in srgb,
+    var(--parchment) 88%,
+    var(--good)
+  );
+}
+.exp-card:nth-child(5n + 4) {
+  --wa-color-surface-default: color-mix(
+    in srgb,
+    var(--parchment) 88%,
+    var(--iron-lt)
+  );
+}
+.exp-card:nth-child(5n + 5) {
   --wa-color-surface-default: var(--parchment-dk);
 }
 /* Power / duration messages need room on all sides. */

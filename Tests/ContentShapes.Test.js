@@ -1,6 +1,9 @@
 import { describe, it, expect } from "./Runner.js";
 import { RESOURCES } from "../Source/Engine/Content/Resources.js";
-import { MACHINES, GATHERER_VARIANTS } from "../Source/Engine/Content/Machines.js";
+import {
+  MACHINES,
+  GATHERER_VARIANTS,
+} from "../Source/Engine/Content/Machines.js";
 import { RECIPES } from "../Source/Engine/Content/Recipes.js";
 import { EQUIPMENT, itemStat } from "../Source/Engine/Content/Equipment.js";
 import { HEROES } from "../Source/Engine/Content/Heroes.js";
@@ -18,7 +21,9 @@ describe("Resources content", () => {
     expect(counts).toEqual({ 0: 5, 1: 5, 2: 4, 3: 3 });
   });
   it("parchment is the only never-listed resource", () => {
-    const nulls = Object.values(RESOURCES).filter((r) => r.basePrice === null).map((r) => r.id);
+    const nulls = Object.values(RESOURCES)
+      .filter((r) => r.basePrice === null)
+      .map((r) => r.id);
     expect(nulls).toEqual(["parchment"]);
   });
   it("canonical prices", () => {
@@ -30,8 +35,8 @@ describe("Resources content", () => {
 });
 
 describe("Machines content", () => {
-  it("has 5 engine kinds, each keyed by its kind", () => {
-    expect(Object.keys(MACHINES).length).toBe(5);
+  it("has 6 engine kinds, each keyed by its kind", () => {
+    expect(Object.keys(MACHINES).length).toBe(6);
     for (const [k, m] of Object.entries(MACHINES)) expect(m.kind).toBe(k);
   });
   it("canonical machine numbers", () => {
@@ -40,6 +45,8 @@ describe("Machines content", () => {
     expect(MACHINES.gatherer.upgradeBase).toBe(15);
     expect(MACHINES.market.baseOutput).toBe(5.0);
     expect(MACHINES.scholar.baseOutput).toBe(0.5);
+    expect(MACHINES.storage.baseCap).toBe(100);
+    expect(MACHINES.storage.capGain).toBe(100);
   });
   it("gatherer variants reference real resources", () => {
     for (const v of Object.values(GATHERER_VARIANTS)) {
@@ -55,7 +62,9 @@ describe("Recipes content", () => {
   });
   it("every crafterKind is a real smelter/workshop machine", () => {
     for (const r of Object.values(RECIPES)) {
-      expect(r.crafterKind === "smelter" || r.crafterKind === "workshop").toBe(true);
+      expect(r.crafterKind === "smelter" || r.crafterKind === "workshop").toBe(
+        true,
+      );
       expect(MACHINES[r.crafterKind]).toBeTruthy();
     }
   });
