@@ -84,14 +84,17 @@ export function build(state, solved, content, lastError = null) {
   });
 
   const buildings = buildingList.map((b) => {
-    const copyCost = buildingCopyCost(b, state, content);
+    const copyCost = buildingCopyCost(b, state, content, true);
+    const copyCostStructure = buildingCopyCost(b, state, content, false);
     return {
       id: b.id,
       name: b.name,
       nodeIds: b.nodeIds.slice(),
       rect: { x: b.rect.x, y: b.rect.y, w: b.rect.w, h: b.rect.h },
       copyCost,
+      copyCostStructure,
       canAffordCopy: state.currencies.gold >= copyCost,
+      canAffordCopyStructure: state.currencies.gold >= copyCostStructure,
     };
   });
 

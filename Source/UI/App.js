@@ -74,6 +74,7 @@ class AppInstance {
     this.selectedBuildingId = null;
     this.toolbarEl = null;
     this._copiedBuilding = null; // building id stashed by Ctrl/Cmd+C for paste
+    this._pendingRename = null; // un-committed building-name keystrokes (flushed on deselect)
     this.buildUi = {
       selectedPaletteKind: null,
       setPalette: (k) => {
@@ -171,6 +172,7 @@ class AppInstance {
 
     if (k === "delete" || k === "backspace") {
       if (this.selectedBuildingId) {
+        this._pendingRename = null; // building is going away; drop any half-typed name
         this.dispatch({
           type: INTENT.UngroupBuilding,
           buildingId: this.selectedBuildingId,
@@ -235,6 +237,7 @@ class AppInstance {
       this.hud.render(this.lastSnap || this._emptySnap());
       return;
     }
+    this._flushPendingRename(); // commit a half-typed name before leaving the factory
     this.activeScreen = route;
     this.screenEl.innerHTML = "";
     this.graphView = null;
@@ -270,11 +273,15 @@ class AppInstance {
       this.screenEl.appendChild(legend);
       this.graphView = new GraphView(canvas, this.game, {
         onSelect: (id) => {
+          this._flushPendingRename(); // commit a half-typed name before deselecting
           this.selectedNodeId = id;
-          if (id) this.selectedBuildingId = null;
+          // always drop the building selection (node-select OR empty-canvas null)
+          // so App and GraphView don't disagree about what's selected.
+          this.selectedBuildingId = null;
           this.renderNow();
         },
         onSelectBuilding: (id) => {
+          this._flushPendingRename();
           this.selectedBuildingId = id;
           this.selectedNodeId = null;
           this.renderNow();
@@ -394,19 +401,25 @@ class AppInstance {
 
   _buildingHandlers() {
     return {
-      onCopy: () => {
+      onCopy: (withUpgrades) => {
         if (!this.graphView) return;
+        this._flushPendingRename(); // keep a half-typed name when entering copy mode
         if (this.graphView.getMode() === "copy") this.graphView.cancelMode();
-        else this.graphView.startCopy(this.selectedBuildingId);
+        else
+          this.graphView.startCopy(
+            this.selectedBuildingId,
+            withUpgrades !== false,
+          );
         this.renderNow();
       },
-      onRename: (name) =>
-        this.dispatch({
-          type: INTENT.RenameBuilding,
-          buildingId: this.selectedBuildingId,
-          name: name || "",
-        }),
+      // live keystrokes -> transient (no dispatch, no re-render while focused)
+      onRenameInput: (name) => {
+        this._pendingRename = name;
+      },
+      // committed on blur/Enter
+      onRename: (name) => this._commitRename(name),
       onUngroup: () => {
+        this._pendingRename = null; // building is going away; nothing to commit
         this.dispatch({
           type: INTENT.UngroupBuilding,
           buildingId: this.selectedBuildingId,
@@ -416,6 +429,30 @@ class AppInstance {
         this.renderNow();
       },
     };
+  }
+
+  // Commit any un-committed building-name keystrokes. Called before a deselect/
+  // selection-change removes the name input — WA's wa-change can't fire once the
+  // input is gone, so a click-away would otherwise drop the typed name.
+  _flushPendingRename() {
+    if (this._pendingRename != null) this._commitRename(this._pendingRename);
+  }
+
+  // Dispatch RenameBuilding only for a REAL change: non-empty, different from the
+  // building's current name, and the building still exists. Keeps no-op renames
+  // (cleared field, unchanged text, a deferred wa-change after a flush, or a stale
+  // pending name for an ungrouped building) from polluting UNDOABLE history or
+  // flashing a reject.
+  _commitRename(name) {
+    this._pendingRename = null;
+    const id = this.selectedBuildingId;
+    if (id == null) return;
+    const nm = (name || "").trim();
+    if (!nm) return;
+    const b =
+      this.lastSnap && (this.lastSnap.buildings || []).find((x) => x.id === id);
+    if (!b || b.name === nm) return;
+    this.dispatch({ type: INTENT.RenameBuilding, buildingId: id, name: nm });
   }
 
   // The factory "Group" tool toggle (also reflects the active select/copy mode).

@@ -336,11 +336,16 @@ export class GraphView {
     this.onModeChange();
   }
 
-  startCopy(buildingId) {
+  startCopy(buildingId, withUpgrades = true) {
     const b = (this.snap.buildings || []).find((x) => x.id === buildingId);
     if (!b) return;
     this._mode = "copy";
-    this._copy = { buildingId, gx: b.rect.x + GRID, gy: b.rect.y + GRID };
+    this._copy = {
+      buildingId,
+      withUpgrades,
+      gx: b.rect.x + GRID,
+      gy: b.rect.y + GRID,
+    };
     this._draw();
     this.onModeChange();
   }
@@ -600,6 +605,7 @@ export class GraphView {
       type: INTENT.CopyBuilding,
       buildingId: c.buildingId,
       offset: { dx, dy },
+      withUpgrades: c.withUpgrades !== false,
     });
   }
 
