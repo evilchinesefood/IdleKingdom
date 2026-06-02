@@ -29,6 +29,9 @@ let lastSavedAt = 0;
 
 function doSave() {
   saveTimer = null;
+  // A reset clears the save then reloads; the reload fires pagehide/beforeunload
+  // which would otherwise re-persist the still-in-memory state and undo the wipe.
+  if (typeof window !== "undefined" && window.__IK_RESETTING) return;
   try {
     storage.set(SAVE_KEY, serialize(game.getState(), clock.now()));
     saveStatus = "ok";

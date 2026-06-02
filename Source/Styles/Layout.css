@@ -50,18 +50,15 @@ wa-button::part(base) {
     display: inline;
   }
 }
-.hud-cur i[slot="start"],
-.hud-save i[slot="start"] {
+.hud .hud-ico {
   font-size: 1rem;
+  margin-inline-end: 0.3rem;
 }
 .hud-tabs {
   flex: 0 0 auto;
 }
 .hud-tabs::part(base) {
   border-bottom: none;
-}
-.hud-tabs wa-tab i[slot="start"] {
-  margin-inline-end: 0.3rem;
 }
 .hud i {
   --fa-primary-color: var(--parchment);
