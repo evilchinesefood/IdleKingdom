@@ -1,4 +1,4 @@
-import { upgradeCost } from "./Systems/EconomySystem.js";
+import { upgradeCost, buildingCopyCost } from "./Systems/EconomySystem.js";
 import {
   heroPower,
   levelCost,
@@ -25,6 +25,11 @@ function deepFreeze(obj) {
 export function build(state, solved, content, lastError = null) {
   const goldRate = solved.goldRate || 0;
   const researchRate = solved.researchRate || 0;
+
+  const buildingList = state.graph.buildings || [];
+  const nodeBuilding = {}; // nodeId -> buildingId (membership lookup for the UI)
+  for (const b of buildingList)
+    for (const nid of b.nodeIds) nodeBuilding[nid] = b.id;
 
   const nodes = state.graph.nodes.map((node) => {
     const cap = (solved.capacityByNode && solved.capacityByNode[node.id]) || 0;
@@ -57,6 +62,23 @@ export function build(state, solved, content, lastError = null) {
       stockpile: { ...node.stockpile },
       upgradeCost: cost,
       canAfford: state.currencies.gold >= cost,
+      building: nodeBuilding[node.id] || null,
+      // headline output for nodes that produce currency, not a resource
+      goldOut: (solved.goldByNode && solved.goldByNode[node.id]) || 0,
+      researchOut:
+        (solved.researchByNode && solved.researchByNode[node.id]) || 0,
+    };
+  });
+
+  const buildings = buildingList.map((b) => {
+    const copyCost = buildingCopyCost(b, state, content);
+    return {
+      id: b.id,
+      name: b.name,
+      nodeIds: b.nodeIds.slice(),
+      rect: { x: b.rect.x, y: b.rect.y, w: b.rect.w, h: b.rect.h },
+      copyCost,
+      canAffordCopy: state.currencies.gold >= copyCost,
     };
   });
 
@@ -164,6 +186,7 @@ export function build(state, solved, content, lastError = null) {
     },
     nodes,
     links,
+    buildings,
     research,
     heroes,
     territories,

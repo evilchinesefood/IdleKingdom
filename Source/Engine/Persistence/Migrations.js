@@ -34,4 +34,13 @@ export function migrate2to3(blob) {
   return next;
 }
 
-export const MIGRATIONS = { 1: migrate1to2, 2: migrate2to3 };
+export function migrate3to4(blob) {
+  const next = { ...blob, version: 4 };
+  if (!next.graph) next.graph = {};
+  const g = next.graph;
+  if (!Array.isArray(g.buildings)) g.buildings = [];
+  if (typeof g.nextBuildingSeq !== "number") g.nextBuildingSeq = 0;
+  return next;
+}
+
+export const MIGRATIONS = { 1: migrate1to2, 2: migrate2to3, 3: migrate3to4 };

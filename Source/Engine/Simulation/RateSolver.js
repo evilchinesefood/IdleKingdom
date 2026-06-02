@@ -186,5 +186,7 @@ export function solve(state, content) {
     researchRate,
     perNodeDraw,
     fedFrac,
+    goldByNode,
+    researchByNode,
   };
 }

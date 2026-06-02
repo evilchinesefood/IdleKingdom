@@ -23,7 +23,7 @@ describe("SaveManager.serialize", () => {
     const json = serialize(state);
     const blob = JSON.parse(json);
     expect(blob.version).toBe(SAVE_VERSION);
-    expect(SAVE_VERSION).toBe(3);
+    expect(SAVE_VERSION).toBe(4);
     expect(SAVE_KEY).toBe("idlekingdom.save");
     expect(typeof blob.savedAt).toBe("number");
     expect(typeof blob.lastSeen).toBe("number");
@@ -156,14 +156,15 @@ describe("SaveManager.deserialize", () => {
     expect(back.version).toBe(SAVE_VERSION);
   });
 
-  it("migrates SaveV1 fixture all the way to v3", () => {
+  it("migrates SaveV1 fixture all the way to v4", () => {
     const clock = new FakeClock(5000);
     const state = deserialize(JSON.stringify(SaveV1), clock);
-    expect(state.version).toBe(3);
+    expect(state.version).toBe(4);
     expect(state.meta.tutorialFlags.seenGoldTip).toBe(false);
     expect(state.unlocks.offlineCapHours).toBe(8);
     expect(state.unlocks.offlineCap).toBe(undefined);
     expect(state.unlocks.productionBonuses.smelter).toBe(1.0);
+    expect(Array.isArray(state.graph.buildings)).toBe(true); // v4 adds buildings
     expect(state.currencies.gold).toBe(25.0); // no data loss
   });
 

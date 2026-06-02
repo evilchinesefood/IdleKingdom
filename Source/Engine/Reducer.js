@@ -26,6 +26,9 @@ export function reduce(state, intent, content) {
 
   // Work on a clone; only return it if the intent is accepted.
   const next = clone(state);
+  if (!Array.isArray(next.graph.buildings)) next.graph.buildings = [];
+  if (typeof next.graph.nextBuildingSeq !== "number")
+    next.graph.nextBuildingSeq = 0;
   const nowMs =
     typeof intent._nowMs === "number" ? intent._nowMs : state.lastSeen;
   let structural = false;
@@ -200,7 +203,125 @@ export function reduce(state, intent, content) {
       next.graph.links = next.graph.links.filter(
         (l) => l.from !== intent.nodeId && l.to !== intent.nodeId,
       );
+      // drop it from any building; remove buildings left empty
+      for (const b of next.graph.buildings)
+        b.nodeIds = b.nodeIds.filter((id) => id !== intent.nodeId);
+      next.graph.buildings = next.graph.buildings.filter(
+        (b) => b.nodeIds.length > 0,
+      );
       structural = true;
+      break;
+    }
+    case "CreateBuilding": {
+      const exist = intent.nodeIds.filter((id) => nodeById(next, id));
+      const grouped = new Set(next.graph.buildings.flatMap((b) => b.nodeIds));
+      const free = exist.filter((id) => !grouped.has(id));
+      if (free.length === 0)
+        return reject(state, "no ungrouped nodes to group");
+      const seq = next.graph.nextBuildingSeq;
+      const name =
+        typeof intent.name === "string" && intent.name.trim()
+          ? intent.name.trim()
+          : "Building " + (seq + 1);
+      next.graph.buildings.push({
+        id: "b_" + seq,
+        name,
+        nodeIds: free,
+        rect: {
+          x: intent.rect.x,
+          y: intent.rect.y,
+          w: intent.rect.w,
+          h: intent.rect.h,
+        },
+      });
+      next.graph.nextBuildingSeq = seq + 1;
+      break;
+    }
+    case "MoveBuilding": {
+      const b = next.graph.buildings.find((x) => x.id === intent.buildingId);
+      if (!b) return reject(state, "no such building");
+      const { dx, dy } = intent.delta;
+      b.rect.x += dx;
+      b.rect.y += dy;
+      for (const nid of b.nodeIds) {
+        const n = nodeById(next, nid);
+        if (n) n.pos = { x: n.pos.x + dx, y: n.pos.y + dy };
+      }
+      break;
+    }
+    case "CopyBuilding": {
+      const b = next.graph.buildings.find((x) => x.id === intent.buildingId);
+      if (!b) return reject(state, "no such building");
+      const cost = Economy.buildingCopyCost(b, next, content);
+      if (next.currencies.gold < cost)
+        return reject(state, "cannot afford copy");
+      next.currencies.gold -= cost;
+      const { dx, dy } = intent.offset;
+      const idMap = {};
+      const newIds = [];
+      let nseq = next.graph.nextNodeSeq;
+      for (const nid of b.nodeIds) {
+        const src = nodeById(next, nid);
+        if (!src) continue;
+        const id = "n_" + src.kind + "_" + nseq;
+        nseq += 1;
+        idMap[nid] = id;
+        newIds.push(id);
+        next.graph.nodes.push({
+          id,
+          kind: src.kind,
+          level: src.level,
+          resourceId: src.resourceId,
+          recipeId: src.recipeId,
+          stockpile: {},
+          pos: { x: src.pos.x + dx, y: src.pos.y + dy },
+        });
+      }
+      next.graph.nextNodeSeq = nseq;
+      // duplicate the internal links (both endpoints inside the source building)
+      const member = new Set(b.nodeIds);
+      let lseq = next.graph.nextLinkSeq;
+      for (const l of next.graph.links.slice()) {
+        if (
+          member.has(l.from) &&
+          member.has(l.to) &&
+          idMap[l.from] &&
+          idMap[l.to]
+        ) {
+          next.graph.links.push({
+            id: "l_" + lseq,
+            from: idMap[l.from],
+            to: idMap[l.to],
+            resourceId: l.resourceId,
+          });
+          lseq += 1;
+        }
+      }
+      next.graph.nextLinkSeq = lseq;
+      const bseq = next.graph.nextBuildingSeq;
+      next.graph.buildings.push({
+        id: "b_" + bseq,
+        name: b.name + " copy",
+        nodeIds: newIds,
+        rect: { x: b.rect.x + dx, y: b.rect.y + dy, w: b.rect.w, h: b.rect.h },
+      });
+      next.graph.nextBuildingSeq = bseq + 1;
+      structural = true;
+      break;
+    }
+    case "UngroupBuilding": {
+      const idx = next.graph.buildings.findIndex(
+        (x) => x.id === intent.buildingId,
+      );
+      if (idx < 0) return reject(state, "no such building");
+      next.graph.buildings.splice(idx, 1);
+      break;
+    }
+    case "RenameBuilding": {
+      const b = next.graph.buildings.find((x) => x.id === intent.buildingId);
+      if (!b) return reject(state, "no such building");
+      const nm = intent.name.trim();
+      if (nm) b.name = nm;
       break;
     }
     case "RemoveLink": {
