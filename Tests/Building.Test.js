@@ -221,6 +221,23 @@ describe("Building — ungroup / rename / node removal", () => {
     expect(snap.nodes.length).toBe(2); // machines remain
   });
 
+  it("DeleteBuilding removes the building AND its machines + their links", () => {
+    const { game, g, s } = setup(); // gatherer -> smelter, linked
+    group(game, [g.id, s.id]);
+    const bId = game.getSnapshot().buildings[0].id;
+    expect(game.getSnapshot().links.length).toBe(1);
+    const out = game.dispatch({ type: INTENT.DeleteBuilding, buildingId: bId });
+    expect(out.ok).toBe(true);
+    const snap = game.getSnapshot();
+    expect(snap.buildings.length).toBe(0);
+    expect(snap.nodes.length).toBe(0); // both machines gone
+    expect(snap.links.length).toBe(0); // their link gone too
+    // rejects an unknown building
+    expect(
+      game.dispatch({ type: INTENT.DeleteBuilding, buildingId: "b_nope" }).ok,
+    ).toBe(false);
+  });
+
   it("RemoveFromBuilding drops one machine but keeps the rest of the group", () => {
     const { game, g, s } = setup();
     group(game, [g.id, s.id]); // building with both machines

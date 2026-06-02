@@ -1,6 +1,10 @@
+<p align="center">
+  <img src="Source/Assets/LogoDark.png" alt="IdleKingdom" width="300">
+</p>
+
 # IdleKingdom
 
-A web-based **idle / automation game** set in the besieged fortress-city of **Yensburg** — rebuild a war economy from a single mine, automate production chains, arm a hero, and reclaim six fallen walls. Inspired by *Kingdom Inc.*
+A web-based **idle / automation game** set in the besieged fortress-city of **Yensburg** — rebuild a war economy from a single mine, automate production chains, arm a hero, and reclaim six fallen walls. Inspired by _Kingdom Inc._
 
 **▶ Play:** https://dev.jdayers.com/kingdom/
 
@@ -13,9 +17,9 @@ Harvest raw resources → run them through crafting chains → sell goods at the
 ## Tech & design
 
 - **Vanilla JS, native ES modules, buildless** — no framework, no bundler, no runtime dependencies. Served as static files; `PascalCase` file & directory names.
-- **Headless engine** (`Source/Engine/`) — a pure, DOM-free state machine, fully unit-tested. One-way data flow: the UI dispatches *intents*, the engine mutates state and emits a frozen *snapshot*, the UI renders the snapshot.
+- **Headless engine** (`Source/Engine/`) — a pure, DOM-free state machine, fully unit-tested. One-way data flow: the UI dispatches _intents_, the engine mutates state and emits a frozen _snapshot_, the UI renders the snapshot.
 - **Rate-based steady-state simulation** — a topological solver computes per-node throughput (with fan-out conservation); offline progress is the same rates integrated over elapsed time, clamped to a cap.
-- **DOM + SVG UI** (`Source/UI/`) — a small hand-rolled `h()`/`patch` reconciler over a bespoke SVG factory graph. *Being re-platformed onto [Web Awesome](https://webawesome.com) components + Font Awesome Pro **Duotone** icons (buildless, vendored).*
+- **DOM + SVG UI** (`Source/UI/`) — a small hand-rolled `h()`/`patch` reconciler over a bespoke SVG factory graph. _Being re-platformed onto [Web Awesome](https://webawesome.com) components + Font Awesome Pro **Duotone** icons (buildless, vendored)._
 - **Persistence** — `localStorage` behind a `StorageAdapter` seam; versioned save migrations; corruption falls back to a fresh game.
 
 ## Repository layout
