@@ -73,6 +73,7 @@ class AppInstance {
     this.selectedNodeId = null;
     this.selectedBuildingId = null;
     this.toolbarEl = null;
+    this._copiedBuilding = null; // building id stashed by Ctrl/Cmd+C for paste
     this.buildUi = {
       selectedPaletteKind: null,
       setPalette: (k) => {
@@ -94,8 +95,129 @@ class AppInstance {
     this._applyPrefs();
     this.router.onChange(() => this._mountScreen());
     this.game.onSnapshot((snap) => this._onSnapshot(snap));
+    document.addEventListener("keydown", (e) => this._handleGlobalKey(e));
     this.router.start();
     this._mountScreen();
+  }
+
+  // Global keyboard shortcuts (factory screen only). Undo/redo + clipboard work
+  // off modifiers; Delete / arrows / Esc act on the current selection. A focused
+  // graph node already handles its own arrows/Delete (GraphView._onNodeKey) and
+  // calls preventDefault, so we bail on defaultPrevented to avoid double-acting.
+  _handleGlobalKey(e) {
+    if (this.activeScreen !== "factory") return;
+    const t = e.target;
+    const tag = (t && t.tagName ? t.tagName : "").toUpperCase();
+    const typing =
+      tag === "INPUT" ||
+      tag === "TEXTAREA" ||
+      tag === "WA-INPUT" ||
+      (t && t.isContentEditable);
+    const mod = e.metaKey || e.ctrlKey;
+    const k = (e.key || "").toLowerCase();
+    const NUDGE = 40; // one grid cell
+
+    if (mod && !typing) {
+      if (k === "z" && !e.shiftKey) {
+        if (this.game.canUndo()) this.game.undo();
+        e.preventDefault();
+        return;
+      }
+      if ((k === "z" && e.shiftKey) || k === "y") {
+        if (this.game.canRedo()) this.game.redo();
+        e.preventDefault();
+        return;
+      }
+      if (k === "c") {
+        // copy the selected building (stash its id; paste places a charged copy)
+        if (this.selectedBuildingId)
+          this._copiedBuilding = this.selectedBuildingId;
+        e.preventDefault();
+        return;
+      }
+      if (k === "v") {
+        if (this._copiedBuilding) {
+          this.dispatch({
+            type: INTENT.CopyBuilding,
+            buildingId: this._copiedBuilding,
+            offset: { dx: NUDGE * 2, dy: NUDGE * 2 },
+          });
+        }
+        e.preventDefault();
+        return;
+      }
+      return;
+    }
+
+    if (typing || e.defaultPrevented) return;
+
+    if (k === "escape") {
+      if (this.graphView && this.graphView.getMode()) {
+        this.graphView.cancelMode();
+      } else {
+        this.selectedNodeId = null;
+        this.selectedBuildingId = null;
+        if (this.graphView) {
+          this.graphView.selectedId = null;
+          this.graphView.selectedBuildingId = null;
+          this.graphView.selectedLinkId = null;
+          this.graphView.render(this.lastSnap || this._emptySnap());
+        }
+      }
+      this.renderNow();
+      e.preventDefault();
+      return;
+    }
+
+    if (k === "delete" || k === "backspace") {
+      if (this.selectedBuildingId) {
+        this.dispatch({
+          type: INTENT.UngroupBuilding,
+          buildingId: this.selectedBuildingId,
+        });
+        this.selectedBuildingId = null;
+        if (this.graphView) this.graphView.selectedBuildingId = null;
+      } else if (this.selectedNodeId) {
+        this.dispatch({ type: INTENT.RemoveNode, nodeId: this.selectedNodeId });
+        this.selectedNodeId = null;
+      } else if (this.graphView && this.graphView.selectedLinkId) {
+        this.graphView._deleteLink(this.graphView.selectedLinkId);
+      } else {
+        return;
+      }
+      this.renderNow();
+      e.preventDefault();
+      return;
+    }
+
+    let dx = 0,
+      dy = 0;
+    if (k === "arrowleft") dx = -NUDGE;
+    else if (k === "arrowright") dx = NUDGE;
+    else if (k === "arrowup") dy = -NUDGE;
+    else if (k === "arrowdown") dy = NUDGE;
+    else return;
+
+    if (this.selectedBuildingId) {
+      this.dispatch({
+        type: INTENT.MoveBuilding,
+        buildingId: this.selectedBuildingId,
+        delta: { dx, dy },
+      });
+      e.preventDefault();
+    } else if (this.selectedNodeId) {
+      const n = (this.lastSnap ? this.lastSnap.nodes : []).find(
+        (x) => x.id === this.selectedNodeId,
+      );
+      if (n) {
+        this.dispatch({
+          type: INTENT.SetNodePos,
+          nodeId: n.id,
+          pos: { x: n.pos.x + dx, y: n.pos.y + dy },
+        });
+      }
+      e.preventDefault();
+    }
   }
 
   _applyPrefs() {

@@ -6,6 +6,28 @@ import { applyOffline } from "./Simulation/Offline.js";
 import { tryResolve } from "./Systems/ExpeditionSystem.js";
 import { deserialize, SAVE_KEY } from "./Persistence/SaveManager.js";
 
+// Structural/spatial edits the player expects Ctrl+Z to reverse. Time/economy
+// intents (Sell, expeditions, hero) are deliberately excluded — rewinding them
+// would thrash live currencies/timers.
+const UNDOABLE = new Set([
+  "PlaceNode",
+  "ConnectLink",
+  "RemoveNode",
+  "RemoveLink",
+  "SetNodePos",
+  "UpgradeNode",
+  "SetRecipe",
+  "SetGathererResource",
+  "SetStorageRule",
+  "CreateBuilding",
+  "MoveBuilding",
+  "CopyBuilding",
+  "UngroupBuilding",
+  "RenameBuilding",
+  "BuyResearch",
+]);
+const clonePart = (o) => JSON.parse(JSON.stringify(o));
+
 export class Game {
   constructor({ content, clock }) {
     this.content = content;
@@ -14,6 +36,9 @@ export class Game {
     this.storage = null;
     this.listeners = new Set();
     this._pendingError = null;
+    this._undo = []; // history of {type, graph, unlocks, currencyDelta}, oldest→newest
+    this._redo = [];
+    this._histLimit = 50;
   }
 
   _ensureSolved() {
@@ -30,6 +55,8 @@ export class Game {
     const summary = applyOffline(this.state, this.content, this.clock.now());
     delete this.state._solved;
     this._ensureSolved();
+    this._undo = []; // a freshly loaded/offline-reconciled game has no undo history
+    this._redo = [];
     return summary;
   }
 
@@ -38,14 +65,88 @@ export class Game {
       intent && typeof intent === "object"
         ? { ...intent, _nowMs: this.clock.now() }
         : intent;
-    const out = reduce(this.state, withTime, this.content);
+    const prev = this.state; // pre-action (live) state
+    const out = reduce(prev, withTime, this.content);
     if (out.error !== undefined) {
       // keep old state; surface the error on the next emitted snapshot (flash-once)
       this._pendingError = out.error;
       this._emit();
       return { ok: false, error: out.error };
     }
+    // Accepted. Any new action invalidates the redo stack; structural/spatial
+    // edits also push an undo entry (graph+unlocks subtree + the currency delta
+    // the action caused, so undoing refunds cost without rewinding accrual).
+    this._redo.length = 0;
+    if (intent && UNDOABLE.has(intent.type)) {
+      this._undo.push({
+        type: intent.type,
+        graph: clonePart(prev.graph),
+        unlocks: clonePart(prev.unlocks),
+        currencyDelta: {
+          gold: out.state.currencies.gold - prev.currencies.gold,
+          research: out.state.currencies.research - prev.currencies.research,
+          renown: out.state.currencies.renown - prev.currencies.renown,
+        },
+      });
+      if (this._undo.length > this._histLimit) this._undo.shift();
+    }
     this.state = out.state;
+    this._ensureSolved();
+    this._emit();
+    return { ok: true };
+  }
+
+  canUndo() {
+    return this._undo.length > 0;
+  }
+  canRedo() {
+    return this._redo.length > 0;
+  }
+  clearHistory() {
+    this._undo.length = 0;
+    this._redo.length = 0;
+  }
+
+  undo() {
+    if (this._undo.length === 0) return { ok: false };
+    const entry = this._undo.pop();
+    // stash current structure so redo can replay forward
+    this._redo.push({
+      type: entry.type,
+      graph: clonePart(this.state.graph),
+      unlocks: clonePart(this.state.unlocks),
+      currencyDelta: entry.currencyDelta,
+    });
+    if (this._redo.length > this._histLimit) this._redo.shift();
+    // restore the pre-action structure; reverse the action's currency delta on
+    // top of LIVE currencies (keeps accrued gold/research, refunds the cost)
+    this.state.graph = clonePart(entry.graph);
+    this.state.unlocks = clonePart(entry.unlocks);
+    this.state.currencies.gold -= entry.currencyDelta.gold;
+    this.state.currencies.research -= entry.currencyDelta.research;
+    this.state.currencies.renown -= entry.currencyDelta.renown;
+    delete this.state._solved;
+    this._ensureSolved();
+    this._emit();
+    return { ok: true };
+  }
+
+  redo() {
+    if (this._redo.length === 0) return { ok: false };
+    const entry = this._redo.pop();
+    this._undo.push({
+      type: entry.type,
+      graph: clonePart(this.state.graph),
+      unlocks: clonePart(this.state.unlocks),
+      currencyDelta: entry.currencyDelta,
+    });
+    if (this._undo.length > this._histLimit) this._undo.shift();
+    this.state.graph = clonePart(entry.graph);
+    this.state.unlocks = clonePart(entry.unlocks);
+    this.state.currencies.gold += entry.currencyDelta.gold;
+    this.state.currencies.research += entry.currencyDelta.research;
+    this.state.currencies.renown += entry.currencyDelta.renown;
+    delete this.state._solved;
     this._ensureSolved();
     this._emit();
     return { ok: true };
