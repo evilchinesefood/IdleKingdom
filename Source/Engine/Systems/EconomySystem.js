@@ -18,14 +18,35 @@ export function applyUpgrade(state, content, nodeId) {
   delete state._solved;
 }
 
-/** Full rebuild cost of a building copy: placement is free in this game, so the
- *  cost is the sum of every member machine's upgrades needed to reach its level. */
-export function buildingCopyCost(building, state, content) {
+/** Base rebuild cost of a building: the L0->L1 placement price (upgradeBase) per
+ *  member machine — i.e. what it costs to recreate the bare structure, no upgrades. */
+export function buildingStructureCost(building, state, content) {
   let total = 0;
   for (const nid of building.nodeIds) {
     const n = state.graph.nodes.find((x) => x.id === nid);
     if (!n) continue;
-    for (let L = 1; L < n.level; L++) total += upgradeCost(n.kind, L, content);
+    total += upgradeCost(n.kind, 0, content); // upgradeBase = base machine cost
+  }
+  return total;
+}
+
+/** Cost to copy a building: always the full structure rebuild, PLUS (when
+ *  `withUpgrades`, the default) every member's upgrade ladder to its current level.
+ *  `withUpgrades:false` prices a clean structure-only paste (machines at level 1). */
+export function buildingCopyCost(
+  building,
+  state,
+  content,
+  withUpgrades = true,
+) {
+  let total = buildingStructureCost(building, state, content);
+  if (withUpgrades) {
+    for (const nid of building.nodeIds) {
+      const n = state.graph.nodes.find((x) => x.id === nid);
+      if (!n) continue;
+      for (let L = 1; L < n.level; L++)
+        total += upgradeCost(n.kind, L, content);
+    }
   }
   return total;
 }

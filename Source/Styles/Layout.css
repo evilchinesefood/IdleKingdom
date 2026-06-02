@@ -124,8 +124,9 @@ wa-button::part(base) {
   padding: 0.75rem;
 }
 
-/* Mobile-first: below the breakpoint the tabs collapse behind a hamburger. */
-@media (max-width: 640px) {
+/* Below this breakpoint the tabs collapse behind a hamburger. Set to 1100px so
+   the menu folds away BEFORE the full tab bar would overlap the currency display. */
+@media (max-width: 1100px) {
   .hud {
     flex-direction: column;
     align-items: stretch;
@@ -235,10 +236,19 @@ wa-button::part(base) {
   margin-bottom: 0.4rem;
 }
 .bi-copy,
+.bi-copy-structure,
 .bi-ungroup {
   display: block;
   width: 100%;
   margin: 4px 0;
+}
+/* The "Copy + upgrades" button has a gold accent fill; force its copy + coin
+   icons to ink so they don't blend into the background (per-kind inline tones
+   are overridden via !important). The outlined structure button keeps its tones. */
+.bi-copy i {
+  --fa-primary-color: var(--ink) !important;
+  --fa-secondary-color: var(--ink) !important;
+  --fa-secondary-opacity: 0.7 !important;
 }
 .bm-title,
 .ni-title {
@@ -252,6 +262,13 @@ wa-button::part(base) {
 }
 .bm-machine {
   width: 100%;
+}
+/* Bigger label + clear gap after the leading kind icon. */
+.bm-machine::part(base) {
+  font-size: 1.05rem;
+}
+.bm-machine [slot="start"] {
+  margin-inline-end: 0.45rem;
 }
 .bm-machine,
 .bm-place,
@@ -479,6 +496,11 @@ wa-button.hp-recruit {
   font-size: 0.78rem;
   color: var(--bad);
   margin-top: 0.25rem;
+}
+/* Pad the nudge/busy message windows on all sides (text was touching the edges). */
+.exp-nudge::part(base),
+.exp-busy::part(base) {
+  padding: 0.6rem 0.75rem;
 }
 /* Breathing room: reward/cost + Locked tags and the Launch button were cramped
    (text touching the edges, worsened by the global 44px min-height). */

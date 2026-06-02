@@ -286,7 +286,8 @@ export function reduce(state, intent, content) {
     case "CopyBuilding": {
       const b = next.graph.buildings.find((x) => x.id === intent.buildingId);
       if (!b) return reject(state, "no such building");
-      const cost = Economy.buildingCopyCost(b, next, content);
+      const withUpgrades = intent.withUpgrades !== false; // default: copy at current levels
+      const cost = Economy.buildingCopyCost(b, next, content, withUpgrades);
       if (next.currencies.gold < cost)
         return reject(state, "cannot afford copy");
       next.currencies.gold -= cost;
@@ -304,7 +305,7 @@ export function reduce(state, intent, content) {
         next.graph.nodes.push({
           id,
           kind: src.kind,
-          level: src.level,
+          level: withUpgrades ? src.level : 1, // structure-only paste starts at L1
           resourceId: src.resourceId,
           recipeId: src.recipeId,
           stockpile: {},
@@ -355,7 +356,10 @@ export function reduce(state, intent, content) {
       const b = next.graph.buildings.find((x) => x.id === intent.buildingId);
       if (!b) return reject(state, "no such building");
       const nm = intent.name.trim();
-      if (nm) b.name = nm;
+      // reject empty/whitespace and no-op renames so an accepted UNDOABLE intent
+      // never pushes a phantom undo entry for a name that didn't actually change.
+      if (!nm || nm === b.name) return reject(state, "no name change");
+      b.name = nm;
       break;
     }
     case "RemoveLink": {

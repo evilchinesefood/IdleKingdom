@@ -152,6 +152,45 @@ describe("Building — copy", () => {
     expect(smelters.every((n) => n.level === 2)).toBe(true);
   });
 
+  it("copy cost = base structure + upgrades; structure-only is cheaper", () => {
+    const { game, g, s } = setup(1e6);
+    game.dispatch({ type: INTENT.UpgradeNode, nodeId: s.id }); // smelter -> L2
+    group(game, [g.id, s.id]);
+    const b = game.getSnapshot().buildings[0];
+    // structure rebuild = gatherer upgradeBase (15) + smelter upgradeBase (25)
+    expect(b.copyCostStructure).toBeCloseTo(40, 1e-6);
+    // full copy also pays the smelter's L1->L2 upgrade, so it costs strictly more
+    expect(b.copyCost > b.copyCostStructure).toBe(true);
+  });
+
+  it("structure-only copy duplicates machines at L1 and charges the structure cost", () => {
+    const { game, g, s } = setup(1e6);
+    game.dispatch({ type: INTENT.UpgradeNode, nodeId: s.id }); // smelter -> L2
+    group(game, [g.id, s.id]);
+    let snap = game.getSnapshot();
+    const b = snap.buildings[0];
+    const goldBefore = snap.currencies.gold;
+    const nodesBefore = snap.nodes.length;
+    const out = game.dispatch({
+      type: INTENT.CopyBuilding,
+      buildingId: b.id,
+      offset: { dx: 0, dy: 200 },
+      withUpgrades: false,
+    });
+    expect(out.ok).toBe(true);
+    snap = game.getSnapshot();
+    expect(snap.nodes.length).toBe(nodesBefore + 2);
+    expect(snap.buildings.length).toBe(2);
+    expect(snap.currencies.gold).toBeCloseTo(
+      goldBefore - b.copyCostStructure,
+      1e-6,
+    );
+    // the duplicated smelter is reset to L1 (clean structure), original stays L2
+    const smelters = snap.nodes.filter((n) => n.kind === "smelter");
+    expect(smelters.some((n) => n.level === 1)).toBe(true);
+    expect(smelters.some((n) => n.level === 2)).toBe(true);
+  });
+
   it("rejects the copy when gold is insufficient", () => {
     const { game, g, s } = setup(1e6);
     game.dispatch({ type: INTENT.UpgradeNode, nodeId: s.id });
@@ -191,6 +230,34 @@ describe("Building — ungroup / rename / node removal", () => {
       buildingId: bId,
       name: "Smithy",
     });
+    expect(game.getSnapshot().buildings[0].name).toBe("Smithy");
+  });
+
+  it("rejects empty/whitespace and no-op renames (no phantom undo entry)", () => {
+    const { game, g, s } = setup();
+    group(game, [g.id, s.id], undefined, "Foundry");
+    const bId = game.getSnapshot().buildings[0].id;
+    expect(
+      game.dispatch({
+        type: INTENT.RenameBuilding,
+        buildingId: bId,
+        name: "   ",
+      }).ok,
+    ).toBe(false);
+    expect(
+      game.dispatch({
+        type: INTENT.RenameBuilding,
+        buildingId: bId,
+        name: "Foundry",
+      }).ok,
+    ).toBe(false); // unchanged -> rejected
+    // a genuine change is still accepted
+    const ok = game.dispatch({
+      type: INTENT.RenameBuilding,
+      buildingId: bId,
+      name: "Smithy",
+    });
+    expect(ok.ok).toBe(true);
     expect(game.getSnapshot().buildings[0].name).toBe("Smithy");
   });
 

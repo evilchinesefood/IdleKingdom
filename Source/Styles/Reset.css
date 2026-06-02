@@ -9,6 +9,11 @@ html,
 body {
   height: 100%;
 }
+/* Global type scale: +20% over the 16px UA default so all rem/em-based UI text
+   (panels, HUD, menus, dialogs, Web Awesome components) grows uniformly. */
+html {
+  font-size: 120%;
+}
 body {
   -webkit-text-size-adjust: 100%;
   text-rendering: optimizeLegibility;

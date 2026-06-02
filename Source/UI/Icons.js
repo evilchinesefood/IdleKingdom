@@ -58,6 +58,7 @@ export const ICONS = {
   group: { name: "object-group" },
   menu: { name: "bars" },
   storage: { name: "warehouse" },
+  copy: { name: "copy" },
   victory: { name: "crown", primary: "var(--gold)" },
   offline: { name: "moon" },
   save_ok: { name: "floppy-disk" },
