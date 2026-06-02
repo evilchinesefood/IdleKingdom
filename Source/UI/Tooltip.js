@@ -46,7 +46,7 @@ export function Tooltip(snap, dispatch) {
     h(
       "wa-callout",
       { class: "tooltip", key: "tip-" + step, variant: "brand" },
-      h("span", { slot: "start" }, icon("info", { class: "tip-icon" })),
+      h("span", { slot: "icon" }, icon("info", { class: "tip-icon" })),
       h("span", { class: "tip-text" }, tip.text),
       h(
         "wa-button",

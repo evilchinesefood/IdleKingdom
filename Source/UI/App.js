@@ -239,6 +239,8 @@ class AppInstance {
               !confirm("Reset all progress? This cannot be undone.")
             )
               return;
+            // Stop autosave from re-writing the save on the reload's unload hooks.
+            window.__IK_RESETTING = true;
             try {
               localStorage.removeItem(SAVE_KEY);
             } catch {}
@@ -314,7 +316,7 @@ class AppInstance {
       h(
         "wa-callout",
         { class: "hud-error-callout", key: "err", variant: "danger" },
-        h("span", { slot: "start" }, icon("starved", { class: "err-icon" })),
+        h("span", { slot: "icon" }, icon("starved", { class: "err-icon" })),
         h("span", { class: "hud-error-text" }, msg),
       ),
     ]);

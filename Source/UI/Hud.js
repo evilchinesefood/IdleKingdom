@@ -9,10 +9,11 @@ const TABS = [
   { route: "heroes", label: "Heroes" },
 ];
 
+// wa-tag and wa-tab have NO "start" slot (only a default slot), so a
+// slot="start" icon is unslotted and never rendered — leaving the value where
+// the icon should be. Render the icon as a default-slot child instead.
 function startIcon(concept) {
-  const v = icon(concept, { noTone: true });
-  v.props = { ...v.props, slot: "start" };
-  return v;
+  return icon(concept, { noTone: true, class: "hud-ico" });
 }
 
 function currencyTag(key, concept, name, value, rate) {
