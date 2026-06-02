@@ -27,6 +27,7 @@ export function applyOffline(state, content, nowMs) {
   // integration so freshly-accrued surplus is also dumped, and exactly once per call.
   if (state.unlocks.autoSell) {
     for (const node of state.graph.nodes) {
+      if (node.kind === "storage") continue; // a holding buffer is never auto-liquidated
       for (const res in node.stockpile) {
         const qty = node.stockpile[res];
         if (qty > 0 && isListed(state, content, res)) {

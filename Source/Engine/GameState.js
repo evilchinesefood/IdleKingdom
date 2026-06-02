@@ -1,7 +1,7 @@
 import { START_STATE } from "./Content/StartState.js";
 
 /** Current persisted save schema version (mirrored by SaveManager in Phase 2). */
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 /** Structured deep clone with no shared refs; drops the non-persisted _solved cache. */
 export function clone(state) {

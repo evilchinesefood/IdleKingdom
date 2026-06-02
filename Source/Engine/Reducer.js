@@ -196,6 +196,19 @@ export function reduce(state, intent, content) {
       structural = true;
       break;
     }
+    case "SetStorageRule": {
+      const node = nodeById(next, intent.nodeId);
+      if (!node || node.kind !== "storage")
+        return reject(state, "not a storage room");
+      if (!content.resources[intent.resourceId])
+        return reject(state, "unknown resource");
+      // changing what a room holds dumps the old contents (can't keep mismatched stock)
+      if (node.resourceId && node.resourceId !== intent.resourceId)
+        node.stockpile = {};
+      node.resourceId = intent.resourceId;
+      structural = true;
+      break;
+    }
     case "RemoveNode": {
       const node = nodeById(next, intent.nodeId);
       if (!node) return reject(state, "no such node");

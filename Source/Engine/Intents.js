@@ -10,6 +10,7 @@ export const INTENT = {
   LevelUpHero: "LevelUpHero",
   RecruitHero: "RecruitHero",
   SetGathererResource: "SetGathererResource",
+  SetStorageRule: "SetStorageRule",
   RemoveNode: "RemoveNode",
   RemoveLink: "RemoveLink",
   SetNodePos: "SetNodePos",
@@ -43,6 +44,7 @@ const SHAPES = {
   LevelUpHero: (i) => isStr(i.heroId),
   RecruitHero: (i) => isStr(i.templateId),
   SetGathererResource: (i) => isStr(i.nodeId) && isStr(i.resourceId),
+  SetStorageRule: (i) => isStr(i.nodeId) && isStr(i.resourceId),
   RemoveNode: (i) => isStr(i.nodeId),
   RemoveLink: (i) => isStr(i.linkId),
   SetNodePos: (i) =>

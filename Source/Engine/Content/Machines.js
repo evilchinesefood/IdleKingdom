@@ -7,11 +7,41 @@
 
 /** Keyed map kind -> Machine. The 5 engine kinds. */
 export const MACHINES = {
-  gatherer: { kind: "gatherer", baseOutput: 1.0, rateGain: 0.5, upgradeBase: 15 },
-  smelter: { kind: "smelter", baseOutput: 0.0, rateGain: 0.25, upgradeBase: 25 },
-  workshop: { kind: "workshop", baseOutput: 0.0, rateGain: 0.2, upgradeBase: 40 },
+  gatherer: {
+    kind: "gatherer",
+    baseOutput: 1.0,
+    rateGain: 0.5,
+    upgradeBase: 15,
+  },
+  smelter: {
+    kind: "smelter",
+    baseOutput: 0.0,
+    rateGain: 0.25,
+    upgradeBase: 25,
+  },
+  workshop: {
+    kind: "workshop",
+    baseOutput: 0.0,
+    rateGain: 0.2,
+    upgradeBase: 40,
+  },
   market: { kind: "market", baseOutput: 5.0, rateGain: 5.0, upgradeBase: 30 },
-  scholar: { kind: "scholar", baseOutput: 0.5, rateGain: 0.25, upgradeBase: 35 },
+  scholar: {
+    kind: "scholar",
+    baseOutput: 0.5,
+    rateGain: 0.25,
+    upgradeBase: 35,
+  },
+  // Storage Room: high passthrough (baseOutput/rateGain) so it never bottlenecks
+  // a chain; baseCap/capGain set how much it can HOLD (cap = baseCap + capGain*(L-1)).
+  storage: {
+    kind: "storage",
+    baseOutput: 10.0,
+    rateGain: 5.0,
+    upgradeBase: 20,
+    baseCap: 100,
+    capGain: 100,
+  },
 };
 
 /** Gatherer UI variants (cosmetic; engine treats all as `gatherer`). */

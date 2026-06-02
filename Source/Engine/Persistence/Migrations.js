@@ -43,4 +43,23 @@ export function migrate3to4(blob) {
   return next;
 }
 
-export const MIGRATIONS = { 1: migrate1to2, 2: migrate2to3, 3: migrate3to4 };
+export function migrate4to5(blob) {
+  const next = { ...blob, version: 5 };
+  if (!next.unlocks) next.unlocks = {};
+  const u = next.unlocks;
+  if (
+    Array.isArray(u.machinesUnlocked) &&
+    !u.machinesUnlocked.includes("storage")
+  )
+    u.machinesUnlocked.push("storage");
+  if (u.productionBonuses && u.productionBonuses.storage == null)
+    u.productionBonuses.storage = 1.0;
+  return next;
+}
+
+export const MIGRATIONS = {
+  1: migrate1to2,
+  2: migrate2to3,
+  3: migrate3to4,
+  4: migrate4to5,
+};

@@ -26,7 +26,10 @@ export function topoSort(nodes, links) {
 /** True if adding link from->to keeps the graph acyclic. */
 export function wouldStayAcyclic(nodes, links, from, to) {
   try {
-    topoSort(nodes, [...links, { id: "__probe__", from, to, resourceId: "__probe__" }]);
+    topoSort(nodes, [
+      ...links,
+      { id: "__probe__", from, to, resourceId: "__probe__" },
+    ]);
     return true;
   } catch {
     return false;
@@ -40,6 +43,7 @@ function outputsOf(node, content) {
     const r = content.recipes[node.recipeId];
     return r ? [r.output] : [];
   }
+  if (node.kind === "storage") return node.resourceId ? [node.resourceId] : [];
   return []; // market and scholar are sinks, never producers
 }
 
@@ -51,6 +55,7 @@ function acceptsOf(node, content) {
   }
   if (node.kind === "scholar") return ["parchment"];
   if (node.kind === "market") return null; // market accepts any listed resource (checked at solve time)
+  if (node.kind === "storage") return node.resourceId ? [node.resourceId] : [];
   return []; // gatherer takes no inputs
 }
 
@@ -68,21 +73,33 @@ export function isValidLink(state, content, from, to, resourceId) {
   // Exact-duplicate guard (all kinds incl. markets): never add the same (from,to,resourceId)
   // triple twice — that would double-count the feed in the solver. Markets may still aggregate
   // DISTINCT feeds (different source, or different resource); only the exact triple is rejected.
-  if (links.some((l) => l.from === from && l.to === to && l.resourceId === resourceId)) return false;
+  if (
+    links.some(
+      (l) => l.from === from && l.to === to && l.resourceId === resourceId,
+    )
+  )
+    return false;
   return wouldStayAcyclic(nodes, links, from, to);
 }
 
 /** Cheap structural signature: node ids + link endpoints. */
 function graphSig(state) {
   const g = state.graph;
-  return g.nodes.map((n) => n.id).join(",") + "|" + g.links.map((l) => l.from + ">" + l.to).join(",");
+  return (
+    g.nodes.map((n) => n.id).join(",") +
+    "|" +
+    g.links.map((l) => l.from + ">" + l.to).join(",")
+  );
 }
 
 /** Cached topo order keyed off graph structure (rebuilt when topology changes). */
 export function orderFor(state) {
   const sig = graphSig(state);
   if (!state._topo || state._topo.sig !== sig) {
-    state._topo = { sig, order: topoSort(state.graph.nodes, state.graph.links) };
+    state._topo = {
+      sig,
+      order: topoSort(state.graph.nodes, state.graph.links),
+    };
   }
   return state._topo.order;
 }
