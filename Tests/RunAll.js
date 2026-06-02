@@ -22,6 +22,7 @@ import "./ExpeditionSystem.Test.js";
 import "./Intents.Test.js";
 import "./Reducer.Test.js";
 import "./Building.Test.js";
+import "./NestedGroups.Test.js";
 import "./UndoRedo.Test.js";
 import "./Storage.Test.js";
 import "./FanIn.Test.js";

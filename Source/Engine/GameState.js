@@ -1,7 +1,7 @@
 import { START_STATE } from "./Content/StartState.js";
 
 /** Current persisted save schema version (mirrored by SaveManager in Phase 2). */
-export const SAVE_VERSION = 8;
+export const SAVE_VERSION = 9;
 
 /** Structured deep clone with no shared refs; drops the non-persisted _solved cache. */
 export function clone(state) {
@@ -76,6 +76,14 @@ export function validate(state) {
       if (!b || typeof b.id !== "string" || !Array.isArray(b.nodeIds))
         return false;
       for (const nid of b.nodeIds) if (!nodeIds.has(nid)) return false;
+      // children (nested groups) must be a string array when present; stale ids are
+      // tolerated at runtime + pruned on the next edit, so don't reject on those.
+      if (
+        b.children !== undefined &&
+        (!Array.isArray(b.children) ||
+          !b.children.every((c) => typeof c === "string"))
+      )
+        return false;
     }
   }
   return true;

@@ -209,6 +209,12 @@
   stroke-width: 2;
   stroke-dasharray: 6 4;
 }
+/* Nested child group: subtler (no fill, tighter dashes) so the parent reads as the unit. */
+.building.nested .building-box {
+  fill: none;
+  stroke: rgba(201, 162, 39, 0.55);
+  stroke-dasharray: 3 3;
+}
 .building.selected .building-box {
   fill: rgba(201, 162, 39, 0.13);
   stroke-width: 3;
