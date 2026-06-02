@@ -167,12 +167,45 @@ wa-button::part(base) {
   position: relative;
 }
 .build-menu,
-.node-inspector {
+.node-inspector,
+.building-inspector {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 0.6rem;
+}
+
+/* Factory tool strip (top-left): the Group/Select toggle. */
+.factory-tools {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 30;
+}
+
+/* Building inspector (mirrors the node inspector) */
+.bi-title {
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.bi-name {
+  width: 100%;
+  margin-bottom: 0.4rem;
+}
+.bi-line {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  margin-bottom: 0.4rem;
+}
+.bi-copy,
+.bi-ungroup {
+  display: block;
+  width: 100%;
+  margin: 4px 0;
 }
 .bm-title,
 .ni-title {
