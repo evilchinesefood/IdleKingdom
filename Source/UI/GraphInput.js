@@ -72,6 +72,17 @@ export class GraphInput {
       if (this.cb.onSelectBoxMove) this.cb.onSelectBoxMove(this._box(g));
       return;
     }
+    // A resize handle of the selected building wins over everything (so you can
+    // grab a corner/edge even when it overlaps a node).
+    const handle = this.cb.hitBuildingHandle
+      ? this.cb.hitBuildingHandle(g.x, g.y)
+      : null;
+    if (handle) {
+      if (this.cb.onResizeGrab)
+        this.cb.onResizeGrab(handle.buildingId, handle.handle);
+      this.mode = "resizeBuilding";
+      return;
+    }
     // The delete-× of a revealed link wins over link-reveal/pan: a tap here must
     // delete the connection (the ×'s own onclick can't fire under SVG pointer capture).
     const del = this.cb.hitLinkDelete ? this.cb.hitLinkDelete(g.x, g.y) : null;
@@ -163,6 +174,11 @@ export class GraphInput {
         this.cb.onBuildingDrag(this.dragBuildingId, g.x, g.y);
       return;
     }
+    if (this.mode === "resizeBuilding") {
+      const g = this._toGraph(e);
+      if (this.cb.onResizeDrag) this.cb.onResizeDrag(g.x, g.y);
+      return;
+    }
     if (this.mode === "copyPlace") {
       const g = this._toGraph(e);
       if (this.cb.onCopyMove) this.cb.onCopyMove(g.x, g.y);
@@ -209,6 +225,9 @@ export class GraphInput {
     if (wasMode === "copyPlace") {
       const g = this._toGraph(e);
       if (this.cb.onCopyPlace) this.cb.onCopyPlace(g.x, g.y);
+    }
+    if (wasMode === "resizeBuilding") {
+      if (this.cb.onResizeDrop) this.cb.onResizeDrop();
     }
 
     if (

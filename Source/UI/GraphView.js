@@ -49,6 +49,7 @@ export class GraphView {
     this._selectBox = null; // live select rect (graph coords)
     this._buildingDrag = null; // {id, dx, dy} live move override
     this._bGrab = null;
+    this._resize = null; // {id, handle, orig, rect} live edge-resize override
     this._copy = null; // {buildingId, gx, gy} live copy-ghost top-left
     this.onSelectBuilding = opts.onSelectBuilding || (() => {});
     this.onModeChange = opts.onModeChange || (() => {});
@@ -80,6 +81,10 @@ export class GraphView {
       onBuildingGrab: (id, gx, gy) => this._grabBuilding(id, gx, gy),
       onBuildingDrag: (id, gx, gy) => this._dragBuilding(id, gx, gy),
       onBuildingDrop: (id, gx, gy) => this._dropBuilding(id, gx, gy),
+      hitBuildingHandle: (gx, gy) => this.hitBuildingHandle(gx, gy),
+      onResizeGrab: (id, handle) => this._grabResize(id, handle),
+      onResizeDrag: (gx, gy) => this._dragResize(gx, gy),
+      onResizeDrop: () => this._dropResize(),
       onSelectBoxMove: (rect) => {
         this._selectBox = rect;
         this._draw();
@@ -352,10 +357,11 @@ export class GraphView {
   // drop any live move/box override so it doesn't persist into later renders.
   // Copy mode (a deliberate tool state) is intentionally left alone.
   _clearTransient() {
-    if (this._buildingDrag || this._bGrab || this._selectBox) {
+    if (this._buildingDrag || this._bGrab || this._selectBox || this._resize) {
       this._buildingDrag = null;
       this._bGrab = null;
       this._selectBox = null;
+      this._resize = null;
       this._draw();
     }
   }
@@ -366,6 +372,7 @@ export class GraphView {
   }
 
   _buildingRect(b) {
+    if (this._resize && this._resize.id === b.id) return this._resize.rect;
     if (this._buildingDrag && this._buildingDrag.id === b.id)
       return {
         x: b.rect.x + this._buildingDrag.dx,
@@ -374,6 +381,84 @@ export class GraphView {
         h: b.rect.h,
       };
     return b.rect;
+  }
+
+  // The 8 resize handles of a rect (graph coords).
+  _handlePoints(r) {
+    return {
+      nw: { x: r.x, y: r.y },
+      n: { x: r.x + r.w / 2, y: r.y },
+      ne: { x: r.x + r.w, y: r.y },
+      e: { x: r.x + r.w, y: r.y + r.h / 2 },
+      se: { x: r.x + r.w, y: r.y + r.h },
+      s: { x: r.x + r.w / 2, y: r.y + r.h },
+      sw: { x: r.x, y: r.y + r.h },
+      w: { x: r.x, y: r.y + r.h / 2 },
+    };
+  }
+
+  // Hit-test the selected building's resize handles (graph coords).
+  hitBuildingHandle(gx, gy) {
+    if (!this.snap || this.selectedBuildingId == null) return null;
+    const b = this.snap.buildings.find((x) => x.id === this.selectedBuildingId);
+    if (!b) return null;
+    const pts = this._handlePoints(this._buildingRect(b));
+    const tol = 14 / this.view.scale;
+    for (const key in pts) {
+      if (Math.hypot(gx - pts[key].x, gy - pts[key].y) <= tol)
+        return { buildingId: b.id, handle: key };
+    }
+    return null;
+  }
+
+  _grabResize(id, handle) {
+    const b = (this.snap.buildings || []).find((x) => x.id === id);
+    if (!b) return;
+    this._resize = { id, handle, orig: { ...b.rect }, rect: { ...b.rect } };
+  }
+
+  _dragResize(gx, gy) {
+    if (!this._resize) return;
+    const o = this._resize.orig;
+    const h = this._resize.handle;
+    const MIN = 60;
+    let left = o.x,
+      top = o.y,
+      right = o.x + o.w,
+      bottom = o.y + o.h;
+    if (h.includes("w")) left = Math.min(gx, right - MIN);
+    if (h.includes("e")) right = Math.max(gx, left + MIN);
+    if (h.includes("n")) top = Math.min(gy, bottom - MIN);
+    if (h.includes("s")) bottom = Math.max(gy, top + MIN);
+    this._resize.rect = { x: left, y: top, w: right - left, h: bottom - top };
+    this._draw();
+  }
+
+  _dropResize() {
+    const r = this._resize;
+    this._resize = null;
+    if (!r) {
+      this._draw();
+      return;
+    }
+    const rect = r.rect;
+    // re-capture: machines fully inside the new box (reducer drops any that are
+    // already claimed by another building).
+    const ids = (this.snap.nodes || [])
+      .filter(
+        (n) =>
+          n.pos.x >= rect.x &&
+          n.pos.x + NODE_W <= rect.x + rect.w &&
+          n.pos.y >= rect.y &&
+          n.pos.y + NODE_H <= rect.y + rect.h,
+      )
+      .map((n) => n.id);
+    this.game.dispatch({
+      type: INTENT.ResizeBuilding,
+      buildingId: r.id,
+      rect: { x: rect.x, y: rect.y, w: rect.w, h: rect.h },
+      nodeIds: ids,
+    });
   }
 
   // Hit the building's outline BAND or its name label (graph coords). Interior
@@ -709,6 +794,28 @@ export class GraphView {
               width: NODE_W * v.scale,
               height: NODE_H * v.scale,
               rx: 8,
+            }),
+          );
+        }
+      }
+    }
+    // resize handles on the selected building (drag an edge/corner to resize)
+    if (this.selectedBuildingId && !this._copy) {
+      const b = (this.snap.buildings || []).find(
+        (x) => x.id === this.selectedBuildingId,
+      );
+      if (b) {
+        const pts = this._handlePoints(this._buildingRect(b));
+        const hs = 5;
+        for (const key in pts) {
+          const sp = graphToScreen(v, pts[key].x, pts[key].y);
+          els.push(
+            svg("rect", {
+              class: "building-handle",
+              x: sp.x - hs,
+              y: sp.y - hs,
+              width: hs * 2,
+              height: hs * 2,
             }),
           );
         }
