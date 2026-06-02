@@ -144,8 +144,14 @@ wa-button::part(base) {
     order: 4;
     width: 100%;
   }
-  /* inside the hamburger menu the tabs stack as a vertical list */
+  /* inside the hamburger menu every tab is its own row (the tablist flex row is
+     ::part(tabs), not ::part(nav)). */
+  .hud-tabs,
+  .hud-tabs::part(base),
   .hud-tabs::part(nav) {
+    width: 100%;
+  }
+  .hud-tabs::part(tabs) {
     flex-direction: column;
     align-items: stretch;
   }
@@ -215,6 +221,12 @@ wa-button::part(base) {
   top: 0.5rem;
   left: 0.5rem;
   z-index: 30;
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  /* leave room for the right-hand panels so the (wide) select-mode hint wraps
+     instead of running under them */
+  max-width: calc(100% - 340px);
 }
 /* Group button: white fill when idle (gold accent when select/copy mode is active). */
 .tool-group:not([appearance="accent"])::part(base) {
@@ -515,10 +527,12 @@ wa-button.hp-recruit {
   color: var(--bad);
   margin-top: 0.25rem;
 }
-/* Pad the nudge/busy message windows on all sides (text was touching the edges). */
-.exp-nudge::part(base),
-.exp-busy::part(base) {
-  padding: 0.6rem 0.75rem;
+/* Give the nudge/busy text breathing room. wa-callout has NO `base` part (only
+   `icon`/`message`); the icon + text are slotted into `message`, so padding it
+   insets the content (on top of the callout host's own :host padding). */
+.exp-nudge::part(message),
+.exp-busy::part(message) {
+  padding: 0.5rem 0.7rem;
 }
 /* Breathing room: reward/cost + Locked tags and the Launch button were cramped
    (text touching the edges, worsened by the global 44px min-height). */
@@ -724,6 +738,11 @@ wa-button.hp-recruit {
 
 /* Narrow (mobile): panels become bottom-sheets */
 @media (max-width: 720px) {
+  /* the panels no longer dock on the right here, so drop the right-edge
+     reservation — otherwise calc(100% - 340px) crushes the toolbar on phones */
+  .factory-tools {
+    max-width: none;
+  }
   .factory-panels {
     position: static;
     width: auto;
@@ -833,6 +852,7 @@ wa-button.hp-recruit {
 }
 .ni-upgrade,
 .ni-remove,
+.ni-ungroup,
 .bm-place {
   display: block;
   width: 100%;
