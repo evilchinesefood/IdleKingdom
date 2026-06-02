@@ -177,19 +177,29 @@ class AppInstance {
     this._renderOverlay(snap);
   }
 
-  // Passive HUD-only refresh (~every 2s): update currency/rate counters WITHOUT
-  // rebuilding the interactive panels/graph — rebuilding them would close open
-  // dropdowns and make buttons un-clickable under continuous re-render.
+  // Passive refresh (~every 2s): update the currency counters AND re-render the
+  // route's interactive panels so affordability-gated buttons (Upgrade, research
+  // Buy, hero Level-up, expedition Launch) flip enabled/disabled as currencies
+  // accrue — without the player having to deselect/reselect. The graph is NOT
+  // redrawn here (it has no affordability state). Safe at this cadence because
+  // the reconciler is keyed and Dom.js skips re-asserting value/open on a focused
+  // control, so an open wa-select / mid-click button is preserved.
   refreshHud() {
     const snap = this.game.getSnapshot();
     this.lastSnap = snap;
     this.hud.render(snap);
+    this._renderPanels(snap);
   }
 
   _renderScreen(snap) {
+    if (this.activeScreen === "factory" && this.graphView)
+      this.graphView.render(snap);
+    this._renderPanels(snap);
+  }
+
+  _renderPanels(snap) {
     const route = this.activeScreen;
     if (route === "factory") {
-      if (this.graphView) this.graphView.render(snap);
       patch(this.panelEl, [
         BuildMenu(snap, this.dispatch, this.buildUi),
         NodeInspector(snap, this.dispatch, this.selectedNodeId),

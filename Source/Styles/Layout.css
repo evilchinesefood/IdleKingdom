@@ -66,6 +66,11 @@ wa-button::part(base) {
   /* kill the full-width underline track beneath the tabs (the gold active-tab
      indicator stays as the active cue). */
   --track-color: transparent;
+  /* wa-tab labels use these tokens for color; the defaults resolve dark
+     (neutral-on-quiet / brand-on-quiet) and are illegible on the dark iron bar,
+     so light them up: cream for inactive, bright gold for the active tab. */
+  --wa-color-neutral-on-quiet: var(--parchment-dk);
+  --wa-color-brand-on-quiet: var(--gold-lt);
 }
 .hud-tabs::part(base),
 .hud-tabs::part(nav) {
@@ -176,8 +181,11 @@ wa-button::part(base) {
 }
 .bm-machines {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 0.25rem;
+}
+.bm-machine {
+  width: 100%;
 }
 .bm-machine,
 .bm-place,
@@ -560,6 +568,10 @@ wa-button.hp-recruit {
 .node-inspector .ni-badge {
   margin-inline-start: 8px;
   vertical-align: middle;
+  padding: 0.3rem 0.55rem;
+}
+.ni-level {
+  padding-inline: 0.55rem;
 }
 .node-inspector .ni-title {
   display: flex;
@@ -577,4 +589,15 @@ wa-button.hp-recruit {
   display: block;
   width: 100%;
   margin: 4px 0;
+}
+/* The Upgrade button fills gold (brand accent). Its label is ink (brand-on-loud),
+   but the "upgrade" + gold-coins icons carry gold tones that blend into the gold —
+   force ink so both icons and text stay clearly visible. */
+.ni-upgrade::part(base) {
+  color: var(--ink);
+}
+.ni-upgrade i {
+  --fa-primary-color: var(--ink) !important;
+  --fa-secondary-color: var(--ink) !important;
+  --fa-secondary-opacity: 0.7 !important;
 }
