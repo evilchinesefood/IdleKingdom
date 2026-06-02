@@ -43,8 +43,8 @@ wa-button::part(base) {
   color: var(--parchment);
 }
 .hud-cur .rate {
-  font-size: 0.7rem;
-  opacity: 0.8;
+  font-size: 0.72rem;
+  opacity: 1;
   color: var(--parchment);
 }
 /* Per-currency rate: shown when the "Always show rates" pref adds .show-rates,
@@ -74,7 +74,7 @@ wa-button::part(base) {
 .hud i {
   --fa-primary-color: var(--parchment);
   --fa-secondary-color: var(--gold-lt);
-  --fa-secondary-opacity: 0.7;
+  --fa-secondary-opacity: 1;
 }
 .hud-save {
   font-size: 0.8rem;
@@ -195,6 +195,14 @@ wa-button.hp-recruit {
 .bm-machine.selected::part(base) {
   border-color: var(--gold);
   background: var(--gold);
+  color: var(--ink);
+}
+/* Selected build tile fills gold — force its icon to ink so it stays visible
+   against the gold (overrides the inline per-kind registry tones via !important). */
+.bm-machine.selected i {
+  --fa-primary-color: var(--ink) !important;
+  --fa-secondary-color: var(--ink) !important;
+  --fa-secondary-opacity: 0.7 !important;
 }
 .bm-detail {
   margin-top: 0.4rem;
@@ -221,11 +229,13 @@ wa-button.hp-recruit {
   width: 100%;
 }
 
-/* Route host for research / expeditions / heroes */
+/* Route host for research / expeditions / heroes — same flat-fantasy grid as
+   the Factory canvas so the pages match. */
 .panel-host {
   position: absolute;
   inset: 0;
   overflow: auto;
+  background: var(--grid);
 }
 
 /* Research tree */
@@ -248,11 +258,11 @@ wa-button.hp-recruit {
   border-radius: var(--radius);
 }
 .res-node.available {
-  outline: 2px solid var(--gold);
+  outline: 3px solid #8f6f10;
   border-radius: var(--radius);
 }
 .res-node.locked {
-  opacity: 0.6;
+  opacity: 0.45;
 }
 .res-name {
   font-weight: 700;
@@ -262,7 +272,7 @@ wa-button.hp-recruit {
   font-size: 0.8rem;
 }
 .res-eff {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   color: var(--ink-soft);
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -283,7 +293,7 @@ wa-button.hp-recruit {
   height: 100%;
 }
 .exp-card.victory {
-  outline: 2px solid var(--gold);
+  outline: 3px solid #8f6f10;
   border-radius: var(--radius);
 }
 .exp-card.active {
@@ -315,6 +325,21 @@ wa-button.hp-recruit {
   font-size: 0.78rem;
   color: var(--bad);
   margin-top: 0.25rem;
+}
+/* Breathing room: reward/cost + Locked tags and the Launch button were cramped
+   (text touching the edges, worsened by the global 44px min-height). */
+.expedition-board wa-tag {
+  padding-inline: 0.7rem;
+}
+.exp-launch::part(base) {
+  padding-inline: 1rem;
+}
+/* The disabled Launch reads as a deliberate locked control, not a faded button. */
+.exp-launch.locked::part(base) {
+  opacity: 1;
+  background: var(--parchment-dk);
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
 }
 
 /* Hero panel */
