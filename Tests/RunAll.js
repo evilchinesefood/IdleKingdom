@@ -21,6 +21,7 @@ import "./Progression.Test.js";
 import "./ExpeditionSystem.Test.js";
 import "./Intents.Test.js";
 import "./Reducer.Test.js";
+import "./Building.Test.js";
 import "./Snapshot.Test.js";
 import "./Game.Test.js";
 import "./RenderCadence.Test.js";

@@ -213,6 +213,9 @@ describe("Snapshot.throughput/atCapacity/starved (§8)", () => {
     expect(market.throughput).toBeCloseTo(0.5, 1e-9);
     expect(market.starved).toBe(true);
     expect(market.atCapacity).toBe(false);
+    // a selling market reports its gold output for the node display (was 0.00/s)
+    expect(market.goldOut > 0).toBe(true);
+    expect(market.effectiveRate).toBeCloseTo(0, 1e-9); // produces no graph resource
   });
 
   it("unconfigured gatherer (resourceId null) -> neither atCapacity nor starved", () => {

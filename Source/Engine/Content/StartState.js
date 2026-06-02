@@ -7,8 +7,10 @@ export const START_STATE = {
   graph: {
     nodes: [],
     links: [],
+    buildings: [],
     nextNodeSeq: 0,
     nextLinkSeq: 0,
+    nextBuildingSeq: 0,
   },
   unlocks: {
     researchOwned: [],

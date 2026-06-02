@@ -545,9 +545,16 @@ export class GraphView {
     iEl.setAttribute("aria-hidden", "true");
     fo.appendChild(iEl);
     g.appendChild(fo);
+    // Markets/scholars produce currency, not a resource — show that at a glance
+    // (their effectiveRate is 0 because they don't output a graph resource).
+    let subRate;
+    if (n.kind === "market") subRate = `${(n.goldOut ?? 0).toFixed(2)} g/s`;
+    else if (n.kind === "scholar")
+      subRate = `${(n.researchOut ?? 0).toFixed(2)} r/s`;
+    else subRate = `${(n.effectiveRate ?? 0).toFixed(2)}/s`;
     g.appendChild(
       svg("text", { class: "node-sub", x: 8, y: 38 }, [
-        `L${n.level} · ${(n.effectiveRate ?? 0).toFixed(2)}/s`,
+        `L${n.level} · ${subRate}`,
       ]),
     );
     // capacity bar

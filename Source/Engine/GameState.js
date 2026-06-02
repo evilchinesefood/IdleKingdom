@@ -1,7 +1,7 @@
 import { START_STATE } from "./Content/StartState.js";
 
 /** Current persisted save schema version (mirrored by SaveManager in Phase 2). */
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 /** Structured deep clone with no shared refs; drops the non-persisted _solved cache. */
 export function clone(state) {
@@ -38,12 +38,27 @@ function deepFreeze(o) {
 /** Structural validation: required keys, finite currencies, node/link referential integrity. */
 export function validate(state) {
   if (!state || typeof state !== "object") return false;
-  const required = ["version", "currencies", "graph", "unlocks", "heroes", "expeditions", "territories", "meta"];
+  const required = [
+    "version",
+    "currencies",
+    "graph",
+    "unlocks",
+    "heroes",
+    "expeditions",
+    "territories",
+    "meta",
+  ];
   for (const k of required) {
     if (!Object.prototype.hasOwnProperty.call(state, k)) return false;
   }
   const c = state.currencies;
-  if (!c || !Number.isFinite(c.gold) || !Number.isFinite(c.research) || !Number.isFinite(c.renown)) return false;
+  if (
+    !c ||
+    !Number.isFinite(c.gold) ||
+    !Number.isFinite(c.research) ||
+    !Number.isFinite(c.renown)
+  )
+    return false;
   const g = state.graph;
   if (!g || !Array.isArray(g.nodes) || !Array.isArray(g.links)) return false;
   const nodeIds = new Set();
@@ -54,6 +69,14 @@ export function validate(state) {
   for (const l of g.links) {
     if (!l || typeof l.id !== "string") return false;
     if (!nodeIds.has(l.from) || !nodeIds.has(l.to)) return false;
+  }
+  if (g.buildings !== undefined) {
+    if (!Array.isArray(g.buildings)) return false;
+    for (const b of g.buildings) {
+      if (!b || typeof b.id !== "string" || !Array.isArray(b.nodeIds))
+        return false;
+      for (const nid of b.nodeIds) if (!nodeIds.has(nid)) return false;
+    }
   }
   return true;
 }

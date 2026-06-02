@@ -18,6 +18,18 @@ export function applyUpgrade(state, content, nodeId) {
   delete state._solved;
 }
 
+/** Full rebuild cost of a building copy: placement is free in this game, so the
+ *  cost is the sum of every member machine's upgrades needed to reach its level. */
+export function buildingCopyCost(building, state, content) {
+  let total = 0;
+  for (const nid of building.nodeIds) {
+    const n = state.graph.nodes.find((x) => x.id === nid);
+    if (!n) continue;
+    for (let L = 1; L < n.level; L++) total += upgradeCost(n.kind, L, content);
+  }
+  return total;
+}
+
 export function isListed(state, content, resourceId) {
   const res = content.resources[resourceId];
   if (!res || res.basePrice == null) return false;
