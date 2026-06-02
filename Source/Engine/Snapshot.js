@@ -35,6 +35,15 @@ export function build(state, solved, content, lastError = null) {
   for (const b of buildingList)
     for (const nid of b.nodeIds) nodeBuilding[nid] = b.id;
 
+  // How much each node actually SHIPS downstream (sum of its outbound link flows) —
+  // drives the "working" animation: a producer only counts as working if its output
+  // is being consumed, not merely produced into the void.
+  const outFlow = {};
+  for (const l of state.graph.links)
+    outFlow[l.from] =
+      (outFlow[l.from] || 0) +
+      ((solved.linkFlow && solved.linkFlow[l.id]) || 0);
+
   const nodes = state.graph.nodes.map((node) => {
     const cap = (solved.capacityByNode && solved.capacityByNode[node.id]) || 0;
     const out = (solved.availableOut && solved.availableOut[node.id]) || {};
@@ -54,9 +63,17 @@ export function build(state, solved, content, lastError = null) {
       node.kind === "storage" ? cap * Math.max(1, heldIds.length) : cap;
     const atCapacity = capBasis > 0 && throughput >= capBasis - EPS;
     const starved = cap > 0 && takesInput && throughput < cap - EPS;
-    // "working" = actively producing and adequately fed (drives the moving-parts
-    // animation); idle (throughput 0) and blocked (starved) machines don't animate.
-    const working = throughput > EPS && !starved;
+    // "working" = actively moving USED resources (drives the moving-parts animation):
+    // a producer must be SHIPPING output downstream (not producing into the void or a
+    // full chain), and a consumer/storage must be drawing input. Anything with no flow
+    // is idle. NOT gated on `starved` — an under-fed machine is still working (slowly);
+    // the LOW badge signals starvation separately.
+    const isProducer =
+      node.kind === "gatherer" ||
+      node.kind === "smelter" ||
+      node.kind === "workshop";
+    const usefulRate = isProducer ? outFlow[node.id] || 0 : consumerRate;
+    const working = usefulRate > EPS;
     const cost = upgradeCost(node.kind, node.level, content);
     return {
       id: node.id,

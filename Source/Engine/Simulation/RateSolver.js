@@ -61,18 +61,23 @@ export function solve(state, content) {
   const goldByNode = {}; // nodeId -> gold/s
   const researchByNode = {}; // nodeId -> research/s (scholar + market tithe)
 
-  // Precompute capacities, then per-link want and per-(producer,resId) totalWant.
   for (const n of nodes) capacityByNode[n.id] = capacity(n, state, content);
-  const wantByLink = {}; // linkId -> capacity-limited consumer want
-  const totalWant = {}; // `${producerId}|${resId}` -> Σ want over that producer's outbound links of resId
+  // Demand-limited fan-in: track each consumer's REMAINING unfilled demand per resource.
+  // As producers are dispatched in topo order, each fills as much of the consumer's
+  // remaining need as it can, and the rest carries to later feeders — so a healthy
+  // feeder fills the consumer fully and a redundant co-feeder simply ships nothing
+  // (its gear idles). This never over-supplies the consumer (each flow <= remaining)
+  // and never strands deliverable supply (no fixed per-feeder cap). Single-feeder
+  // chains are unchanged (the sole feeder sees the full want as its remaining).
+  const remaining = {}; // `${to}|${resId}` -> consumer's still-unfilled want
   for (const l of links) {
-    const consumer = byId.get(l.to);
-    const w = consumer
-      ? linkWant(consumer, l.resourceId, capacityByNode[l.to], content)
-      : 0;
-    wantByLink[l.id] = w;
-    const k = l.from + "|" + l.resourceId;
-    totalWant[k] = (totalWant[k] || 0) + w;
+    const k = l.to + "|" + l.resourceId;
+    if (!(k in remaining)) {
+      const consumer = byId.get(l.to);
+      remaining[k] = consumer
+        ? linkWant(consumer, l.resourceId, capacityByNode[l.to], content)
+        : 0;
+    }
   }
 
   // --- Forward pass in topo order. Inbound flows are already finalized by upstream producers. ---
@@ -169,22 +174,39 @@ export function solve(state, content) {
       perNodeDraw[id] = {};
     }
 
-    // Ration this node's output across its outbound links (capacity-weighted), conserving mass.
+    // Ration this node's output across its outbound links by each consumer's REMAINING
+    // demand (decremented as we go), conserving mass. A consumer already filled by an
+    // earlier feeder leaves 0 remaining, so a redundant co-feeder ships nothing.
     const outs = availableOut[id];
     for (const resId in outs) {
       const out = outs[resId];
-      const tw = totalWant[id + "|" + resId] || 0;
+      const mine = outLinks.get(id).filter((L) => L.resourceId === resId);
+      // Group by DISTINCT consumer so duplicate links to the same consumer+resource
+      // share one demand (counting its remaining once). Normally isValidLink forbids
+      // duplicate triples; this keeps mass conserved even if one is forced in.
+      const demand = new Map(); // consumerId -> remaining want
+      for (const L of mine)
+        if (!demand.has(L.to))
+          demand.set(L.to, Math.max(0, remaining[L.to + "|" + resId] || 0));
+      let tw = 0; // total still-unfilled demand across this node's distinct consumers
+      for (const d of demand.values()) tw += d;
+      const deliver = new Map(); // consumerId -> flow
       let dispatched = 0;
-      for (const L of outLinks.get(id)) {
-        if (L.resourceId !== resId) continue;
-        const w = wantByLink[L.id];
-        let flow;
-        if (tw <= 0) flow = 0;
+      for (const [cid, d] of demand) {
+        let f;
+        if (tw <= 0) f = 0;
         else if (tw <= out)
-          flow = w; // demand fits: each consumer gets its full want
-        else flow = out * (w / tw); // demand exceeds supply: proportional fair share
-        linkFlow[L.id] = flow;
-        dispatched += flow;
+          f = d; // enough output: fill each consumer's remaining need
+        else f = out * (d / tw); // not enough: split proportional to remaining need
+        deliver.set(cid, f);
+        remaining[cid + "|" + resId] = d - f; // consume the delivered demand
+        dispatched += f;
+      }
+      // put each consumer's delivery on its first link; duplicate links carry 0
+      const seen = new Set();
+      for (const L of mine) {
+        linkFlow[L.id] = seen.has(L.to) ? 0 : deliver.get(L.to) || 0;
+        seen.add(L.to);
       }
       const sr = Math.max(0, out - dispatched);
       if (sr > 0) {

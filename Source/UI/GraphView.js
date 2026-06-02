@@ -1037,9 +1037,12 @@ export class GraphView {
         height: 4,
       }),
     );
+    // "MAX" only counts when the node is actually shipping its output (working) —
+    // a fully-fed producer whose output goes nowhere isn't meaningfully at capacity,
+    // and showing MAX next to an idle gear read as contradictory.
+    const atMax = n.atCapacity && n.working;
     const capCls =
-      "cap-fill" +
-      (n.atCapacity ? " at-capacity" : n.starved ? " starved" : "");
+      "cap-fill" + (atMax ? " at-capacity" : n.starved ? " starved" : "");
     g.appendChild(
       svg("rect", {
         class: capCls,
@@ -1050,9 +1053,9 @@ export class GraphView {
       }),
     );
     // MAX/starved badge in the top-right corner
-    if (n.atCapacity || n.starved) {
-      const label = n.atCapacity ? "MAX" : "LOW";
-      const variant = n.atCapacity ? "max" : "starved";
+    if (atMax || n.starved) {
+      const label = atMax ? "MAX" : "LOW";
+      const variant = atMax ? "max" : "starved";
       const bw = 34,
         bh = 14;
       const bx = NODE_W - bw - 4,
