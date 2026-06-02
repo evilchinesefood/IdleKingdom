@@ -76,10 +76,18 @@ export function BuildingInspector(snap, buildingId, handlers, copying) {
       label: "Name",
       size: "s",
       "prop:value": b.name,
-      // track keystrokes into a transient (onWaInput) and commit on blur/Enter
-      // (onWaChange); App flushes the transient on deselect so a click-away persists.
-      onWaInput: (e) => handlers.onRenameInput(e.target.value),
-      onWaChange: (e) => handlers.onRename(e.target.value),
+      // <wa-input> fires the NATIVE input/change events (not wa-input/wa-change),
+      // same as the wa-selects: track keystrokes into a transient on input and
+      // commit on blur/Enter via change. App flushes the transient on deselect so
+      // a click-away onto the canvas (which removes the input first) still persists.
+      oninput: (e) => handlers.onRenameInput(e.target.value),
+      onchange: (e) => handlers.onRename(e.target.value),
+      onkeydown: (e) => {
+        if (e.key === "Enter") {
+          handlers.onRename(e.target.value);
+          e.target.blur && e.target.blur();
+        }
+      },
     }),
     h("div", { class: "bi-line" }, `${b.nodeIds.length} machines grouped`),
     ...copyButtons,
