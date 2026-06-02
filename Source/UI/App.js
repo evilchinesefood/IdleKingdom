@@ -78,7 +78,6 @@ class AppInstance {
     this.selectedNodeId = null;
     this.selectedBuildingId = null;
     this.toolbarEl = null;
-    this._copiedBuilding = null; // building id stashed by Ctrl/Cmd+C for paste
     this._pendingRename = null; // un-committed building-name keystrokes (flushed on deselect)
     this._buildMenuHidden = false; // toggled by the toolbar Build button
     this.buildUi = {
@@ -137,20 +136,14 @@ class AppInstance {
         return;
       }
       if (k === "c") {
-        // copy the selected building (stash its id; paste places a charged copy)
-        if (this.selectedBuildingId)
-          this._copiedBuilding = this.selectedBuildingId;
+        // copy the current multi-selection (with upgrades) to the clipboard
+        if (this.graphView && this.graphView.hasSelection())
+          this.graphView._copySelection(true);
         e.preventDefault();
         return;
       }
       if (k === "v") {
-        if (this._copiedBuilding) {
-          this.dispatch({
-            type: INTENT.CopyBuilding,
-            buildingId: this._copiedBuilding,
-            offset: { dx: NUDGE * 2, dy: NUDGE * 2 },
-          });
-        }
+        if (this.graphView) this.graphView._pasteSelection();
         e.preventDefault();
         return;
       }
@@ -436,7 +429,6 @@ class AppInstance {
               snap,
               this.selectedBuildingId,
               this._buildingHandlers(),
-              this.graphView && this.graphView.getMode() === "copy",
             )
           : NodeInspector(snap, this.dispatch, this.selectedNodeId);
       const factoryPanels = [];
@@ -457,17 +449,6 @@ class AppInstance {
 
   _buildingHandlers() {
     return {
-      onCopy: (withUpgrades) => {
-        if (!this.graphView) return;
-        this._flushPendingRename(); // keep a half-typed name when entering copy mode
-        if (this.graphView.getMode() === "copy") this.graphView.cancelMode();
-        else
-          this.graphView.startCopy(
-            this.selectedBuildingId,
-            withUpgrades !== false,
-          );
-        this.renderNow();
-      },
       // live keystrokes -> transient (no dispatch, no re-render while focused)
       onRenameInput: (name) => {
         this._pendingRename = name;
@@ -521,39 +502,32 @@ class AppInstance {
     this.dispatch({ type: INTENT.RenameBuilding, buildingId: id, name: nm });
   }
 
-  // The factory toolbar: Group tool, Build-menu toggle, and bulk-Delete tool.
+  // The factory toolbar: the Select tool (marquee → selection + floating bar)
+  // and the Build-menu toggle.
   _renderToolbar() {
     if (!this.toolbarEl) return;
     const mode = this.graphView ? this.graphView.getMode() : null;
-    const grouping = mode === "select" || mode === "copy";
-    let groupLabel;
-    if (mode === "select")
-      groupLabel =
-        "Hold Shift and drag a box around your machines to group them.";
-    else if (mode === "copy") groupLabel = "Tap the canvas to place the copy";
-    else groupLabel = [icon("group"), " Group"];
-    const deleteLabel =
-      mode === "delete"
-        ? "Drag a box over buildings to delete them (machines included)."
-        : [icon("remove"), " Delete"];
+    const selecting = mode === "select";
+    const selectLabel = selecting
+      ? "Drag a box to select machines."
+      : [icon("group"), " Select"];
     patch(this.toolbarEl, [
       h(
         "wa-button",
         {
-          key: "tool-group",
-          class: "tool-group",
+          key: "tool-select",
+          class: "tool-select",
           size: "s",
-          variant: grouping ? "brand" : "neutral",
-          appearance: grouping ? "accent" : "outlined",
+          variant: selecting ? "brand" : "neutral",
+          appearance: selecting ? "accent" : "outlined",
           onclick: () => {
             if (!this.graphView) return;
             Sound.play("click");
-            if (mode === "copy") this.graphView.cancelMode();
-            else this.graphView.toggleSelectMode();
+            this.graphView.toggleSelectMode();
             this.renderNow();
           },
         },
-        groupLabel,
+        selectLabel,
       ),
       // Show/hide the Build menu panel.
       h(
@@ -572,24 +546,6 @@ class AppInstance {
           },
         },
         [icon("factory"), " Build"],
-      ),
-      // Bulk-delete buildings: toggle on, then drag a box over them.
-      h(
-        "wa-button",
-        {
-          key: "tool-delete",
-          class: "tool-delete",
-          size: "s",
-          variant: mode === "delete" ? "danger" : "neutral",
-          appearance: mode === "delete" ? "accent" : "outlined",
-          onclick: () => {
-            if (!this.graphView) return;
-            Sound.play("click");
-            this.graphView.toggleDeleteMode();
-            this.renderNow();
-          },
-        },
-        deleteLabel,
       ),
     ]);
   }
