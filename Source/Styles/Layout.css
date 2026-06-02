@@ -125,35 +125,35 @@ wa-button::part(base) {
 }
 
 /* Below this breakpoint the tabs collapse behind a hamburger. Set to 1100px so
-   the menu folds away BEFORE the full tab bar would overlap the currency display. */
+   the menu folds away BEFORE the full tab bar would overlap the currency display.
+   Layout: currencies + hamburger share line 1 (the base .hud is a wrapping row,
+   currencies flex:1 pushes the hamburger to the right); the tabs AND the settings
+   gear wrap below and live inside the hamburger menu (revealed on .menu-open). */
 @media (max-width: 1100px) {
-  .hud {
-    flex-direction: column;
-    align-items: stretch;
-  }
   .hud-currencies {
     order: 1;
-    justify-content: space-between;
-    gap: 0.5rem;
   }
   .hud-save {
     order: 2;
-    align-self: flex-end;
   }
   .hud-hamburger {
     display: flex;
-    order: 2;
-    align-self: flex-end;
+    order: 3;
   }
   .hud-tabs {
-    order: 3;
+    order: 4;
     width: 100%;
   }
   .hud-tabs::part(nav) {
     justify-content: space-around;
   }
-  /* hidden until the hamburger toggles .menu-open on the HUD */
-  .hud:not(.menu-open) .hud-tabs {
+  .hud-settings {
+    order: 5;
+    width: 100%;
+  }
+  /* both the tabs and the settings gear collapse into the hamburger menu */
+  .hud:not(.menu-open) .hud-tabs,
+  .hud:not(.menu-open) .hud-settings {
     display: none;
   }
 }
@@ -249,6 +249,20 @@ wa-button::part(base) {
   --fa-primary-color: var(--ink) !important;
   --fa-secondary-color: var(--ink) !important;
   --fa-secondary-opacity: 0.7 !important;
+}
+/* Let the copy labels wrap to two lines so the text (longer at the +20% scale)
+   stays within the button instead of overflowing its bounds. */
+.bi-copy::part(base),
+.bi-copy-structure::part(base) {
+  height: auto;
+  min-height: var(--tap);
+  white-space: normal;
+  padding-block: 0.4rem;
+  line-height: 1.2;
+}
+.bi-copy::part(label),
+.bi-copy-structure::part(label) {
+  white-space: normal;
 }
 .bm-title,
 .ni-title {

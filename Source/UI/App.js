@@ -460,7 +460,8 @@ class AppInstance {
     if (!this.toolbarEl) return;
     const mode = this.graphView ? this.graphView.getMode() : null;
     let label;
-    if (mode === "select") label = "Hold Shift and drag a box around machines…";
+    if (mode === "select")
+      label = "Hold Shift and drag a box around your machines to group them.";
     else if (mode === "copy") label = "Tap the canvas to place the copy";
     else label = [icon("group"), " Group"];
     patch(this.toolbarEl, [
