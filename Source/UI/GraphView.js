@@ -1000,6 +1000,16 @@ export class GraphView {
       const wi = document.createElement("i");
       wi.className = "fa-duotone fa-solid fa-gears";
       wi.setAttribute("aria-hidden", "true");
+      // The graph fully rebuilds its nodes on every render (e.g. on any click),
+      // which would restart the CSS animation from 0. Anchor each gear to a shared
+      // wall-clock phase via a negative animation-delay so a recreated gear resumes
+      // mid-spin — the animation looks continuous across re-renders. (2.4s = keyframe
+      // duration; guarded for the headless test shim where `performance` is absent.)
+      const nowS =
+        typeof performance !== "undefined" && performance.now
+          ? performance.now() / 1000
+          : 0;
+      wi.style.animationDelay = "-" + (nowS % 2.4).toFixed(3) + "s";
       wfo.appendChild(wi);
       g.appendChild(wfo);
     }

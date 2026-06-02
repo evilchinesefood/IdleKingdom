@@ -7,8 +7,16 @@ import { INTENT } from "../Engine/Intents.js";
 
 export function NodeInspector(snap, dispatch, selectedNodeId) {
   const node = (snap.nodes || []).find((n) => n.id === selectedNodeId);
-  // Nothing selected -> render no inspector at all (no empty-state card).
-  if (!node) return null;
+  // Nothing selected -> a hidden (display:none via .empty) but STILL-MOUNTED card,
+  // keyed the same as the populated one. Returning null here destroyed/recreated the
+  // wa-card on every select, and the fresh card re-hydrated with a visible reflow
+  // (text grew + jumped ~15px). Reusing the element avoids that; it shows no content.
+  if (!node)
+    return h("wa-card", {
+      key: "inspector",
+      class: "node-inspector empty",
+      id: "NodeInspector",
+    });
 
   const pct = Math.max(0, Math.min(1, node.capacityPct || 0));
 
