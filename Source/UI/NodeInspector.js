@@ -151,6 +151,26 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
         ...opts,
       ),
     );
+    // Required components for the selected recipe (icon + qty x name), below the select.
+    const rec = node.recipeId && RECIPES[node.recipeId];
+    if (rec && rec.inputs && Object.keys(rec.inputs).length) {
+      const comps = Object.entries(rec.inputs).map(([rid, qty]) =>
+        h(
+          "span",
+          { key: "comp-" + rid, class: "ni-comp" },
+          icon(rid),
+          ` ${qty}× ${RESOURCES[rid] ? RESOURCES[rid].display : rid}`,
+        ),
+      );
+      rows.push(
+        h(
+          "div",
+          { class: "ni-components", key: "ni-comp-" + node.recipeId },
+          h("span", { class: "ni-comp-title" }, "Requires: "),
+          ...comps,
+        ),
+      );
+    }
   } else if (node.kind === "gatherer") {
     const raws = (snap.buildMenu ? snap.buildMenu.gathererResources : []) || [];
     const opts = raws

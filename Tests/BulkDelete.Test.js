@@ -83,7 +83,18 @@ describe("GraphView._nodeIcon — reflects resource/output, not just kind", () =
       ni(gv(), { kind: "storage", resourceIds: ["timber", "iron_ore"] }),
     ).toBe(iconName("timber"));
   });
-  it("market keeps its kind icon (no single resource)", () => {
+  it("market falls back to its kind icon when nothing is flowing", () => {
     expect(ni(gv(), { kind: "market" })).toBe(iconName("market"));
+    expect(ni(gv(), { kind: "market", draw: {} })).toBe(iconName("market"));
+  });
+  it("market reflects the resource it sells most (top flow in draw)", () => {
+    expect(ni(gv(), { kind: "market", draw: { timber: 1, iron_bar: 5 } })).toBe(
+      iconName("iron_bar"),
+    );
+  });
+  it("scholar reflects the resource it draws (parchment) when running", () => {
+    expect(ni(gv(), { kind: "scholar", draw: { parchment: 2 } })).toBe(
+      iconName("parchment"),
+    );
   });
 });

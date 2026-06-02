@@ -363,6 +363,24 @@ wa-button.hp-recruit {
   font-size: 1rem;
   margin: 0.15rem 0;
 }
+.ni-components {
+  font-size: 0.9rem;
+  margin: 0.2rem 0 0.4rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.7rem;
+}
+.ni-comp-title {
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.ni-comp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  white-space: nowrap;
+}
 .ni-stock {
   font-size: 0.85rem;
   margin: 0.15rem 0;
@@ -706,9 +724,16 @@ wa-button.hp-recruit {
   font-size: 1.05rem;
 }
 
-/* HUD error flash: imperative host + reconciled wa-callout child */
+/* HUD error flash: imperative host + reconciled wa-callout child.
+   wa-callout has no ::part(base); its box padding lives on the host, so pad the
+   host AND the message part so the text never touches the edges. */
 .hud-error-callout {
   box-shadow: var(--shadow);
+  padding: 0.5rem 0.85rem;
+}
+.hud-error-callout::part(message) {
+  padding-block: 0.2rem;
+  padding-inline-end: 0.15rem;
 }
 
 /* MAX / starved legend (clarity) */

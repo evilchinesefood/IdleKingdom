@@ -297,7 +297,9 @@ export class GraphView {
 
   // The machine's display icon reflects WHAT it handles, not just its kind: a
   // gatherer shows its resource, a crafter its recipe output, a storage its first
-  // held type. Market/scholar (no single resource) keep their kind icon.
+  // held type, and a sink/converter (market, scholar) the resource it's moving most
+  // (top flow in node.draw). Only when there's no resource signal does it fall back
+  // to the kind icon.
   _nodeIcon(n) {
     if (n.kind === "gatherer" && n.resourceId) return iconName(n.resourceId);
     if (n.kind === "smelter" || n.kind === "workshop") {
@@ -306,6 +308,20 @@ export class GraphView {
     }
     if (n.kind === "storage" && n.resourceIds && n.resourceIds.length)
       return iconName(n.resourceIds[0]);
+    if (n.kind === "storage") return iconName("storage"); // empty room keeps its icon
+    // Sinks/converters (market, scholar): reflect the resource they handle most
+    // (top units/s in node.draw); fall back to the kind icon when nothing flows.
+    const d = n.draw;
+    if (d) {
+      let best = null,
+        bestV = 1e-9;
+      for (const k in d)
+        if (d[k] > bestV) {
+          bestV = d[k];
+          best = k;
+        }
+      if (best) return iconName(best);
+    }
     return iconName(n.kind);
   }
 
@@ -1091,10 +1107,13 @@ export class GraphView {
         height: 4,
       }),
     );
-    // MAX/starved badge in the top-right corner
+    // Top-right status badge: MAX (at capacity + shipping), LOW (running but under
+    // capacity), or OFF (connected/idle with ~0 throughput). `working` distinguishes
+    // a running-but-underfed consumer (LOW) from one drawing nothing yet (OFF).
+    const off = n.starved && !n.working;
     if (atMax || n.starved) {
-      const label = atMax ? "MAX" : "LOW";
-      const variant = atMax ? "max" : "starved";
+      const label = atMax ? "MAX" : off ? "OFF" : "LOW";
+      const variant = atMax ? "max" : off ? "off" : "starved";
       const bw = 34,
         bh = 14;
       const bx = NODE_W - bw - 4,
@@ -1113,7 +1132,7 @@ export class GraphView {
         svg(
           "text",
           {
-            class: "node-badge-text",
+            class: "node-badge-text " + variant,
             x: bx + bw / 2,
             y: by + bh / 2 + 3.5,
             "text-anchor": "middle",
