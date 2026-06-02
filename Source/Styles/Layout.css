@@ -214,11 +214,63 @@ wa-button::part(base) {
 .build-menu,
 .node-inspector,
 .building-inspector {
-  background: var(--panel);
+  background: #fff;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 0.6rem;
+}
+
+/* Build bar: a bottom-centered horizontal strip of machine-type buttons. Each
+   selected type pops its placement options up in a popover directly above. */
+.build-bar {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 0.5rem;
+  z-index: 30;
+  display: flex;
+  max-width: calc(100vw - 1rem);
+  overflow-x: auto;
+}
+.build-bar-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.4rem;
+}
+.bm-cell {
+  position: relative;
+}
+.bm-popover {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 6px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 160px;
+  z-index: 40;
+}
+.bm-popover .bm-place {
+  margin: 0;
+}
+.bm-toggle {
+  flex: none;
+}
+.bm-toggle::part(base) {
+  padding-inline: 0.5rem;
 }
 
 /* Factory tool strip (top-left): the Group/Select toggle. */
@@ -236,13 +288,13 @@ wa-button::part(base) {
 }
 /* Toolbar buttons: white fill when idle (gold accent when the mode is active). */
 .tool-select:not([appearance="accent"])::part(base),
-.tool-build:not([appearance="accent"])::part(base) {
+.bm-toggle:not([appearance="accent"])::part(base) {
   background: #fff;
   color: var(--ink);
   border-color: var(--line);
 }
 .tool-select:not([appearance="accent"]) i,
-.tool-build:not([appearance="accent"]) i {
+.bm-toggle:not([appearance="accent"]) i {
   --fa-primary-color: var(--ink) !important;
   --fa-secondary-color: var(--gold) !important;
 }
@@ -305,11 +357,8 @@ wa-button::part(base) {
 }
 .bm-machines {
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-.bm-machine {
-  width: 100%;
+  flex-direction: row;
+  gap: 0.4rem;
 }
 /* Bigger label + clear gap after the leading kind icon. */
 .bm-machine::part(base) {
@@ -342,12 +391,6 @@ wa-button.hp-recruit {
   --fa-primary-color: var(--ink) !important;
   --fa-secondary-color: var(--ink) !important;
   --fa-secondary-opacity: 0.7 !important;
-}
-.bm-detail {
-  margin-top: 0.4rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
 }
 .bm-detail-title {
   font-size: 0.95rem;
@@ -812,7 +855,6 @@ wa-button.hp-recruit {
   .factory-legend {
     display: none;
   }
-  .build-menu,
   .node-inspector {
     position: fixed;
     left: 0;
@@ -821,17 +863,16 @@ wa-button.hp-recruit {
     max-height: 45dvh;
     overflow-y: auto;
     border-top: 2px solid var(--iron);
-    background: var(--parchment);
+    background: #fff;
     box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.3);
     z-index: 40;
     border-radius: 0;
-  }
-  .node-inspector {
-    bottom: 0;
     padding-bottom: calc(0.6rem + env(safe-area-inset-bottom));
   }
-  .build-menu {
-    bottom: 45dvh;
+  /* Lift the build bar above the inspector bottom-sheet so they don't overlap,
+     and let it scroll horizontally / popovers stay reachable. */
+  .build-bar {
+    bottom: calc(45dvh + 0.5rem);
   }
   .hero-panel {
     padding-bottom: 56px;

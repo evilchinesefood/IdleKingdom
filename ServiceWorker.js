@@ -1,4 +1,4 @@
-const CACHE = "idlekingdom-v37";
+const CACHE = "idlekingdom-v38";
 const SHELL = [
   "./",
   "./Index.html",
