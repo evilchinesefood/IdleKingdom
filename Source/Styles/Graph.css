@@ -180,6 +180,13 @@
   font-weight: 700;
   font-family: var(--font-display);
 }
+/* Resize handles on the selected building (drag an edge/corner to resize). */
+.building-handle {
+  fill: var(--gold);
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  cursor: pointer;
+}
 /* Live select-box while dragging in Select mode */
 .select-box {
   fill: rgba(201, 162, 39, 0.12);

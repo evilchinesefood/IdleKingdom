@@ -21,6 +21,7 @@ const UNDOABLE = new Set([
   "SetStorageRule",
   "CreateBuilding",
   "MoveBuilding",
+  "ResizeBuilding",
   "CopyBuilding",
   "UngroupBuilding",
   "RenameBuilding",

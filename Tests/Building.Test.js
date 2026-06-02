@@ -87,6 +87,43 @@ describe("Building — move (as a unit)", () => {
   });
 });
 
+describe("Building — resize (re-captures membership)", () => {
+  it("shrinking the box drops machines now outside it", () => {
+    const { game, g, s } = setup();
+    group(game, [g.id, s.id]); // both inside the wide box
+    const bId = game.getSnapshot().buildings[0].id;
+    expect(game.getSnapshot().buildings[0].nodeIds.length).toBe(2);
+    // shrink the rect so only the gatherer (at x 0..120) stays inside; the UI
+    // passes the recomputed nodeIds (here just the gatherer).
+    const out = game.dispatch({
+      type: INTENT.ResizeBuilding,
+      buildingId: bId,
+      rect: { x: -10, y: -10, w: 160, h: 120 },
+      nodeIds: [g.id],
+    });
+    expect(out.ok).toBe(true);
+    const b = game.getSnapshot().buildings[0];
+    expect(b.nodeIds).toEqual([g.id]);
+    expect(b.rect.w).toBe(160);
+  });
+
+  it("ignores ids already claimed by another building", () => {
+    const { game, g, s } = setup();
+    group(game, [g.id]); // building A = gatherer
+    group(game, [s.id]); // building B = smelter
+    const aId = game.getSnapshot().buildings[0].id;
+    // try to grow A to also claim the smelter — reducer must refuse the stolen node
+    game.dispatch({
+      type: INTENT.ResizeBuilding,
+      buildingId: aId,
+      rect: { x: -10, y: -10, w: 340, h: 120 },
+      nodeIds: [g.id, s.id],
+    });
+    const a = game.getSnapshot().buildings.find((x) => x.id === aId);
+    expect(a.nodeIds).toEqual([g.id]); // smelter stays in building B
+  });
+});
+
 describe("Building — copy", () => {
   it("duplicates machines (kind+level) and internal links, charging the rebuild cost", () => {
     const { game, g, s } = setup(1e6);

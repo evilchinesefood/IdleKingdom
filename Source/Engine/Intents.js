@@ -15,6 +15,7 @@ export const INTENT = {
   SetNodePos: "SetNodePos",
   CreateBuilding: "CreateBuilding",
   MoveBuilding: "MoveBuilding",
+  ResizeBuilding: "ResizeBuilding",
   CopyBuilding: "CopyBuilding",
   UngroupBuilding: "UngroupBuilding",
   RenameBuilding: "RenameBuilding",
@@ -51,6 +52,8 @@ const SHAPES = {
     Number.isFinite(i.pos.y),
   CreateBuilding: (i) => isStrArr(i.nodeIds) && isRect(i.rect),
   MoveBuilding: (i) => isStr(i.buildingId) && isDelta(i.delta),
+  ResizeBuilding: (i) =>
+    isStr(i.buildingId) && isRect(i.rect) && Array.isArray(i.nodeIds),
   CopyBuilding: (i) => isStr(i.buildingId) && isDelta(i.offset),
   UngroupBuilding: (i) => isStr(i.buildingId),
   RenameBuilding: (i) => isStr(i.buildingId) && typeof i.name === "string",

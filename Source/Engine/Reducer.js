@@ -249,6 +249,27 @@ export function reduce(state, intent, content) {
       }
       break;
     }
+    case "ResizeBuilding": {
+      const b = next.graph.buildings.find((x) => x.id === intent.buildingId);
+      if (!b) return reject(state, "no such building");
+      b.rect = {
+        x: intent.rect.x,
+        y: intent.rect.y,
+        w: intent.rect.w,
+        h: intent.rect.h,
+      };
+      // re-capture: members are the machines the UI found inside the new box that
+      // exist and aren't already claimed by another building.
+      const otherGrouped = new Set(
+        next.graph.buildings
+          .filter((x) => x.id !== b.id)
+          .flatMap((x) => x.nodeIds),
+      );
+      b.nodeIds = intent.nodeIds.filter(
+        (id) => nodeById(next, id) && !otherGrouped.has(id),
+      );
+      break;
+    }
     case "CopyBuilding": {
       const b = next.graph.buildings.find((x) => x.id === intent.buildingId);
       if (!b) return reject(state, "no such building");
