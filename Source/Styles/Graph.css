@@ -104,10 +104,16 @@
 .node-badge-box.starved {
   fill: var(--bad);
 }
+.node-badge-box.off {
+  fill: #d8d2c6;
+}
 .node-badge-text {
   fill: var(--panel);
   font-size: 9px;
   font-weight: 700;
+}
+.node-badge-text.off {
+  fill: var(--ink-soft);
 }
 
 /* ports — >=44px hit area via transparent halo */
