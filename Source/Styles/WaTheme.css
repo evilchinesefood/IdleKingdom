@@ -35,8 +35,9 @@
   --wa-font-family-heading: var(--font-display);
   --wa-border-radius-m: var(--radius);
 
-  /* FA duotone two-tone defaults */
+  /* FA duotone two-tone defaults — darker gold + higher opacity so the
+     secondary layer is actually visible on light parchment surfaces. */
   --fa-primary-color: var(--ink);
-  --fa-secondary-color: var(--gold);
-  --fa-secondary-opacity: 0.45;
+  --fa-secondary-color: #b8911f;
+  --fa-secondary-opacity: 0.7;
 }
