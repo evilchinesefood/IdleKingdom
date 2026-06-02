@@ -7,7 +7,8 @@
  *  @property {string[]} prereqs
  *  @property {ResearchEffect[]} effects
  *  @property {string|null} requiresTerritory
- *  @property {string}  flavor
+ *  @property {string}  description   concrete mechanical effects (shown to the player)
+ *  @property {string}  flavor        witty in-world flavor (secondary)
  */
 
 /** Keyed map id -> ResearchNode. 15 backbone (research) + 2 premium (renown). */
@@ -24,6 +25,8 @@ export const RESEARCH_NODES = {
       { type: "unlockMachine", kind: "workshop" },
       { type: "unlockRecipe", recipeId: "r_parchment" },
     ],
+    description:
+      "Unlocks the Scholar (generates Research) and Workshop machines, plus the Parchment recipe.",
     flavor:
       "A drafty hall, one candle, and the city's last literate quartermaster.",
   },
@@ -38,6 +41,7 @@ export const RESEARCH_NODES = {
       { type: "enableGathererResource", resourceId: "timber" },
       { type: "unlockRecipe", recipeId: "r_plank" },
     ],
+    description: "Lets gatherers harvest Timber and unlocks the Plank recipe.",
     flavor:
       "The eastern woods are ours again — fell what the siege left standing.",
   },
@@ -52,6 +56,8 @@ export const RESEARCH_NODES = {
       { type: "enableGathererResource", resourceId: "hide" },
       { type: "unlockRecipe", recipeId: "r_leather" },
     ],
+    description:
+      "Lets gatherers harvest Raw Hide and unlocks the Leather recipe.",
     flavor: "Boar-hide cures hard, but it cures fast.",
   },
   res_coalworks: {
@@ -65,6 +71,8 @@ export const RESEARCH_NODES = {
       { type: "unlockRecipe", recipeId: "r_coal" },
       { type: "enableGathererResource", resourceId: "coal_raw" },
     ],
+    description:
+      "Lets gatherers harvest Coal Seam and unlocks the Refined Coal recipe.",
     flavor: "The deep seams burn hotter than any wood-fire.",
   },
   res_steelmaking: {
@@ -75,6 +83,7 @@ export const RESEARCH_NODES = {
     prereqs: ["res_coalworks"],
     requiresTerritory: null,
     effects: [{ type: "unlockRecipe", recipeId: "r_steel" }],
+    description: "Unlocks the Steel recipe (smelts Iron Bar + Coal).",
     flavor: "Iron is a tool. Steel is a weapon.",
   },
   res_fittings: {
@@ -88,6 +97,8 @@ export const RESEARCH_NODES = {
       { type: "unlockRecipe", recipeId: "r_fitting" },
       { type: "unlockListing", resourceIds: ["fitting"] },
     ],
+    description:
+      "Unlocks the Fitting recipe (Iron Bar + Leather) and lists Fittings for sale at the Market.",
     flavor: "A blade is nothing without the rivet that holds the hilt.",
   },
   res_open_market: {
@@ -103,6 +114,8 @@ export const RESEARCH_NODES = {
         resourceIds: ["coal", "iron_bar", "plank", "leather", "steel"],
       },
     ],
+    description:
+      "Lists Refined Coal, Iron Bar, Plank, Leather, and Steel for sale at the Market.",
     flavor: "Even half-finished goods fetch coin from a desperate quarter.",
   },
   res_smithing: {
@@ -117,6 +130,8 @@ export const RESEARCH_NODES = {
       { type: "unlockRecipe", recipeId: "r_plating" },
       { type: "unlockListing", resourceIds: ["blade", "plating"] },
     ],
+    description:
+      "Unlocks the Blade and Plating recipes and lists both for sale at the Market.",
     flavor: "The forge-masters return to their anvils.",
   },
   res_armory: {
@@ -132,6 +147,8 @@ export const RESEARCH_NODES = {
       { type: "unlockRecipe", recipeId: "r_shield" },
       { type: "unlockListing", resourceIds: ["sword", "armor", "shield"] },
     ],
+    description:
+      "Unlocks the Sword, Plate Armor, and Shield recipes and lists all three for sale.",
     flavor: "Now we forge for heroes, not just for coin.",
   },
   res_efficient_forges: {
@@ -142,6 +159,7 @@ export const RESEARCH_NODES = {
     prereqs: ["res_steelmaking"],
     requiresTerritory: null,
     effects: [{ type: "productionBonus", kind: "smelter", mult: 1.25 }],
+    description: "+25% Smelter output.",
     flavor: "Bank the coals just so and one charge does the work of two.",
   },
   res_assembly_jigs: {
@@ -152,6 +170,7 @@ export const RESEARCH_NODES = {
     prereqs: ["res_armory"],
     requiresTerritory: null,
     effects: [{ type: "productionBonus", kind: "workshop", mult: 1.25 }],
+    description: "+25% Workshop output.",
     flavor: "Standardized jigs mean any apprentice builds like a master.",
   },
   res_trade_routes: {
@@ -165,6 +184,8 @@ export const RESEARCH_NODES = {
       { type: "marketCapacityBonus", mult: 1.3 },
       { type: "titheRate", value: 0.07 },
     ],
+    description:
+      "+30% Market throughput and sets the passive gold tithe to 7%.",
     flavor: "Merchant caravans slip past the siege lines by moonlight.",
   },
   res_ledgers: {
@@ -175,6 +196,7 @@ export const RESEARCH_NODES = {
     prereqs: ["res_trade_routes"],
     requiresTerritory: null,
     effects: [{ type: "offlineCapHours", value: 12 }],
+    description: "Raises the offline-progress cap to 12 hours.",
     flavor: "Clerks keep the books running while the city sleeps.",
   },
   res_logistics: {
@@ -188,6 +210,8 @@ export const RESEARCH_NODES = {
       { type: "offlineCapHours", value: 24 },
       { type: "globalRateBonus", mult: 1.1 },
     ],
+    description:
+      "Raises the offline cap to 24 hours and grants +10% output to all production (gatherers, smelters, workshops).",
     flavor: "A kingdom that runs itself is a kingdom that endures.",
   },
   res_grand_design: {
@@ -201,6 +225,8 @@ export const RESEARCH_NODES = {
       { type: "globalRateBonus", mult: 1.2 },
       { type: "scholarBonus", mult: 1.5 },
     ],
+    description:
+      "+20% to all production (gatherers, smelters, workshops) and +50% Scholar research output.",
     flavor: "Every wheel, every fire, every quill — turning as one.",
   },
   // Premium (renown)
@@ -212,6 +238,7 @@ export const RESEARCH_NODES = {
     prereqs: ["res_armory"],
     requiresTerritory: "t_smithyward",
     effects: [{ type: "heroSlot", count: 1 }],
+    description: "Adds a second hero slot.",
     flavor: "Two banners on the wall are harder to break than one.",
   },
   res_quartermaster: {
@@ -222,6 +249,7 @@ export const RESEARCH_NODES = {
     prereqs: ["res_war_college", "res_trade_routes"],
     requiresTerritory: "t_ironreach",
     effects: [{ type: "autoSell", enabled: true }],
+    description: "Enables auto-selling finished goods at the Market.",
     flavor: "One ledger, one seal, and nothing in Yensburg goes to waste.",
   },
 };

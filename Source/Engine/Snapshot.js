@@ -112,6 +112,7 @@ export function build(state, solved, content, lastError = null) {
       ),
       affordable: canBuyResearch(state, content, rn.id),
       effectsText: rn.flavor || "",
+      description: rn.description || "",
     };
   });
 
