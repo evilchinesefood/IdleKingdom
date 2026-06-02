@@ -63,6 +63,12 @@ export class Hud {
     const saveOk = snap.save && snap.save.status === "ok";
 
     patch(this.el, [
+      h("img", {
+        class: "hud-logo",
+        key: "logo",
+        src: "./Source/Assets/Logo.png",
+        alt: "IdleKingdom",
+      }),
       h("div", { class: "hud-currencies", key: "cur" }, [
         currencyTag("gold", "gold", "Gold", goldV, goldR),
         currencyTag("research", "research", "Research", resV, resR),

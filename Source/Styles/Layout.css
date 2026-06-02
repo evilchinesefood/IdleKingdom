@@ -22,6 +22,12 @@ wa-button::part(base) {
   box-shadow: var(--shadow);
   flex-wrap: wrap;
 }
+.hud-logo {
+  height: 34px;
+  width: auto;
+  flex: 0 0 auto;
+  display: block;
+}
 .hud-currencies {
   display: flex;
   gap: 1rem;
@@ -347,6 +353,11 @@ wa-button.hp-recruit {
   font-size: 0.8rem;
   color: var(--ink-soft);
 }
+/* Empty (nothing-selected) inspector stays mounted but invisible — avoids the
+   recreate-and-reflow when a node is selected. */
+.node-inspector.empty {
+  display: none;
+}
 .ni-line {
   font-size: 1rem;
   margin: 0.15rem 0;
@@ -377,8 +388,23 @@ wa-button.hp-recruit {
 .ni-recipe wa-option::part(base),
 .ni-gatherer wa-option::part(base),
 .ni-storage wa-option::part(base),
+.ni-addbuilding wa-option::part(base),
 .hp-equip wa-option::part(base) {
-  padding-block: 0.55em;
+  padding-block: 0.6em;
+}
+/* The highlighted/selected option fills gold — give it the same top/bottom
+   padding so its label isn't flush against the fill edges. */
+.ni-recipe wa-option[aria-selected="true"]::part(base),
+.ni-recipe wa-option:state(current)::part(base),
+.ni-gatherer wa-option[aria-selected="true"]::part(base),
+.ni-gatherer wa-option:state(current)::part(base),
+.ni-storage wa-option[aria-selected="true"]::part(base),
+.ni-storage wa-option:state(current)::part(base),
+.ni-addbuilding wa-option[aria-selected="true"]::part(base),
+.ni-addbuilding wa-option:state(current)::part(base),
+.hp-equip wa-option[aria-selected="true"]::part(base),
+.hp-equip wa-option:state(current)::part(base) {
+  padding-block: 0.6em;
 }
 .ni-sell {
   margin-left: 0.4rem;

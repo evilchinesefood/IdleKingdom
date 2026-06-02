@@ -1,10 +1,9 @@
-// Synthesized sound effects + ambient pad via the Web Audio API — no asset files
-// (keeps the build buildless and offline-safe). The AudioContext is created lazily
-// on the first call after a user gesture (browsers block audio before interaction).
+// Synthesized sound effects via the Web Audio API — no asset files (keeps the build
+// buildless and offline-safe). The AudioContext is created lazily and resumes on the
+// first play() inside a user gesture (browsers block audio before interaction).
 
 let ctx = null;
 let master = null;
-let ambient = null;
 let enabled = true;
 
 function ensureCtx() {
@@ -85,51 +84,8 @@ export function play(name) {
   if (fn) fn();
 }
 
-// Gentle low pad: two detuned oscillators under a slow tremolo. Loops until stopped.
-export function startAmbient() {
-  if (!enabled || ambient || !ensureCtx()) return;
-  if (ctx.state === "suspended") ctx.resume();
-  const g = ctx.createGain();
-  g.gain.value = 0.05;
-  const lfo = ctx.createOscillator();
-  const lfoGain = ctx.createGain();
-  lfo.frequency.value = 0.08;
-  lfoGain.gain.value = 0.025;
-  lfo.connect(lfoGain).connect(g.gain);
-  const o1 = ctx.createOscillator();
-  o1.type = "triangle";
-  o1.frequency.value = 110;
-  const o2 = ctx.createOscillator();
-  o2.type = "sine";
-  o2.frequency.value = 165;
-  o2.detune.value = 5;
-  o1.connect(g);
-  o2.connect(g);
-  g.connect(master);
-  o1.start();
-  o2.start();
-  lfo.start();
-  ambient = { nodes: [o1, o2, lfo], gain: g };
-}
-
-export function stopAmbient() {
-  if (!ambient) return;
-  try {
-    for (const n of ambient.nodes) n.stop();
-  } catch {}
-  try {
-    ambient.gain.disconnect();
-  } catch {}
-  ambient = null;
-}
-
 export function setEnabled(on) {
   enabled = !!on;
-  if (!enabled) stopAmbient();
-  // Do NOT auto-start ambient here: the AudioContext is suspended until a user
-  // gesture, and starting it now would consume the `ambient` guard so the real
-  // first-gesture start no-ops. The first-gesture handler (and the Settings
-  // re-enable, itself a gesture) call startAmbient() so it actually resumes.
 }
 
 export function isEnabled() {

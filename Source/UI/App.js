@@ -104,15 +104,6 @@ class AppInstance {
     this.router.onChange(() => this._mountScreen());
     this.game.onSnapshot((snap) => this._onSnapshot(snap));
     document.addEventListener("keydown", (e) => this._handleGlobalKey(e));
-    // Browsers block audio until the user interacts — start the ambient pad on the
-    // first pointer/key gesture (once), respecting the current Disable-sounds pref.
-    const startAudio = () => {
-      Sound.startAmbient();
-      document.removeEventListener("pointerdown", startAudio);
-      document.removeEventListener("keydown", startAudio);
-    };
-    document.addEventListener("pointerdown", startAudio);
-    document.addEventListener("keydown", startAudio);
     this.router.start();
     this._mountScreen();
   }
@@ -595,9 +586,6 @@ class AppInstance {
             this.prefs[k] = !this.prefs[k];
             savePrefs(this.prefs);
             this._applyPrefs();
-            // toggling sound back on is itself a user gesture -> safe to (re)start
-            // the ambient pad now (setEnabled no longer auto-starts it).
-            if (!this.prefs.soundDisabled) Sound.startAmbient();
             this.renderNow();
           },
           onReset: () => {
