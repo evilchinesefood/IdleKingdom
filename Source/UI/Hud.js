@@ -66,19 +66,22 @@ export class Hud {
         currencyTag("research", "research", "Research", resV, resR),
         currencyTag("renown", "renown", "Renown", renV, null),
       ]),
-      h(
-        "wa-tag",
-        {
-          key: "save",
-          class: saveOk ? "hud-save" : "hud-save failed",
-          variant: saveOk ? "success" : "danger",
-          appearance: "outlined",
-        },
-        [
-          startIcon(saveOk ? "save_ok" : "save_fail"),
-          saveOk ? "saved" : "save failed",
-        ],
-      ),
+      // Idle games autosave constantly — a persistent "saved" tag is just
+      // noise. Only surface the badge when a save actually FAILS, prominently.
+      saveOk
+        ? null
+        : h(
+            "wa-tag",
+            {
+              key: "save",
+              class: "hud-save failed",
+              variant: "danger",
+              appearance: "filled",
+              title:
+                "Couldn't save — storage may be full or blocked (private browsing).",
+            },
+            [startIcon("save_fail"), " save failed"],
+          ),
       h(
         "wa-tab-group",
         {

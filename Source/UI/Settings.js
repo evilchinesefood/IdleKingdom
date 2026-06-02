@@ -18,7 +18,7 @@ export function Settings(prefs, handlers) {
     {
       id: "Settings",
       key: "settings",
-      "prop:open": true,
+      open: true,
       onWaHide: onClose,
     },
     h("div", { slot: "label", class: "os-title" }, [

@@ -84,6 +84,15 @@ function applyProps(el, oldProps, newProps) {
     }
     if (k.startsWith("prop:")) {
       const name = k.slice(5);
+      // Don't clobber a control the user is actively editing: re-asserting
+      // value/open on the focused element (e.g. an open wa-select) under a
+      // live per-tick snapshot would close the dropdown / cancel the edit.
+      if (
+        (name === "value" || name === "open") &&
+        typeof document !== "undefined" &&
+        document.activeElement === el
+      )
+        continue;
       if (el[name] !== v) el[name] = v;
       continue;
     }

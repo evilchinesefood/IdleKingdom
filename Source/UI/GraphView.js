@@ -327,6 +327,16 @@ export class GraphView {
             ),
           );
           g.appendChild(del);
+        } else {
+          // subtle, always-on affordance that the link is interactive (touch)
+          g.appendChild(
+            svg("circle", {
+              class: "link-dot",
+              cx: mid.x,
+              cy: mid.y + 6,
+              r: 3,
+            }),
+          );
         }
         return g;
       })
@@ -346,7 +356,116 @@ export class GraphView {
 
     // nodes
     const nodeEls = this.snap.nodes.map((n) => this._drawNode(n, v));
+    if (this.snap.nodes.length === 0) nodeEls.push(this._emptyHint());
+    // The redraw destroys the focused node element — capture its id first so we
+    // can restore keyboard focus to the rebuilt node afterwards.
+    const refocus = this._activeNodeId();
     this._replace(this.layerNodes, nodeEls);
+    if (refocus != null) this._restoreFocus(refocus);
+  }
+
+  // Centered first-run hint shown on an empty canvas (screen space, so it stays
+  // put under pan/zoom). Falls back to a default size when unmeasured (tests).
+  _emptyHint() {
+    let w = 600,
+      hh = 400;
+    try {
+      const r = this.svgEl.getBoundingClientRect();
+      if (r && r.width) {
+        w = r.width;
+        hh = r.height;
+      }
+    } catch {}
+    return svg(
+      "text",
+      { class: "graph-empty", x: w / 2, y: hh / 2, "text-anchor": "middle" },
+      ["No machines yet — open the Build menu to place one"],
+    );
+  }
+
+  _activeNodeId() {
+    try {
+      const a = document.activeElement;
+      if (
+        a &&
+        a.getAttribute &&
+        this.layerNodes.contains &&
+        this.layerNodes.contains(a)
+      )
+        return a.getAttribute("data-node-id");
+    } catch {}
+    return null;
+  }
+
+  _restoreFocus(id) {
+    try {
+      const g =
+        this.layerNodes.querySelector &&
+        this.layerNodes.querySelector(`[data-node-id="${id}"]`);
+      if (g && typeof g.focus === "function") g.focus();
+    } catch {}
+  }
+
+  _focusFirstNode() {
+    try {
+      const g =
+        this.layerNodes.querySelector &&
+        this.layerNodes.querySelector("[data-node-id]");
+      if (g && typeof g.focus === "function") g.focus();
+    } catch {}
+  }
+
+  // Keyboard operability (WCAG 2.1.1): Enter inspects, arrows nudge one grid
+  // cell, C connects (arm this output, then C on a target), Delete removes.
+  _onNodeKey(e, id) {
+    const k = e.key;
+    if (k === "Enter" || k === " " || k === "Spacebar") {
+      e.preventDefault();
+      this._select(id);
+      return;
+    }
+    if (k === "Delete" || k === "Backspace") {
+      e.preventDefault();
+      this.game.dispatch({ type: INTENT.RemoveNode, nodeId: id });
+      // the focused node is gone — move focus to a remaining node so a keyboard
+      // user doesn't get dropped back to <body>.
+      this._focusFirstNode();
+      return;
+    }
+    if (k === "c" || k === "C") {
+      e.preventDefault();
+      this._keyboardConnect(id);
+      return;
+    }
+    let dx = 0,
+      dy = 0;
+    if (k === "ArrowLeft") dx = -GRID;
+    else if (k === "ArrowRight") dx = GRID;
+    else if (k === "ArrowUp") dy = -GRID;
+    else if (k === "ArrowDown") dy = GRID;
+    else return;
+    e.preventDefault();
+    const n = this._nodeAt(id);
+    if (!n) return;
+    let pos = { x: n.pos.x + dx, y: n.pos.y + dy };
+    if (this.snapEnabled()) pos = snapToGrid(pos, GRID);
+    this.game.dispatch({ type: INTENT.SetNodePos, nodeId: id, pos });
+  }
+
+  _keyboardConnect(id) {
+    if (!this.armedPort) {
+      this.armedPort = { nodeId: id, dir: "out" }; // arm this node's output
+      this._draw();
+      return;
+    }
+    if (this.armedPort.nodeId === id) {
+      this.armedPort = null; // press C again on the same node to cancel
+      this._draw();
+      return;
+    }
+    this._connect(this.armedPort.nodeId, id);
+    this.armedPort = null;
+    this._draw();
   }
 
   _drawNode(n, v) {
@@ -358,9 +477,20 @@ export class GraphView {
     // pixel-identical to the old per-coordinate math, and at any other zoom the
     // interior no longer spills/desyncs. Ports also line up with the
     // graph-space hit-test (which uses the same graph units).
+    const stateLabel = n.atCapacity
+      ? ", at max"
+      : n.starved
+        ? ", low on input"
+        : "";
     const g = svg("g", {
       class: n.id === this.selectedId ? "node-card selected" : "node-card",
       transform: `translate(${p.x} ${p.y}) scale(${v.scale})`,
+      // Keyboard a11y: each node is a focusable button (Enter/arrows/C/Delete).
+      tabindex: 0,
+      role: "button",
+      "data-node-id": n.id,
+      "aria-label": `${cap(n.kind)}, level ${n.level}${stateLabel}`,
+      onkeydown: (e) => this._onNodeKey(e, n.id),
     });
     g.appendChild(
       svg("rect", {

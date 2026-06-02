@@ -114,7 +114,21 @@ Open in a fresh Claude Code session: "Work through the fixes in fixes.md in orde
 
 ---
 
-## Tasks — DEFERRED (need a real browser or a product decision)
+## Tasks 15–21 — IMPLEMENTED in follow-up (2026-06-01)
+
+> All seven were implemented. Items still wanting real-browser sign-off are flagged **[browser-verify]**.
+>
+> - **15** — dialogs open via the `open` **attribute** (not `prop:open`), fixing the pre-`define` cold-load race that could stop OfflineSummary appearing. Element removal on close still unlocks body scroll via WA's `disconnectedCallback`; exit animation intentionally skipped. **[browser-verify]** open/close timing.
+> - **16** — `App._positionTooltip()` anchors the tip to its `data-anchor` target (below, flips above, clamped on-screen); falls back to bottom-center when unmeasured (tests). **[browser-verify]** placement on desktop + mobile.
+> - **17** — graph nodes are focusable `role=button`s: Enter inspects, arrows nudge one grid cell, **C** arms/connects, Delete removes; keyboard focus is captured before each redraw and restored to the rebuilt node. Link reveal/delete via keyboard is still a smaller remaining gap. **[browser-verify]** focus + keys.
+> - **18** — on-canvas empty-state hint when no machines exist (complements the now-anchored gold tip that points at Build).
+> - **19** — `.node-card` shows `cursor:move` only when selected (pointer otherwise); links get hover-thicken + `cursor:pointer` and a subtle always-on midpoint dot as a touch affordance.
+> - **20** — `Dom.js` skips re-asserting `prop:value`/`prop:open` on the **focused** element, so a live per-tick snapshot no longer closes an open `wa-select`.
+> - **21** — save badge renders **only on failure** (filled danger + explanatory `title`); confirmed `meta._saveStatus → snap.save.status` wiring is correct (`Snapshot.js:182`).
+>
+> Remaining genuinely-deferred sub-items: dialog exit animations; full keyboard reveal/delete of links; richer first-run choreography. Original task notes kept below for reference.
+
+## Tasks — original deferred notes (for reference)
 
 ### 15. [HIGH] Dialog close lifecycle: drive `prop:open=false`, remove on `wa-after-hide`
 

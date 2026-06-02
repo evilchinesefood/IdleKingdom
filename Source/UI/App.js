@@ -254,6 +254,59 @@ class AppInstance {
     const tip = Tooltip(snap, this.dispatch);
     if (tip) children.push(tip);
     patch(this.overlayEl, children);
+    this._positionTooltip();
+  }
+
+  // Position the onboarding tooltip beside the element named by its data-anchor
+  // (the dead "anchor" the tip declared). Falls back to the CSS default
+  // (bottom-center) when there's no anchor or no measurable target (e.g. tests).
+  _positionTooltip() {
+    let layer = null;
+    try {
+      layer = this.overlayEl.querySelector
+        ? this.overlayEl.querySelector(".tooltip-layer")
+        : null;
+    } catch {
+      layer = null;
+    }
+    if (!layer || !layer.style) return;
+    // reset to the CSS default before (maybe) re-anchoring
+    layer.style.left = "";
+    layer.style.top = "";
+    layer.style.bottom = "";
+    layer.style.transform = "";
+    const sel = layer.getAttribute && layer.getAttribute("data-anchor");
+    if (!sel) return;
+    let target = null;
+    try {
+      target = document.querySelector(sel);
+    } catch {
+      target = null;
+    }
+    if (!target || typeof target.getBoundingClientRect !== "function") return;
+    let tr, lr;
+    try {
+      tr = target.getBoundingClientRect();
+      lr = layer.getBoundingClientRect();
+    } catch {
+      return;
+    }
+    if (!tr || (!tr.width && !tr.height)) return; // unmeasured → keep default
+    const vw = window.innerWidth || 0;
+    const vh = window.innerHeight || 0;
+    const tipW = lr.width || 320;
+    const tipH = lr.height || 120;
+    const m = 8;
+    // prefer below the anchor; flip above if it would overflow the viewport
+    let top = tr.bottom + m;
+    if (top + tipH > vh - m) top = Math.max(m, tr.top - tipH - m);
+    // center on the anchor, clamped on-screen
+    let left = tr.left + tr.width / 2 - tipW / 2;
+    left = Math.max(m, Math.min(left, vw - tipW - m));
+    layer.style.left = left + "px";
+    layer.style.top = top + "px";
+    layer.style.bottom = "auto";
+    layer.style.transform = "none";
   }
 
   _flashError(msg) {

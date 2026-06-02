@@ -16,7 +16,7 @@ export function Victory(onClose) {
     {
       id: "Victory",
       key: "victory",
-      "prop:open": true,
+      open: true,
       onWaHide: blockDismiss,
     },
     h(

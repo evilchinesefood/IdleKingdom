@@ -26,7 +26,7 @@ export function OfflineSummary(summary, onClose) {
     {
       id: "OfflineSummary",
       key: "offline",
-      "prop:open": true,
+      open: true,
       onWaHide: onClose,
     },
     h("div", { slot: "label", class: "os-title" }, "While you were away"),
