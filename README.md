@@ -19,7 +19,7 @@ Harvest raw resources → run them through crafting chains → sell goods at the
 - **Vanilla JS, native ES modules, buildless** — no framework, no bundler, no runtime dependencies. Served as static files; `PascalCase` file & directory names.
 - **Headless engine** (`Source/Engine/`) — a pure, DOM-free state machine, fully unit-tested. One-way data flow: the UI dispatches _intents_, the engine mutates state and emits a frozen _snapshot_, the UI renders the snapshot.
 - **Rate-based steady-state simulation** — a topological solver computes per-node throughput (with fan-out conservation); offline progress is the same rates integrated over elapsed time, clamped to a cap.
-- **DOM + SVG UI** (`Source/UI/`) — a small hand-rolled `h()`/`patch` reconciler over a bespoke SVG factory graph, built on [Web Awesome](https://webawesome.com) components + Font Awesome Pro **Duotone** icons (buildless, vendored).
+- **DOM + SVG UI** (`Source/UI/`) — a small hand-rolled `h()`/`patch` reconciler over a bespoke SVG factory graph, built on [Web Awesome](https://webawesome.com) components + Font Awesome Pro **Duotone** icons (buildless, vendored); clean History-API path routing (no hash).
 - **Persistence** — `localStorage` behind a `StorageAdapter` seam; versioned save migrations; corruption falls back to a fresh game.
 
 ## Repository layout
@@ -50,6 +50,7 @@ node Tests/RunAll.js
 ```
 
 - The headless engine is covered by the test suite; UI/Web-Awesome behavior is verified in a real browser (it doesn't render under the node test shim).
+- **Routing** is clean path-based (`/kingdom/factory`, no `#`). Locally, enter via `/Index.html` and navigate through the UI — a hard refresh on a route path (e.g. `/factory`) 404s under `python3 -m http.server` (no URL rewrite); production serves it via the committed `.htaccess` rewrite.
 - **Vendoring** (`Source/Vendor/`): the Web Awesome + Font Awesome Pro assets are committed for buildless serving. Refreshing them requires a Font Awesome npm token (private registry) in a **gitignored** `.npmrc` — see the `FontAwesome Pro` entry in personal memory; see `Source/Vendor/.npmrc.example`.
 - **Deploy:** a buildless `rsync` of the static files to the dev host (credentials in personal memory). Bump `ServiceWorker.js`'s `CACHE` version on each deploy so clients pick up changes.
 
@@ -60,7 +61,7 @@ node Tests/RunAll.js
 - **Research tree.** Spend **Research** to unlock machines, recipes, Market listings, production & market bonuses, hero slots, gear tiers, and auto-sell.
 - **Expeditions & heroes.** Forge permanent tiered gear (weapon / armor / accessory), equip and level a hero, then launch timed, deterministic expeditions (hero power must meet the requirement). Reclaiming a territory unlocks more factory content; reclaim all six to win, then keep going in free-play.
 - **Buildings (groups).** Marquee-drag or **Ctrl/Cmd-click** to select machines, then use the floating action bar to **Group / Copy / Paste / Delete**. Groups can be moved, resized, renamed, and **nested** — a group of machines plus other groups functions as one unit. Copy a group with or without its upgrade levels.
-- **Build menu.** A bottom-centered bar of machine types; clicking a type pops up its placement options directly above it.
+- **Build menu.** A bottom-centered bar showing every machine type (locked ones dimmed until researched); clicking an unlocked type pops up its placement options directly above it.
 - **Quality of life.** Undo/redo and keyboard shortcuts (Ctrl+Z / Ctrl+Y, C / V copy-paste, Delete, arrow-nudge, Esc), snap-to-grid, optional always-on rates, and sound effects — all toggleable in Settings.
 - **True idle + offline.** Production keeps accruing while the tab is closed; on return a "While you were away" summary credits up to **1 hour** of offline progress.
 - **Installable PWA.** Runs offline via a service worker; `localStorage` save with versioned migrations (a corrupt save falls back to a fresh game).
