@@ -3,7 +3,7 @@ import { icon } from "./Icons.js";
 import { cap } from "./Format/Format.js";
 import { RESOURCES } from "../Engine/Content/Resources.js";
 import { RECIPES } from "../Engine/Content/Recipes.js";
-import { GATHERER_VARIANTS } from "../Engine/Content/Machines.js";
+import { MACHINES, GATHERER_VARIANTS } from "../Engine/Content/Machines.js";
 import { INTENT } from "../Engine/Intents.js";
 
 function variantLabel(resourceId) {
@@ -119,21 +119,31 @@ export function BuildMenu(snap, dispatch, ui) {
     );
   }
 
-  const machineCells = bm.placeableMachines.map((kind) => {
-    const selected = ui.selectedPaletteKind === kind;
+  // Show EVERY machine kind; locked ones (not yet researched) are dimmed + inert.
+  // Icon-only (the name is the hover title / aria-label, not visible text).
+  const machineCells = Object.keys(MACHINES).map((kind) => {
+    const unlocked = bm.placeableMachines.includes(kind);
+    const selected = unlocked && ui.selectedPaletteKind === kind;
     const cellChildren = [
       h(
         "wa-button",
         {
           key: "bm-machine-" + kind,
-          class: "bm-machine" + (selected ? " selected" : ""),
+          class:
+            "bm-machine" +
+            (selected ? " selected" : "") +
+            (unlocked ? "" : " locked"),
           size: "s",
           pill: true,
           appearance: selected ? "accent" : "outlined",
-          onclick: () => ui.setPalette(selected ? null : kind),
+          disabled: !unlocked,
+          title: cap(kind) + (unlocked ? "" : " — locked"),
+          "aria-label": cap(kind) + (unlocked ? "" : " (locked)"),
+          onclick: unlocked
+            ? () => ui.setPalette(selected ? null : kind)
+            : undefined,
         },
-        h("span", { slot: "start" }, icon(kind)),
-        cap(kind),
+        icon(kind),
       ),
     ];
     if (selected) {

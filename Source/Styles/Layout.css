@@ -364,12 +364,13 @@ wa-button::part(base) {
   justify-content: center;
   gap: 0.4rem;
 }
-/* Bigger label + clear gap after the leading kind icon. */
+/* Icon-only machine buttons in the bottom bar. */
 .bm-machine::part(base) {
   font-size: 1.05rem;
 }
-.bm-machine [slot="start"] {
-  margin-inline-end: 0.45rem;
+/* Locked machines: shown but dimmed (alpha) + inert until researched. */
+.bm-machine.locked::part(base) {
+  opacity: 0.4;
 }
 .bm-machine,
 .bm-place,
@@ -878,36 +879,6 @@ wa-button.hp-recruit {
   padding-inline-end: 0.15rem;
 }
 
-/* MAX / starved legend (clarity) */
-.factory-legend {
-  position: absolute;
-  left: 0.5rem;
-  bottom: 0.5rem;
-  z-index: 30;
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 0.3rem 0.6rem;
-  font-size: 0.75rem;
-  color: var(--ink-soft);
-  pointer-events: none;
-}
-.factory-legend .lg-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-}
-.factory-legend .lg-max {
-  color: var(--good);
-}
-.factory-legend .lg-starved {
-  color: var(--bad);
-}
-
 .hud-settings {
   min-height: var(--tap);
   min-width: var(--tap);
@@ -943,12 +914,6 @@ wa-button.hp-recruit {
     position: static;
     width: auto;
     pointer-events: auto;
-  }
-  /* The MAX/STARVED legend is pinned bottom-left and would sit under the
-     bottom-sheet panels on narrow screens — hide it (badges + inspector still
-     convey the state). */
-  .factory-legend {
-    display: none;
   }
   .node-inspector {
     position: fixed;
