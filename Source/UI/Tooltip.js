@@ -3,32 +3,25 @@ import { icon } from "./Icons.js";
 import { nextTutorialStep } from "./Logic/Selectors.js";
 import { INTENT } from "../Engine/Intents.js";
 
-// anchor = CSS selector for the element this tip points at; App._positionTooltip
-// reads data-anchor and places the tooltip beside that element.
 const TIPS = {
   gold: {
     flag: "seenGoldTip",
-    anchor: ".factory-panels",
     text: "Welcome to Yensburg. Open the Build menu and place a Miner, a Smelter, and a Market — connect them so ore becomes iron bars that sell at the Market for Gold.",
   },
   upgrade: {
     flag: "seenUpgradeTip",
-    anchor: "#NodeInspector .ni-upgrade",
     text: "Tap a node, then Upgrade it to raise its rate.",
   },
   connect: {
     flag: "seenConnectTip",
-    anchor: ".graph-svg",
     text: "Drag from an output port to an input port to connect machines.",
   },
   research: {
     flag: "seenResearchTip",
-    anchor: 'wa-tab[panel="research"]',
     text: "Bank Research and open the tree to unlock new machines.",
   },
   expedition: {
     flag: "seenExpeditionTip",
-    anchor: 'wa-tab[panel="expeditions"]',
     text: "Forge gear, equip a hero, and launch an expedition.",
   },
 };
@@ -40,20 +33,31 @@ export function Tooltip(snap, dispatch) {
   const tip = TIPS[step];
   if (!tip) return null;
 
+  // Centered modal (matches Victory/OfflineSummary). Acknowledged-only: block
+  // wa-hide so Escape / overlay clicks can't close it without setting the
+  // seen-flag (which would just re-open it on the next render). The only way
+  // out is the "Got it" button, which advances to the next tip.
+  const blockDismiss = (e) => e && e.preventDefault && e.preventDefault();
   return h(
-    "div",
-    { class: "tooltip-layer", id: "TooltipLayer", "data-anchor": tip.anchor },
+    "wa-dialog",
+    {
+      id: "TooltipLayer",
+      key: "tip-" + step,
+      class: "intro-dialog",
+      open: true,
+      onWaHide: blockDismiss,
+    },
+    h("div", { slot: "label", class: "os-title" }, icon("info"), " Tip"),
+    h("div", { class: "tip-text modal-text" }, tip.text),
     h(
-      "wa-callout",
-      { class: "tooltip", key: "tip-" + step, variant: "brand" },
-      h("span", { slot: "icon" }, icon("info", { class: "tip-icon" })),
-      h("span", { class: "tip-text" }, tip.text),
+      "div",
+      { slot: "footer", class: "intro-footer" },
       h(
         "wa-button",
         {
           class: "tip-dismiss",
-          size: "s",
-          appearance: "plain",
+          variant: "brand",
+          appearance: "accent",
           onclick: () =>
             dispatch({ type: INTENT.DismissTooltip, flag: tip.flag }),
         },
