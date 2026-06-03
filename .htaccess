@@ -21,3 +21,15 @@
     Header set Cache-Control "no-cache, max-age=0"
   </FilesMatch>
 </IfModule>
+
+# Clean path-based routing (no #): serve the SPA shell for the known client routes
+# so a deep link / refresh to /kingdom/factory loads Index.html (the router then
+# reads the path). Real files/dirs (assets) are served normally.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /kingdom/
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  # route list — keep in sync with Router.ROUTES + the inline <base> script in Index.html
+  RewriteRule ^(factory|research|expeditions|heroes)/?$ Index.html [L]
+</IfModule>
