@@ -371,6 +371,13 @@ wa-button::part(base) {
 .bm-machine.locked::part(base) {
   opacity: 0.4;
 }
+/* Locked recipes in the build popover get the same dimmed, inert treatment. */
+.bm-place.locked::part(base) {
+  opacity: 0.4;
+}
+.bm-place.locked {
+  cursor: default;
+}
 .bm-machine,
 .bm-place,
 .ni-upgrade,
@@ -719,24 +726,35 @@ wa-button.hp-recruit {
   padding-inline: 1.1rem;
 }
 
-/* Onboarding tooltip: kept positioning host; inner is a wa-callout. */
-.tooltip-layer {
-  position: fixed;
-  left: 50%;
-  bottom: 1.5rem;
-  transform: translateX(-50%);
-  max-width: 440px;
+/* Onboarding tips: centered modal dialog (matches Victory/OfflineSummary).
+   Explicit part padding so the tip text, title icon, and button each get
+   breathing room (WA's default body/footer padding reads cramped here). */
+.intro-dialog::part(header) {
+  padding: 1.25rem 1.75rem 0;
 }
-.tooltip {
-  width: 100%;
+.intro-dialog::part(body) {
+  padding: 1.5rem 1.75rem;
+}
+.intro-dialog::part(footer) {
+  padding: 0 1.75rem 1.5rem;
+}
+.intro-dialog .os-title {
+  gap: 0.6rem;
+}
+.intro-dialog .os-title i {
+  padding: 0.25rem;
 }
 .tip-text {
   font-size: 1.1rem;
   line-height: 1.45;
+  text-align: center;
 }
-.tip-dismiss {
-  margin-top: 0.4rem;
-  align-self: flex-end;
+/* "Got it" sits on its own line, clearly separated from the tip text. */
+.intro-footer {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-top: 0.75rem;
 }
 
 /* Dialog bodies */
@@ -758,7 +776,9 @@ wa-button.hp-recruit {
 /* Settings: GitHub link + the "made with love" bezel credit (ported verbatim
    from the MadeWithLove archive; VT323 loaded via Index.html, monospace fallback). */
 .settings-links {
-  margin-top: 0.6rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
 }
 .settings-link {
   color: #8f6f10;
@@ -768,7 +788,7 @@ wa-button.hp-recruit {
 }
 .BezelWrap {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   margin-top: 0.75rem;
 }
 .credit {

@@ -601,10 +601,14 @@ step(
     };
     const beforeNodes = game.getState().graph.nodes.length;
     let host = renderPanel(BuildMenu(snap(game), dispatch, ui));
-    const placeBtns = host.querySelectorAll(".bm-place");
+    // The popover now lists ALL recipes for the kind; locked (not-yet-unlocked)
+    // ones are dimmed + inert (.locked). Click the first UNLOCKED one.
+    const placeBtns = host
+      .querySelectorAll(".bm-place")
+      .filter((b) => !b.classList.contains("locked"));
     assert(
       placeBtns.length > 0,
-      "BuildMenu rendered no workshop recipe buttons",
+      "BuildMenu rendered no unlocked workshop recipe buttons",
     );
     // r_parchment is the only workshop recipe unlocked after res_scholar
     placeBtns[0].onclick(); // [click]
@@ -644,8 +648,10 @@ step(
     // BuildMenu so the connect has a valid target.
     ui.selectedPaletteKind = "smelter";
     host = renderPanel(BuildMenu(snap(game), dispatch, ui));
-    const smBtns = host.querySelectorAll(".bm-place");
-    assert(smBtns.length > 0, "no smelter recipe buttons");
+    const smBtns = host
+      .querySelectorAll(".bm-place")
+      .filter((b) => !b.classList.contains("locked"));
+    assert(smBtns.length > 0, "no unlocked smelter recipe buttons");
     smBtns[0].onclick(); // place a smelter (r_iron_bar) [click]
     const newSmelterId = game.getState().graph.nodes.slice(-1)[0].id;
 

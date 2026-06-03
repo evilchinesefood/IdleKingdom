@@ -6,29 +6,42 @@ import { RECIPES } from "../Engine/Content/Recipes.js";
 import { MACHINES, GATHERER_VARIANTS } from "../Engine/Content/Machines.js";
 import { INTENT } from "../Engine/Intents.js";
 
-function variantLabel(resourceId) {
-  for (const v of Object.values(GATHERER_VARIANTS)) {
-    if (v.resourceIds.includes(resourceId)) return v.label;
-  }
-  return "Gatherer";
+// A single placement button. Locked recipes are dimmed + inert (same treatment
+// as locked machine tiles): grayed via .locked, disabled, no click handler.
+function placeBtn({ key, iconId, label, locked, onclick }) {
+  return h(
+    "wa-button",
+    {
+      key,
+      class: "bm-place" + (locked ? " locked" : ""),
+      appearance: "filled",
+      disabled: !!locked,
+      title: locked ? label + " — locked" : undefined,
+      "aria-label": locked ? label + " (locked)" : undefined,
+      onclick: locked ? undefined : onclick,
+    },
+    h("span", { slot: "start" }, icon(iconId)),
+    label,
+  );
 }
 
-// Build the placement buttons for a given machine kind (same controls as before,
-// now hosted inside the per-type popover).
+// Build the placement buttons for a given machine kind, hosted inside the
+// per-type popover. ALL recipes for the kind are listed; the ones the player
+// hasn't unlocked yet are grayed out (locked) rather than hidden.
 function detailForKind(kind, bm, dispatch, ui) {
-  const detail = [];
+  const detail = [h("div", { class: "bm-detail-title" }, "Machine Recipe:")];
   if (kind === "gatherer") {
-    detail.push(h("div", { class: "bm-detail-title" }, "Machine Recipe:"));
-    for (const rid of bm.gathererResources || []) {
-      const res = RESOURCES[rid];
-      if (!res) continue;
-      detail.push(
-        h(
-          "wa-button",
-          {
+    const unlocked = new Set(bm.gathererResources || []);
+    for (const v of Object.values(GATHERER_VARIANTS)) {
+      for (const rid of v.resourceIds) {
+        const res = RESOURCES[rid];
+        if (!res) continue;
+        detail.push(
+          placeBtn({
             key: "bm-place-gatherer-" + rid,
-            class: "bm-place",
-            appearance: "filled",
+            iconId: rid,
+            label: `${v.label}: ${res.display}`,
+            locked: !unlocked.has(rid),
             onclick: () =>
               dispatch({
                 type: INTENT.PlaceNode,
@@ -36,54 +49,43 @@ function detailForKind(kind, bm, dispatch, ui) {
                 resourceId: rid,
                 pos: ui.spawnPos(),
               }),
-          },
-          h("span", { slot: "start" }, icon(rid)),
-          `${variantLabel(rid)}: ${res.display}`,
-        ),
-      );
+          }),
+        );
+      }
     }
   } else if (kind === "smelter" || kind === "workshop") {
-    detail.push(h("div", { class: "bm-detail-title" }, "Machine Recipe:"));
-    for (const r of bm.unlockedRecipes) {
+    const unlocked = new Set(bm.unlockedRecipes || []);
+    for (const r in RECIPES) {
       const recipe = RECIPES[r];
-      if (!recipe || recipe.crafterKind !== kind) continue;
+      if (recipe.crafterKind !== kind) continue;
       const out = RESOURCES[recipe.output];
       if (!out) continue;
       detail.push(
-        h(
-          "wa-button",
-          {
-            key: "bm-place-recipe-" + r,
-            class: "bm-place",
-            appearance: "filled",
-            onclick: () =>
-              dispatch({
-                type: INTENT.PlaceNode,
-                kind,
-                recipeId: r,
-                pos: ui.spawnPos(),
-              }),
-          },
-          h("span", { slot: "start" }, icon(recipe.output)),
-          out.display,
-        ),
+        placeBtn({
+          key: "bm-place-recipe-" + r,
+          iconId: recipe.output,
+          label: out.display,
+          locked: !unlocked.has(r),
+          onclick: () =>
+            dispatch({
+              type: INTENT.PlaceNode,
+              kind,
+              recipeId: r,
+              pos: ui.spawnPos(),
+            }),
+        }),
       );
     }
   } else {
-    detail.push(h("div", { class: "bm-detail-title" }, "Machine Recipe:"));
     detail.push(
-      h(
-        "wa-button",
-        {
-          key: "bm-place-" + kind,
-          class: "bm-place",
-          appearance: "filled",
-          onclick: () =>
-            dispatch({ type: INTENT.PlaceNode, kind, pos: ui.spawnPos() }),
-        },
-        h("span", { slot: "start" }, icon(kind)),
-        cap(kind),
-      ),
+      placeBtn({
+        key: "bm-place-" + kind,
+        iconId: kind,
+        label: cap(kind),
+        locked: false,
+        onclick: () =>
+          dispatch({ type: INTENT.PlaceNode, kind, pos: ui.spawnPos() }),
+      }),
     );
   }
   return detail;
