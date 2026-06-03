@@ -89,35 +89,12 @@ function detailForKind(kind, bm, dispatch, ui) {
   return detail;
 }
 
-function toggleBtn(ui) {
-  return h(
-    "wa-button",
-    {
-      key: "bm-toggle",
-      class: "bm-toggle",
-      size: "s",
-      appearance: "outlined",
-      onclick: () => ui.toggleBuildMenu && ui.toggleBuildMenu(),
-    },
-    h("span", { slot: "start" }, icon("factory")),
-  );
-}
-
 export function BuildMenu(snap, dispatch, ui) {
   const bm = snap.buildMenu || {
     placeableMachines: [],
     unlockedRecipes: [],
     gathererResources: [],
   };
-
-  // Collapsed: render only the small re-open toggle.
-  if (ui.buildMenuHidden && ui.buildMenuHidden()) {
-    return h(
-      "div",
-      { key: "buildbar", class: "build-bar-inner collapsed", id: "BuildMenu" },
-      toggleBtn(ui),
-    );
-  }
 
   // Show EVERY machine kind; locked ones (not yet researched) are dimmed + inert.
   // Icon-only (the name is the hover title / aria-label, not visible text).
@@ -166,6 +143,5 @@ export function BuildMenu(snap, dispatch, ui) {
     "div",
     { key: "buildbar", class: "build-bar-inner", id: "BuildMenu" },
     h("div", { class: "bm-machines" }, ...machineCells),
-    toggleBtn(ui),
   );
 }

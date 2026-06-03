@@ -79,7 +79,6 @@ class AppInstance {
     this.selectedBuildingId = null;
     this.toolbarEl = null;
     this._pendingRename = null; // un-committed building-name keystrokes (flushed on deselect)
-    this._buildMenuHidden = false; // toggled by the toolbar Build button
     this.buildUi = {
       selectedPaletteKind: null,
       setPalette: (k) => {
@@ -91,12 +90,6 @@ class AppInstance {
         this.graphView && this.graphView.centerGraphPos
           ? this.graphView.centerGraphPos()
           : { x: 300, y: 320 },
-      buildMenuHidden: () => this._buildMenuHidden,
-      toggleBuildMenu: () => {
-        Sound.play("click");
-        this._buildMenuHidden = !this._buildMenuHidden;
-        this.renderNow();
-      },
     };
 
     this.pendingOfflineSummary = null;

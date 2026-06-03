@@ -69,18 +69,26 @@ wa-button::part(base) {
 }
 .hud-tabs {
   flex: 0 0 auto;
-  /* kill the full-width underline track beneath the tabs (the gold active-tab
-     indicator stays as the active cue). */
+  /* No underline at all — kill BOTH the full-width track AND the active-tab
+     indicator. WA draws the active underline from --indicator-color (NOT an
+     exposed ::part), so transparent here is what actually removes it. The active
+     tab is shown via font color + weight instead. */
   --track-color: transparent;
-  /* wa-tab labels use these tokens for color; the defaults resolve dark
-     (neutral-on-quiet / brand-on-quiet) and are illegible on the dark iron bar,
-     so light them up: cream for inactive, bright gold for the active tab. */
-  --wa-color-neutral-on-quiet: var(--parchment-dk);
+  --indicator-color: transparent;
+  /* wa-tab labels use these tokens (illegible-dark by default on the iron bar):
+     a muted tan for inactive vs bright gold for the active tab, so the selected
+     item clearly stands out by color. */
+  --wa-color-neutral-on-quiet: #bdb094;
   --wa-color-brand-on-quiet: var(--gold-lt);
 }
 .hud-tabs::part(base),
 .hud-tabs::part(nav) {
   border-bottom: none;
+}
+/* Make the selected tab unmistakable: brighter gold + bold. */
+.hud-tabs wa-tab[active]::part(base) {
+  color: var(--gold-lt);
+  font-weight: 800;
 }
 .hud i {
   --fa-primary-color: var(--parchment);
@@ -268,13 +276,6 @@ wa-button::part(base) {
 .bm-popover .bm-place {
   margin: 0;
 }
-.bm-toggle {
-  flex: none;
-}
-.bm-toggle::part(base) {
-  padding-inline: 0.5rem;
-}
-
 /* Factory tool strip (top-left): the Group/Select toggle. */
 .factory-tools {
   position: absolute;
@@ -289,14 +290,12 @@ wa-button::part(base) {
   max-width: calc(100% - 340px);
 }
 /* Toolbar buttons: white fill when idle (gold accent when the mode is active). */
-.tool-select:not([appearance="accent"])::part(base),
-.bm-toggle:not([appearance="accent"])::part(base) {
+.tool-select:not([appearance="accent"])::part(base) {
   background: #fff;
   color: var(--ink);
   border-color: var(--line);
 }
-.tool-select:not([appearance="accent"]) i,
-.bm-toggle:not([appearance="accent"]) i {
+.tool-select:not([appearance="accent"]) i {
   --fa-primary-color: var(--ink) !important;
   --fa-secondary-color: var(--gold) !important;
 }
