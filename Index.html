@@ -8,6 +8,23 @@
     />
     <meta name="theme-color" content="#3a3f44" />
     <title>IdleKingdom</title>
+    <!-- Clean path-based routing under a subpath needs a <base> so relative assets
+         still resolve on a deep link (e.g. /kingdom/factory). Computed here (before
+         any relative URL) by stripping a trailing route segment / Index.html, so it
+         works at the deploy subpath AND at a local root. The Router reads it back
+         via document.baseURI. -->
+    <script>
+      (function () {
+        // keep in sync with Router.ROUTES and the .htaccess rewrite rule
+        var routes = ["factory", "research", "expeditions", "heroes"];
+        var p = location.pathname.replace(/[^/]*\.html?$/i, "");
+        var parts = p.replace(/\/+$/, "").split("/");
+        if (routes.indexOf(parts[parts.length - 1]) >= 0) parts.pop();
+        var base = parts.join("/") + "/";
+        if (base.charAt(0) !== "/") base = "/" + base;
+        document.write('<base href="' + base + '">');
+      })();
+    </script>
     <link rel="icon" type="image/png" href="./Source/Assets/Icon.png" />
     <link rel="apple-touch-icon" href="./Source/Assets/Icon.png" />
     <link rel="manifest" href="./Manifest.webmanifest" />
