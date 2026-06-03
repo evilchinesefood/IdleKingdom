@@ -35,6 +35,37 @@ export function Settings(prefs, handlers) {
     ]),
     h(
       "div",
+      { class: "settings-links" },
+      h(
+        "a",
+        {
+          class: "settings-link",
+          href: "https://github.com/evilchinesefood/IdleKingdom",
+          target: "_blank",
+          rel: "noopener",
+        },
+        "View source on GitHub",
+      ),
+    ),
+    h(
+      "div",
+      { class: "BezelWrap" },
+      h(
+        "a",
+        {
+          class: "credit sm",
+          href: "https://jdayers.com/",
+          target: "_blank",
+          rel: "noopener",
+        },
+        "> made with ",
+        h("span", { class: "heart" }, "❤"),
+        " by david ayers",
+        h("span", { class: "cursor" }, "_"),
+      ),
+    ),
+    h(
+      "div",
       {
         slot: "footer",
         // Reset on the LEFT, Close on the right.

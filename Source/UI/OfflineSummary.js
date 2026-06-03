@@ -1,6 +1,6 @@
 import { h } from "./Render/Dom.js";
 import { icon } from "./Icons.js";
-import { fmtNum, fmtCountdown } from "./Format/Format.js";
+import { fmtNum } from "./Format/Format.js";
 import { TERRITORIES } from "../Engine/Content/Territories.js";
 
 export function OfflineSummary(summary, onClose) {
@@ -32,30 +32,15 @@ export function OfflineSummary(summary, onClose) {
     h("div", { slot: "label", class: "os-title" }, "While you were away"),
     h(
       "div",
-      { class: "os-elapsed modal-text" },
-      `Away for ${fmtCountdown(summary.appliedMs)}${summary.clamped ? " (capped)" : ""}`,
-    ),
-    h(
-      "div",
       { class: "os-gained" },
+      h("span", { class: "os-gain" }, icon("gold"), " +" + fmtNum(g.gold)),
       h(
-        "wa-tag",
-        { class: "os-gain", size: "l", pill: true },
-        icon("gold"),
-        " +" + fmtNum(g.gold),
-      ),
-      h(
-        "wa-tag",
-        { class: "os-gain", size: "l", pill: true },
+        "span",
+        { class: "os-gain" },
         icon("research"),
         " +" + fmtNum(g.research),
       ),
-      h(
-        "wa-tag",
-        { class: "os-gain", size: "l", pill: true },
-        icon("renown"),
-        " +" + fmtNum(g.renown),
-      ),
+      h("span", { class: "os-gain" }, icon("renown"), " +" + fmtNum(g.renown)),
     ),
     ...reclaimedTags,
     h(
