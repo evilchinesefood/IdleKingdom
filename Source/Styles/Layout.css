@@ -228,10 +228,12 @@ wa-button::part(base) {
   left: 50%;
   transform: translateX(-50%);
   bottom: 0.5rem;
-  z-index: 30;
+  /* above the right-dock panels/toolbar (z 30) so the type popover, which opens
+     ABOVE the bar, is never covered. MUST NOT clip overflow here — the popover
+     escapes the bar's box upward, so the machine row wraps instead of scrolling. */
+  z-index: 50;
   display: flex;
   max-width: calc(100vw - 1rem);
-  overflow-x: auto;
 }
 .build-bar-inner {
   display: flex;
@@ -358,6 +360,8 @@ wa-button::part(base) {
 .bm-machines {
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 0.4rem;
 }
 /* Bigger label + clear gap after the leading kind icon. */
@@ -736,15 +740,106 @@ wa-button.hp-recruit {
 }
 
 /* Dialog bodies */
-.os-elapsed {
-  font-size: 1.1rem;
-  margin-bottom: 0.5rem;
-}
 .os-gained {
   display: flex;
-  gap: 0.5rem;
+  gap: 1.1rem;
   flex-wrap: wrap;
   margin-bottom: 0.5rem;
+}
+/* Plain gained amounts (no pill) — just icon + text. */
+.os-gain {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+/* Settings: GitHub link + the "made with love" bezel credit (ported verbatim
+   from the MadeWithLove archive; VT323 loaded via Index.html, monospace fallback). */
+.settings-links {
+  margin-top: 0.6rem;
+}
+.settings-link {
+  color: #8f6f10;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.BezelWrap {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.75rem;
+}
+.credit {
+  display: inline-block;
+  padding: 12px 22px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #0e3d1a 0%, #062a10 50%, #021608 100%);
+  border: 1px solid #2d8c4a;
+  box-shadow:
+    inset 0 1px 0 rgba(140, 255, 170, 0.6),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.6),
+    0 4px 14px rgba(0, 0, 0, 0.5),
+    0 0 18px rgba(92, 255, 138, 0.2);
+  font-family: "VT323", "JetBrains Mono", ui-monospace, monospace;
+  font-size: 20px;
+  line-height: 1;
+  color: #5cff8a;
+  text-shadow:
+    0 0 6px #5cff8a,
+    0 0 14px rgba(92, 255, 138, 0.55);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  user-select: none;
+  text-decoration: none;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.credit:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(140, 255, 170, 0.7),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.6),
+    0 6px 18px rgba(0, 0, 0, 0.55),
+    0 0 24px rgba(92, 255, 138, 0.35);
+}
+.credit:active {
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(140, 255, 170, 0.3),
+    0 1px 4px rgba(0, 0, 0, 0.5);
+}
+.credit .heart {
+  color: #ff5c5c;
+  text-shadow:
+    0 0 6px #ff5c5c,
+    0 0 14px rgba(255, 92, 92, 0.6);
+}
+.credit .cursor {
+  display: inline-block;
+  width: 0.55ch;
+  background: #5cff8a;
+  margin-left: 4px;
+  color: transparent;
+  animation: credit-blink 1s steps(1) infinite;
+}
+.credit.sm {
+  padding: 8px 14px;
+  font-size: 16px;
+  border-radius: 8px;
+}
+.credit.lg {
+  padding: 16px 30px;
+  font-size: 26px;
+  border-radius: 12px;
+}
+@keyframes credit-blink {
+  50% {
+    opacity: 0;
+  }
 }
 .os-exp {
   margin: 0.2rem 0.2rem 0 0;

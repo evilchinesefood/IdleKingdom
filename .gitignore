@@ -16,3 +16,8 @@ node_modules/
 
 # Font Awesome / Web Awesome private registry auth (never commit)
 .npmrc
+
+# Local-only planning docs / scratch (removed from the repo; kept on disk).
+# Ignored so a stray `git add -A` can't re-track them.
+docs/
+fixes.md
