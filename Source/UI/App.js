@@ -301,23 +301,6 @@ class AppInstance {
       this.toolbarEl = document.createElement("div");
       this.toolbarEl.className = "factory-tools";
       this.screenEl.appendChild(this.toolbarEl);
-      const legend = document.createElement("div");
-      legend.className = "factory-legend";
-      patch(legend, [
-        h(
-          "span",
-          { class: "lg-item lg-max" },
-          icon("max"),
-          " MAX = running at level cap",
-        ),
-        h(
-          "span",
-          { class: "lg-item lg-starved" },
-          icon("starved"),
-          " LOW = needs more input",
-        ),
-      ]);
-      this.screenEl.appendChild(legend);
       this.buildBarEl = document.createElement("div");
       this.buildBarEl.className = "build-bar";
       this.screenEl.appendChild(this.buildBarEl);
