@@ -5,8 +5,7 @@ import { icon } from "./Icons.js";
 const TABS = [
   { route: "factory", label: "Factory" },
   { route: "research", label: "Research" },
-  { route: "expeditions", label: "Expeditions" },
-  { route: "heroes", label: "Heroes" },
+  { route: "war", label: "War" },
 ];
 
 // wa-tag and wa-tab have NO "start" slot (only a default slot), so a
@@ -56,7 +55,6 @@ export class Hud {
     const cs = snap.currencyStrings || {};
     const goldV = cs.gold ?? formatNumber(snap.currencies.gold);
     const resV = cs.research ?? formatNumber(snap.currencies.research);
-    const renV = cs.renown ?? formatNumber(snap.currencies.renown);
     const goldR = cs.goldRate ?? formatRate(snap.rates.goldRate);
     const resR = cs.researchRate ?? formatRate(snap.rates.researchRate);
 
@@ -74,7 +72,6 @@ export class Hud {
       h("div", { class: "hud-currencies", key: "cur" }, [
         currencyTag("gold", "gold", "Gold", goldV, goldR),
         currencyTag("research", "research", "Research", resV, resR),
-        currencyTag("renown", "renown", "Renown", renV, null),
       ]),
       // Idle games autosave constantly — a persistent "saved" tag is just
       // noise. Only surface the badge when a save actually FAILS, prominently.

@@ -326,9 +326,12 @@ export class GraphView {
   _hitPort(gx, gy) {
     if (!this.snap) return null;
     for (const n of this.snap.nodes) {
-      const o = this._outPort(n);
-      if (Math.hypot(gx - o.x, gy - o.y) <= HIT_R)
-        return { nodeId: n.id, dir: "out" };
+      // Barracks have no out port (troops are unroutable) — don't hit-test it.
+      if (n.kind !== "barracks") {
+        const o = this._outPort(n);
+        if (Math.hypot(gx - o.x, gy - o.y) <= HIT_R)
+          return { nodeId: n.id, dir: "out" };
+      }
       const i = this._inPort(n);
       if (Math.hypot(gx - i.x, gy - i.y) <= HIT_R)
         return { nodeId: n.id, dir: "in" };
@@ -424,7 +427,11 @@ export class GraphView {
   // to the kind icon.
   _nodeIcon(n) {
     if (n.kind === "gatherer" && n.resourceId) return iconName(n.resourceId);
-    if (n.kind === "smelter" || n.kind === "workshop") {
+    if (
+      n.kind === "smelter" ||
+      n.kind === "workshop" ||
+      n.kind === "barracks"
+    ) {
       const r = n.recipeId && this.game.content.recipes[n.recipeId];
       if (r && r.output) return iconName(r.output);
     }
@@ -448,6 +455,9 @@ export class GraphView {
   }
 
   _inferResource(fromNode) {
+    // Barracks consume gear into troops, which aren't routable (no downstream
+    // consumer) — they have an IN port only and must never source a link.
+    if (fromNode.kind === "barracks") return null;
     if (fromNode.resourceId) return fromNode.resourceId; // gatherer
     if (fromNode.recipeId)
       return this.game.content.recipes[fromNode.recipeId]?.output ?? null;
@@ -1630,12 +1640,15 @@ export class GraphView {
       wfo.appendChild(wi);
       g.appendChild(wfo);
     }
-    // Markets/scholars produce currency, not a resource — show that at a glance
-    // (their effectiveRate is 0 because they don't output a graph resource).
+    // Markets/scholars produce currency and barracks produce siege power, not a
+    // routable resource — show that at a glance (their effectiveRate is 0 because
+    // they don't output a graph resource).
     let subRate;
     if (n.kind === "market") subRate = `${(n.goldOut ?? 0).toFixed(2)} g/s`;
     else if (n.kind === "scholar")
       subRate = `${(n.researchOut ?? 0).toFixed(2)} r/s`;
+    else if (n.kind === "barracks")
+      subRate = `${(n.siegeOut ?? 0).toFixed(2)} pw/s`;
     else subRate = `${(n.effectiveRate ?? 0).toFixed(2)}/s`;
     g.appendChild(
       svg("text", { class: "node-sub", x: 8, y: 38 }, [
@@ -1703,24 +1716,29 @@ export class GraphView {
         ),
       );
     }
-    // ports (visible dot + transparent >=44px hit halo), local coords
+    // ports (visible dot + transparent >=44px hit halo), local coords. Barracks
+    // are a terminal sink (gear in -> troops, which are unroutable) so they get
+    // NO out port — skip its visible dot + hit halo, mirroring the _hitPort and
+    // _inferResource guards.
     const armedOut = this.armedPort && this.armedPort.nodeId === n.id;
-    g.appendChild(
-      svg("circle", {
-        class: "port-hit",
-        cx: NODE_W,
-        cy: NODE_H / 2,
-        r: HIT_R,
-      }),
-    );
-    g.appendChild(
-      svg("circle", {
-        class: armedOut ? "port armed" : "port",
-        cx: NODE_W,
-        cy: NODE_H / 2,
-        r: PORT_R,
-      }),
-    );
+    if (n.kind !== "barracks") {
+      g.appendChild(
+        svg("circle", {
+          class: "port-hit",
+          cx: NODE_W,
+          cy: NODE_H / 2,
+          r: HIT_R,
+        }),
+      );
+      g.appendChild(
+        svg("circle", {
+          class: armedOut ? "port armed" : "port",
+          cx: NODE_W,
+          cy: NODE_H / 2,
+          r: PORT_R,
+        }),
+      );
+    }
     g.appendChild(
       svg("circle", { class: "port-hit", cx: 0, cy: NODE_H / 2, r: HIT_R }),
     );

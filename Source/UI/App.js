@@ -8,8 +8,7 @@ import { NodeInspector } from "./NodeInspector.js";
 import { BuildingInspector } from "./BuildingInspector.js";
 import { BulkInspector } from "./BulkInspector.js";
 import { ResearchTree } from "./ResearchTree.js";
-import { ExpeditionBoard } from "./ExpeditionBoard.js";
-import { HeroPanel } from "./HeroPanel.js";
+import { WarBoard } from "./WarBoard.js";
 import { OfflineSummary } from "./OfflineSummary.js";
 import { Tooltip } from "./Tooltip.js";
 import { Victory } from "./Victory.js";
@@ -264,9 +263,6 @@ class AppInstance {
         "BulkUpgrade",
         "CopyBuilding",
         "BuyResearch",
-        "RecruitHero",
-        "LevelUpHero",
-        "StartExpedition",
         "PlaceNode",
       ]);
       if (ERR.has(intent.type)) Sound.play("error");
@@ -284,7 +280,6 @@ class AppInstance {
       AddToBuilding: "group",
       UngroupBuilding: "group",
       RemoveFromBuilding: "group",
-      StartExpedition: "expedition",
       BuyResearch: "research",
     };
     const s = SFX[intent.type];
@@ -393,8 +388,8 @@ class AppInstance {
 
   // Passive refresh (~every 2s): update the currency counters AND re-render the
   // route's interactive panels so affordability-gated buttons (Upgrade, research
-  // Buy, hero Level-up, expedition Launch) flip enabled/disabled as currencies
-  // accrue — without the player having to deselect/reselect. The graph is NOT
+  // Buy) flip enabled/disabled as currencies accrue — without the player having
+  // to deselect/reselect. The graph is NOT
   // redrawn here (it has no affordability state). Safe at this cadence because
   // the reconciler is keyed and Dom.js skips re-asserting value/open on a focused
   // control, so an open wa-select / mid-click button is preserved.
@@ -423,7 +418,7 @@ class AppInstance {
         return true;
       if (this.panelEl && this.panelEl.contains && this.panelEl.contains(a))
         return true;
-      // route-owned panels (Research / Expeditions / Heroes) live in _routeHost,
+      // route-owned panels (Research / War) live in _routeHost,
       // not panelEl — without this, an open wa-select there is closed by the 2s
       // passive refresh (the "dropdown closes after ~1s" bug).
       if (
@@ -475,9 +470,7 @@ class AppInstance {
     if (!this._routeHost) return;
     let vnode = null;
     if (route === "research") vnode = ResearchTree(snap, this.dispatch);
-    else if (route === "expeditions")
-      vnode = ExpeditionBoard(snap, this.dispatch);
-    else if (route === "heroes") vnode = HeroPanel(snap, this.dispatch);
+    else if (route === "war") vnode = WarBoard(snap);
     patch(this._routeHost, vnode ? [vnode] : []);
   }
 
@@ -677,23 +670,28 @@ class AppInstance {
 
   _emptySnap() {
     return {
-      currencies: { gold: 0, research: 0, renown: 0 },
+      currencies: { gold: 0, research: 0 },
       rates: { goldRate: 0, researchRate: 0 },
       save: { status: "ok" },
       nodes: [],
       links: [],
       buildings: [],
       research: [],
-      heroes: [],
+      tuning: [],
       territories: [],
-      expedition: null,
+      siege: {
+        targetId: null,
+        progress: 0,
+        cost: null,
+        rate: 0,
+        etaSeconds: null,
+      },
       buildMenu: {
         placeableMachines: [],
         unlockedRecipes: [],
         gathererResources: [],
+        unlockedResources: [],
       },
-      gearTiers: [],
-      recruitable: [],
       meta: { won: false, seenVictory: false, tutorialDone: true },
     };
   }

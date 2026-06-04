@@ -1,7 +1,9 @@
 // This route list is mirrored in two spots that can't import it — the inline
 // <base> script in Index.html and the rewrite rule in .htaccess. Adding a route
 // means editing all three (else it 404s on deep-link / mis-strips the base).
-export const ROUTES = ["factory", "research", "expeditions", "heroes"];
+// (.htaccess also keeps the dead expeditions|heroes paths so stale clients still
+// load the shell; this list clamps any unknown segment -> the default route.)
+export const ROUTES = ["factory", "research", "war"];
 export const DEFAULT_ROUTE = "factory";
 
 // The app is served under a base path (e.g. "/kingdom/"). An inline <base href>

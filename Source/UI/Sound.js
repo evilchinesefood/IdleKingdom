@@ -64,10 +64,6 @@ const SFX = {
   },
   group: () =>
     tone({ freq: 360, type: "triangle", dur: 0.16, gain: 0.36, glide: 150 }),
-  expedition: () => {
-    tone({ freq: 392, type: "sawtooth", dur: 0.16, gain: 0.38 });
-    tone({ freq: 587, type: "sawtooth", dur: 0.22, gain: 0.36, delay: 0.12 });
-  },
   research: () => {
     tone({ freq: 523, type: "sine", dur: 0.13, gain: 0.38 });
     tone({ freq: 659, type: "sine", dur: 0.13, gain: 0.38, delay: 0.1 });
