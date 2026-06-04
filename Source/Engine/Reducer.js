@@ -83,6 +83,23 @@ export function reduce(state, intent, content) {
       structural = true;
       break;
     }
+    case "BulkUpgrade": {
+      const nodes = intent.nodeIds
+        .map((id) => nodeById(next, id))
+        .filter(Boolean);
+      if (nodes.length === 0) return reject(state, "no nodes to upgrade");
+      // All-or-nothing: upgrade every selected machine by 1 only if the combined
+      // gold cost is affordable; otherwise reject (the UI flashes "not enough gold").
+      let total = 0;
+      for (const n of nodes)
+        total += Economy.upgradeCost(n.kind, n.level, content);
+      if (next.currencies.gold < total)
+        return reject(state, "not enough gold to upgrade all");
+      next.currencies.gold -= total;
+      for (const n of nodes) n.level += 1;
+      structural = true;
+      break;
+    }
     case "SellFromStockpile": {
       const node = nodeById(next, intent.nodeId);
       if (!node) return reject(state, "no such node");

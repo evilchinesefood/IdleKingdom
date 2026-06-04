@@ -177,6 +177,35 @@ describe("Reducer", () => {
     expect(out.state.meta.tutorialDone).toBe(true);
   });
 
+  it("BulkUpgrade upgrades every selected node by 1 and charges the combined cost", () => {
+    const s = seededState(new FakeClock(0));
+    s.currencies.gold = 100000;
+    const ids = ["n_miner_0", "n_smelter_0"];
+    const before = ids.map(
+      (id) => s.graph.nodes.find((n) => n.id === id).level,
+    );
+    const out = reduce(s, { type: "BulkUpgrade", nodeIds: ids }, content);
+    expect(out.error).toBe(undefined);
+    ids.forEach((id, i) => {
+      expect(out.state.graph.nodes.find((n) => n.id === id).level).toBe(
+        before[i] + 1,
+      );
+    });
+    expect(out.state.currencies.gold < 100000).toBe(true); // combined cost charged
+  });
+
+  it("BulkUpgrade is all-or-nothing: rejects with no change when gold can't cover all", () => {
+    const s = seededState(new FakeClock(0));
+    s.currencies.gold = 0;
+    const ids = ["n_miner_0", "n_smelter_0"];
+    const out = reduce(s, { type: "BulkUpgrade", nodeIds: ids }, content);
+    expect(out.error !== undefined).toBe(true);
+    expect(out.state).toBe(s); // unchanged reference on reject
+    ids.forEach((id) => {
+      expect(s.graph.nodes.find((n) => n.id === id).level).toBe(1);
+    });
+  });
+
   it("SetGathererResource rejects timber/hide before their research; accepts after enableGathererResource", () => {
     const s = seededState(new FakeClock(0));
     // timber is NOT startable until res_lumber enables it (must not leak from a hardcoded set).

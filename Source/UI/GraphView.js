@@ -63,6 +63,7 @@ export class GraphView {
     this._resize = null; // {id, handle, orig, rect} live edge-resize override
     this._copy = null; // {buildingId, gx, gy} live copy-ghost top-left
     this.onSelectBuilding = opts.onSelectBuilding || (() => {});
+    this.onSelectionChange = opts.onSelectionChange || (() => {}); // multi-select set changed
     this.onModeChange = opts.onModeChange || (() => {});
 
     this.input = new GraphInput(this.svgEl, {
@@ -373,11 +374,12 @@ export class GraphView {
   _toggleSelect(id, isBuilding) {
     // Building a multi-selection drops any single-group focus (panel/handles).
     this.selectedBuildingId = null;
-    if (this.onSelect) this.onSelect(null);
     const set = isBuilding ? this.selBuildings : this.selNodes;
     if (set.has(id)) set.delete(id);
     else set.add(id);
     this._draw();
+    // App renders the bulk (same-type) panel from the new set.
+    if (this.onSelectionChange) this.onSelectionChange();
   }
 
   // resolve a node's effective pos: a live drag-nudge (single node) or a live
@@ -665,7 +667,6 @@ export class GraphView {
     }
     // A fresh marquee replaces any single-group focus (slim panel/handles).
     this.selectedBuildingId = null;
-    if (this.onSelect) this.onSelect(null);
     this.selNodes.clear();
     this.selBuildings.clear();
     for (const n of this.snap.nodes) {
@@ -691,6 +692,8 @@ export class GraphView {
         this.selBuildings.add(b.id);
     }
     this._draw();
+    // App renders the bulk (same-type) panel from the new set.
+    if (this.onSelectionChange) this.onSelectionChange();
   }
 
   _copyMove(gx, gy) {

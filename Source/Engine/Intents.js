@@ -2,6 +2,7 @@ export const INTENT = {
   PlaceNode: "PlaceNode",
   ConnectLink: "ConnectLink",
   UpgradeNode: "UpgradeNode",
+  BulkUpgrade: "BulkUpgrade",
   SetRecipe: "SetRecipe",
   BuyResearch: "BuyResearch",
   EquipItem: "EquipItem",
@@ -39,6 +40,7 @@ const SHAPES = {
   PlaceNode: (i) => isStr(i.kind) && isPos(i.pos),
   ConnectLink: (i) => isStr(i.from) && isStr(i.to) && isStr(i.resourceId),
   UpgradeNode: (i) => isStr(i.nodeId),
+  BulkUpgrade: (i) => isStrArr(i.nodeIds),
   SetRecipe: (i) => isStr(i.nodeId) && isStr(i.recipeId),
   BuyResearch: (i) => isStr(i.nodeId),
   EquipItem: (i) =>

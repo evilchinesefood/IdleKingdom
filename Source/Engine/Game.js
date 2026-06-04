@@ -16,6 +16,7 @@ const UNDOABLE = new Set([
   "RemoveLink",
   "SetNodePos",
   "UpgradeNode",
+  "BulkUpgrade",
   "SetRecipe",
   "SetGathererResource",
   "SetStorageRule",
