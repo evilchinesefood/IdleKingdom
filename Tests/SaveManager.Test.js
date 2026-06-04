@@ -16,8 +16,10 @@ import {
   migrate7to8,
   migrate8to9,
   migrate9to10,
+  migrate10to11,
   MIGRATIONS,
 } from "../Source/Engine/Persistence/Migrations.js";
+import { content } from "../Source/Engine/Content/Content.js";
 import { MemoryStorageAdapter } from "../Source/Engine/Persistence/MemoryStorageAdapter.js";
 import SaveV1 from "./Fixtures/SaveV1.json" with { type: "json" };
 
@@ -29,7 +31,7 @@ describe("SaveManager.serialize", () => {
     const json = serialize(state);
     const blob = JSON.parse(json);
     expect(blob.version).toBe(SAVE_VERSION);
-    expect(SAVE_VERSION).toBe(10);
+    expect(SAVE_VERSION).toBe(11);
     expect(SAVE_KEY).toBe("idlekingdom.save");
     expect(typeof blob.savedAt).toBe("number");
     expect(typeof blob.lastSeen).toBe("number");
@@ -260,9 +262,6 @@ describe("SaveManager.deserialize", () => {
     expect(back.currencies.gold).toBeCloseTo(123.456, 1e-9);
     expect(back.graph.nodes[0].stockpile.iron_ore).toBeCloseTo(7.25, 1e-9);
     expect(back.graph.nodes[2].stockpile).toEqual({}); // market: empty sparse
-    expect(back.heroes[0].equipped.weapon).toBe(null);
-    expect(back.heroes[0].equipped.armor).toBe(null);
-    expect(back.heroes[0].equipped.accessory).toBe(null);
     expect(back._solved).toBe(undefined);
     expect(back.version).toBe(SAVE_VERSION);
   });
@@ -283,10 +282,10 @@ describe("SaveManager.deserialize", () => {
     expect(back.unlocks.gathererResources).toEqual(["timber", "hide"]);
   });
 
-  it("migrates SaveV1 fixture all the way to v10", () => {
+  it("migrates SaveV1 fixture all the way to v11", () => {
     const clock = new FakeClock(5000);
     const state = deserialize(JSON.stringify(SaveV1), clock);
-    expect(state.version).toBe(10);
+    expect(state.version).toBe(11);
     expect(state.meta.tutorialDone).toBe(true); // v9->v10 marks existing saves done
     expect(state.unlocks.offlineCapHours).toBe(1); // v3 default 8, clamped to 1 by v7->v8
     expect(state.unlocks.offlineCap).toBe(undefined);
@@ -295,6 +294,15 @@ describe("SaveManager.deserialize", () => {
     expect(state.unlocks.machinesUnlocked.includes("storage")).toBe(true); // v5
     expect(state.unlocks.productionBonuses.storage).toBe(1.0); // v5
     expect(state.currencies.gold).toBe(25.0); // no data loss
+    // v10->v11 war rework: heroes/expeditions/renown/gearTiersUnlocked/heroSlots dropped
+    expect(state.heroes).toBe(undefined);
+    expect(state.expeditions).toBe(undefined);
+    expect(state.currencies.renown).toBe(undefined);
+    expect(state.currencies.research).toBeCloseTo(0, 1e-9); // SaveV1 renown was 0
+    expect(state.unlocks.gearTiersUnlocked).toBe(undefined);
+    expect(state.unlocks.heroSlots).toBe(undefined);
+    expect(state.siege.progress).toBe(0);
+    expect(state.unlocks.productionBonuses.barracks).toBe(1.0);
   });
 
   it("falls back to NewGame on malformed JSON without throwing", () => {
@@ -373,11 +381,11 @@ describe("SaveManager.deserialize", () => {
     expect(back.graph.nodes.length).toBe(3); // seed chain survives
   });
 
-  it("future-version save (v11) -> NewGame + raw blob backed up, original untouched (task 4)", () => {
+  it("future-version save (v12) -> NewGame + raw blob backed up, original untouched (task 4)", () => {
     const clock = new FakeClock(0);
     const storage = new MemoryStorageAdapter();
     const future = NewGame(clock);
-    future.version = 11;
+    future.version = 12;
     future.currencies.gold = 999; // a marker we can find in the backup
     const raw = JSON.stringify(future);
     storage.set(SAVE_KEY, raw); // the live key still holds the future blob
@@ -393,10 +401,10 @@ describe("SaveManager.deserialize", () => {
       console.warn = orig;
     }
     expect(warned).toBe(true);
-    expect(state.version).toBe(SAVE_VERSION); // fresh NewGame, not the v11 blob
+    expect(state.version).toBe(SAVE_VERSION); // fresh NewGame, not the v12 blob
     expect(state.currencies.gold).toBe(25.0);
     // raw blob copied verbatim to the versioned backup key
-    expect(storage.get("idlekingdom-save-backup-v11")).toBe(raw);
+    expect(storage.get("idlekingdom-save-backup-v12")).toBe(raw);
     // the original live key is untouched (next autosave overwrites it)
     expect(storage.get(SAVE_KEY)).toBe(raw);
   });
@@ -417,11 +425,10 @@ describe("SaveManager.deserialize", () => {
     expect(state.currencies.gold).toBe(25.0);
   });
 
-  it("canonical-ID guard: NewGame has only r_iron_bar, hero_warden, t_gatehouse", () => {
+  it("canonical-ID guard: NewGame has only r_iron_bar and t_gatehouse", () => {
     const clock = new FakeClock(0);
     const state = NewGame(clock);
     expect(state.unlocks.recipesUnlocked).toEqual(["r_iron_bar"]);
-    expect(state.heroes[0].templateId).toBe("hero_warden");
     expect(state.territories.available[0]).toBe("t_gatehouse");
   });
 });
@@ -457,5 +464,32 @@ describe("SaveManager.deserialize diagnostics", () => {
       console.warn = orig;
     }
     expect(warned).toBe(false);
+  });
+});
+
+describe("migrate10to11 — war rework", () => {
+  it("drops heroes/expeditions/renown, converts renown x10 to research, seeds siege", () => {
+    const v10 = JSON.parse(serialize(NewGame(new FakeClock(0)), 0));
+    v10.version = 10;
+    v10.currencies.renown = 7;
+    v10.heroes = [
+      { id: "h_0", templateId: "hero_warden", level: 3, equipped: {} },
+    ];
+    v10.expeditions = { active: null, completed: [] };
+    v10.unlocks.gearTiersUnlocked = [{ itemId: "sword", tier: 1 }];
+    v10.unlocks.heroSlots = 2;
+    v10.unlocks.researchOwned = ["res_scholar", "res_war_college"];
+    delete v10.siege;
+    const out = deserialize(JSON.stringify(v10), new FakeClock(0), content);
+    expect(out.version).toBe(11);
+    expect(out.heroes).toBe(undefined);
+    expect(out.expeditions).toBe(undefined);
+    expect(out.currencies.renown).toBe(undefined);
+    expect(out.currencies.research).toBeCloseTo(70, 1e-9); // 7 renown x10
+    expect(out.siege.progress).toBe(0);
+    expect(out.unlocks.gearTiersUnlocked).toBe(undefined);
+    expect(out.unlocks.heroSlots).toBe(undefined);
+    expect(out.unlocks.researchOwned.includes("res_war_college")).toBe(false); // node deleted
+    expect(out.unlocks.productionBonuses.barracks).toBe(1.0);
   });
 });

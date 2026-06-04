@@ -121,6 +121,31 @@ export function migrate9to10(blob) {
   return next;
 }
 
+export function migrate10to11(blob) {
+  // War rework: expeditions/heroes/renown removed; rate-based siege added.
+  // Banked renown converts to research at 1:10 so progress isn't wasted.
+  const next = { ...blob, version: 11 };
+  next.currencies = { ...next.currencies };
+  next.currencies.research =
+    (next.currencies.research || 0) + (next.currencies.renown || 0) * 10;
+  delete next.currencies.renown;
+  delete next.heroes;
+  delete next.expeditions;
+  next.unlocks = { ...next.unlocks };
+  delete next.unlocks.gearTiersUnlocked;
+  delete next.unlocks.heroSlots;
+  // research nodes that no longer exist (war college) must not linger as owned
+  next.unlocks.researchOwned = (next.unlocks.researchOwned || []).filter(
+    (id) => id !== "res_war_college",
+  );
+  next.unlocks.productionBonuses = {
+    barracks: 1.0,
+    ...next.unlocks.productionBonuses,
+  };
+  if (!next.siege) next.siege = { progress: 0 };
+  return next;
+}
+
 export const MIGRATIONS = {
   1: migrate1to2,
   2: migrate2to3,
@@ -131,4 +156,5 @@ export const MIGRATIONS = {
   7: migrate7to8,
   8: migrate8to9,
   9: migrate9to10,
+  10: migrate10to11,
 };
