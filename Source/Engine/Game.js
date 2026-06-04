@@ -3,7 +3,7 @@ import { build as buildSnapshot } from "./Snapshot.js";
 import { solve } from "./Simulation/RateSolver.js";
 import { applyTick } from "./Simulation/Tick.js";
 import { applyOffline } from "./Simulation/Offline.js";
-import { tryResolve } from "./Systems/ExpeditionSystem.js";
+import { tryAdvanceSiege } from "./Systems/SiegeSystem.js";
 import { deserialize, SAVE_KEY } from "./Persistence/SaveManager.js";
 import { NewGame } from "./GameState.js";
 
@@ -191,8 +191,8 @@ export class Game {
   tick(dtSeconds) {
     const solved = this._ensureSolved();
     applyTick(this.state, solved, dtSeconds);
-    const resolved = tryResolve(this.state, this.content, this.clock.now());
-    if (resolved) {
+    const fell = tryAdvanceSiege(this.state, this.content);
+    if (fell.length) {
       delete this.state._solved; // reclaim unlocks change rates
       this._ensureSolved();
       this._emit(); // discrete event (reward/reclaim/victory) — render it now

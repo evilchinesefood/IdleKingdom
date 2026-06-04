@@ -3,11 +3,16 @@ import { MACHINES } from "../Content/Machines.js";
 /** Per-frame integrator. Mutates state in place over dtSeconds using the solved rates.
  *  gold/research advance by their rates; surplus accrues to each node's sparse stockpile
  *  (storage rooms clamp their stockpile at the level's holding capacity — overflow is lost).
- *  Renown is NOT advanced here (expeditions are the only renown source).
- *  Expedition countdown resolution is handled by ExpeditionSystem at the Game layer. */
+ *  Siege progress accrues from siegeRate; territory resolution is handled by SiegeSystem
+ *  at the Game layer. */
 export function applyTick(state, solved, dtSeconds) {
   state.currencies.gold += solved.goldRate * dtSeconds;
   state.currencies.research += solved.researchRate * dtSeconds;
+
+  if (solved.siegeRate) {
+    if (!state.siege) state.siege = { progress: 0 };
+    state.siege.progress += solved.siegeRate * dtSeconds;
+  }
 
   const surplus = solved.surplusRate || {};
   const byId = new Map(state.graph.nodes.map((n) => [n.id, n]));
