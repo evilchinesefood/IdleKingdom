@@ -27,6 +27,7 @@ import "./UndoRedo.Test.js";
 import "./Storage.Test.js";
 import "./FanIn.Test.js";
 import "./BulkDelete.Test.js";
+import "./BulkInspector.Test.js";
 import "./Paste.Test.js";
 import "./Snapshot.Test.js";
 import "./Game.Test.js";

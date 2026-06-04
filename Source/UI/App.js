@@ -6,6 +6,7 @@ import { icon } from "./Icons.js";
 import { BuildMenu } from "./BuildMenu.js";
 import { NodeInspector } from "./NodeInspector.js";
 import { BuildingInspector } from "./BuildingInspector.js";
+import { BulkInspector } from "./BulkInspector.js";
 import { ResearchTree } from "./ResearchTree.js";
 import { ExpeditionBoard } from "./ExpeditionBoard.js";
 import { HeroPanel } from "./HeroPanel.js";
@@ -234,6 +235,7 @@ class AppInstance {
       // no-op rejects (empty Sell, re-selecting a value) stay silent.
       const ERR = new Set([
         "UpgradeNode",
+        "BulkUpgrade",
         "CopyBuilding",
         "BuyResearch",
         "RecruitHero",
@@ -247,6 +249,7 @@ class AppInstance {
     const SFX = {
       PlaceNode: "place",
       UpgradeNode: "upgrade",
+      BulkUpgrade: "upgrade",
       ConnectLink: "connect",
       RemoveNode: "delete",
       RemoveLink: "delete",
@@ -310,6 +313,20 @@ class AppInstance {
           this._flushPendingRename();
           this.selectedBuildingId = id;
           this.selectedNodeId = null;
+          this.renderNow();
+        },
+        onSelectionChange: () => {
+          // A marquee / Ctrl-click multi-selection supersedes any single
+          // selection; _renderPanels shows the bulk panel when it's 2+ of one
+          // type. A selection of exactly one loose machine falls back to that
+          // machine's normal inspector (so trimming down to one isn't blank).
+          this._flushPendingRename();
+          this.selectedBuildingId = null;
+          const gv = this.graphView;
+          this.selectedNodeId =
+            gv && gv.selBuildings.size === 0 && gv.selNodes.size === 1
+              ? [...gv.selNodes][0]
+              : null;
           this.renderNow();
         },
         onModeChange: () => this._renderToolbar(),
@@ -410,8 +427,10 @@ class AppInstance {
   _renderPanels(snap) {
     const route = this.activeScreen;
     if (route === "factory") {
-      const inspector =
-        this.selectedBuildingId != null
+      const bulk = this._bulkSelection(snap);
+      const inspector = bulk
+        ? BulkInspector(snap, bulk, this._bulkHandlers(bulk.nodeIds))
+        : this.selectedBuildingId != null
           ? BuildingInspector(
               snap,
               this.selectedBuildingId,
@@ -457,6 +476,47 @@ class AppInstance {
         }
         this.renderNow();
       },
+    };
+  }
+
+  // A same-type multi-selection (>=2 loose machines of one kind, no groups)
+  // drives the bulk inspector. Reads the live GraphView selection set.
+  _bulkSelection(snap) {
+    const gv = this.graphView;
+    if (!gv || (gv.selBuildings && gv.selBuildings.size > 0)) return null;
+    const ids = gv.selNodes ? [...gv.selNodes] : [];
+    if (ids.length < 2) return null;
+    const nodes = ids
+      .map((id) => (snap.nodes || []).find((n) => n.id === id))
+      .filter(Boolean);
+    if (nodes.length < 2) return null;
+    const kind = nodes[0].kind;
+    if (!nodes.every((n) => n.kind === kind)) return null; // must be one type
+    return { kind, nodeIds: nodes.map((n) => n.id) };
+  }
+
+  // Bulk-apply config to EACH selected machine via the existing per-node intents
+  // (they carry the tested link-rewiring); upgrade-all is one atomic BulkUpgrade.
+  _bulkHandlers(nodeIds) {
+    const each = (make) => {
+      for (const id of nodeIds) this.dispatch(make(id));
+    };
+    return {
+      onSetRecipe: (recipeId) =>
+        each((id) => ({ type: INTENT.SetRecipe, nodeId: id, recipeId })),
+      onSetResource: (resourceId) =>
+        each((id) => ({
+          type: INTENT.SetGathererResource,
+          nodeId: id,
+          resourceId,
+        })),
+      onSetStorage: (resourceIds) =>
+        each((id) => ({
+          type: INTENT.SetStorageRule,
+          nodeId: id,
+          resourceIds,
+        })),
+      onUpgradeAll: () => this.dispatch({ type: INTENT.BulkUpgrade, nodeIds }),
     };
   }
 

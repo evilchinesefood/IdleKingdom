@@ -350,6 +350,31 @@ wa-button::part(base) {
   width: 100%;
   margin: 4px 0;
 }
+/* Bulk (same-type multi-selection) inspector. */
+.bulk-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.bulk-title {
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.bulk-line {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+.bulk-recipe,
+.bulk-gatherer,
+.bulk-storage {
+  display: block;
+  width: 100%;
+}
+.bulk-upgrade {
+  margin-top: 0.4rem;
+}
 .bm-title,
 .ni-title {
   font-weight: 700;

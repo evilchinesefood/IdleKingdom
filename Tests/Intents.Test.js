@@ -25,6 +25,9 @@ describe("Intents", () => {
     expect(validate({ type: "UpgradeNode", nodeId: "n_miner_0" }).ok).toBe(
       true,
     );
+    expect(validate({ type: "BulkUpgrade", nodeIds: ["n_a", "n_b"] }).ok).toBe(
+      true,
+    );
     expect(
       validate({
         type: "ConnectLink",
@@ -109,6 +112,7 @@ describe("Intents", () => {
       validate({ type: "PlaceNode", kind: "smelter", pos: { x: 1 } }).ok,
     ).toBe(false); // pos.y missing
     expect(validate({ type: "SetNodePos", nodeId: "n_x" }).ok).toBe(false); // no pos
+    expect(validate({ type: "BulkUpgrade", nodeIds: [] }).ok).toBe(false); // empty list
     expect(
       validate({ type: "SetNodePos", nodeId: "n_x", pos: { x: 1 } }).ok,
     ).toBe(false); // pos.y missing

@@ -286,7 +286,7 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
         onclick: () => dispatch({ type: INTENT.UpgradeNode, nodeId: node.id }),
       },
       h("span", { slot: "start" }, icon("upgrade")),
-      "Upgrade ",
+      "Upgrade: ",
       icon("gold"),
       " ",
       fmtCost(node.upgradeCost),
