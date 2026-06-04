@@ -9,22 +9,22 @@ import { EQUIPMENT, itemStat } from "../Source/Engine/Content/Equipment.js";
 import { HEROES } from "../Source/Engine/Content/Heroes.js";
 
 describe("Resources content", () => {
-  it("has 17 resources", () => {
-    expect(Object.keys(RESOURCES).length).toBe(17);
+  it("has 27 resources", () => {
+    expect(Object.keys(RESOURCES).length).toBe(27);
   });
   it("each entry's key matches its id", () => {
     for (const [k, r] of Object.entries(RESOURCES)) expect(r.id).toBe(k);
   });
-  it("tier counts: 5 raw, 5 intermediate, 4 component, 3 equipment", () => {
-    const counts = { 0: 0, 1: 0, 2: 0, 3: 0 };
+  it("tier counts: 5 raw, 5 intermediate, 5 component(+hardened_steel), 6 equipment(+fine/master), 3 troops(tier5)", () => {
+    const counts = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
     for (const r of Object.values(RESOURCES)) counts[r.tier]++;
-    expect(counts).toEqual({ 0: 5, 1: 5, 2: 4, 3: 3 });
+    expect(counts).toEqual({ 0: 5, 1: 5, 2: 5, 3: 6, 4: 3, 5: 3 });
   });
-  it("parchment is the only never-listed resource", () => {
+  it("parchment and troops are the never-listed resources (basePrice null)", () => {
     const nulls = Object.values(RESOURCES)
       .filter((r) => r.basePrice === null)
       .map((r) => r.id);
-    expect(nulls).toEqual(["parchment"]);
+    expect(nulls).toEqual(["parchment", "militia", "soldier", "knight"]);
   });
   it("canonical prices", () => {
     expect(RESOURCES.iron_bar.basePrice).toBe(4.0);
@@ -32,11 +32,17 @@ describe("Resources content", () => {
     expect(RESOURCES.sword.basePrice).toBe(140.0);
     expect(RESOURCES.gemstone.basePrice).toBe(3.0);
   });
+  it("canonical war-rework prices", () => {
+    expect(RESOURCES.hardened_steel.basePrice).toBe(20.0);
+    expect(RESOURCES.master_sword.basePrice).toBe(400.0);
+    expect(RESOURCES.knight.basePrice).toBe(null);
+    expect(RESOURCES.knight.power).toBe(9);
+  });
 });
 
 describe("Machines content", () => {
-  it("has 6 engine kinds, each keyed by its kind", () => {
-    expect(Object.keys(MACHINES).length).toBe(6);
+  it("has 7 engine kinds, each keyed by its kind", () => {
+    expect(Object.keys(MACHINES).length).toBe(7);
     for (const [k, m] of Object.entries(MACHINES)) expect(m.kind).toBe(k);
   });
   it("canonical machine numbers", () => {
@@ -56,15 +62,14 @@ describe("Machines content", () => {
 });
 
 describe("Recipes content", () => {
-  it("has 12 recipes, each keyed by its id", () => {
-    expect(Object.keys(RECIPES).length).toBe(12);
+  it("has 22 recipes, each keyed by its id", () => {
+    expect(Object.keys(RECIPES).length).toBe(22);
     for (const [k, r] of Object.entries(RECIPES)) expect(r.id).toBe(k);
   });
-  it("every crafterKind is a real smelter/workshop machine", () => {
+  it("every crafterKind is a real smelter/workshop/barracks machine", () => {
+    const validKinds = new Set(["smelter", "workshop", "barracks"]);
     for (const r of Object.values(RECIPES)) {
-      expect(r.crafterKind === "smelter" || r.crafterKind === "workshop").toBe(
-        true,
-      );
+      expect(validKinds.has(r.crafterKind)).toBe(true);
       expect(MACHINES[r.crafterKind]).toBeTruthy();
     }
   });
