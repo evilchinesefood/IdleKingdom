@@ -61,38 +61,26 @@ describe("Snapshot", () => {
     );
   });
 
-  it("research rows expose the territory gate (war_college) so the UI can explain locks", () => {
+  it("research rows expose the territory gate (res_scholar has none)", () => {
     const s = seededState(new FakeClock(0));
     const solved = solve(s, content);
     const snap = build(s, solved, content);
-    const wc = snap.research.find((r) => r.id === "res_war_college");
-    expect(wc.requiresTerritory.name).toBe("Smithy Ward");
-    expect(wc.requiresTerritory.met).toBe(false);
     const scholar = snap.research.find((r) => r.id === "res_scholar");
     expect(scholar.requiresTerritory).toBe(null);
   });
 
-  it("hero rows carry power + powerBreakdown + levelCost", () => {
-    const s = seededState(new FakeClock(0));
-    const solved = solve(s, content);
-    const snap = build(s, solved, content);
-    const hero = snap.heroes.find((h) => h.id === "h_0");
-    expect(hero.power).toBeCloseTo(5, 1e-9);
-    expect(hero.powerBreakdown.gear).toBeCloseTo(0, 1e-9);
-    expect(hero.powerBreakdown.level).toBeCloseTo(5, 1e-9);
-    expect(hero.levelCost).toBe(5);
-  });
+  // DELETED: "hero rows carry power + powerBreakdown + levelCost"
+  // Heroes/HeroSystem removed in war rework (Task 7). Covered by siege read-model test.
 
-  it("territory rows carry status + isNext; expedition is null when none active", () => {
+  it("territory rows carry siege status; meta.won is false on a fresh game", () => {
     const s = seededState(new FakeClock(0));
     const solved = solve(s, content);
     const snap = build(s, solved, content);
     const gh = snap.territories.find((t) => t.id === "t_gatehouse");
-    expect(gh.status).toBe("available");
-    expect(gh.isNext).toBe(true);
+    expect(gh.status).toBe("sieging");
+    expect(gh.siegeCost).toBe(40);
     const sw = snap.territories.find((t) => t.id === "t_smithyward");
     expect(sw.status).toBe("locked");
-    expect(snap.expedition).toBe(null);
     expect(snap.meta.won).toBe(false);
   });
 
@@ -271,5 +259,26 @@ describe("Snapshot — Machine Tuning rows", () => {
     expect(g.affordable).toBe(true);
     // scholar machine is locked at start -> no tuning row
     expect(snap.tuning.some((t) => t.kind === "scholar")).toBe(false);
+  });
+});
+
+describe("Snapshot — siege read-model", () => {
+  it("emits siege target/progress/cost/rate/eta and no heroes/expedition/renown", () => {
+    const s = NewGame(new FakeClock(0));
+    s.siege.progress = 10;
+    delete s._solved;
+    const solved = solve(s, content);
+    const snap = build(s, solved, content);
+    expect(snap.heroes).toBe(undefined);
+    expect(snap.expedition).toBe(undefined);
+    expect(snap.currencies.renown).toBe(undefined);
+    expect(snap.siege.targetId).toBe("t_gatehouse");
+    expect(snap.siege.progress).toBeCloseTo(10, 1e-9);
+    expect(snap.siege.cost).toBe(40);
+    expect(snap.siege.rate).toBeCloseTo(0, 1e-9); // no barracks yet
+    expect(snap.siege.etaSeconds).toBe(null); // rate 0 -> no eta
+    const gh = snap.territories.find((t) => t.id === "t_gatehouse");
+    expect(gh.status).toBe("sieging");
+    expect(gh.siegeCost).toBe(40);
   });
 });
