@@ -72,6 +72,9 @@ function edgeLayer() {
 export function ResearchTree(snap, dispatch) {
   const { pos, width, height } = layout();
 
+  const ownedIds = new Set(
+    (snap.research || []).filter((x) => x.status === "owned").map((x) => x.id),
+  );
   const cards = (snap.research || []).map((r) => {
     const p = pos[r.id] || { x: 0, y: 0 };
     const canBuy = r.status === "available" && r.affordable;
@@ -119,6 +122,27 @@ export function ResearchTree(snap, dispatch) {
         " Research",
       );
     }
+    // A locked card must say WHY: unowned prereqs by name + an unreclaimed territory.
+    const needs = [];
+    if (r.status === "locked") {
+      const def = RESEARCH_NODES[r.id];
+      for (const pr of (def && def.prereqs) || [])
+        if (!ownedIds.has(pr))
+          needs.push((RESEARCH_NODES[pr] || {}).name || pr);
+      if (r.requiresTerritory && !r.requiresTerritory.met)
+        needs.push("Reclaim " + r.requiresTerritory.name);
+    }
+    const children = [
+      h("div", { class: "res-name", slot: "header" }, r.name),
+      h("div", { class: "res-cost" }, icon(r.currency), " " + fmtCost(r.cost)),
+      h("div", { class: "res-desc" }, r.description || ""),
+      h("div", { class: "res-eff" }, r.effectsText || ""),
+    ];
+    if (needs.length)
+      children.push(
+        h("div", { class: "res-req" }, "Needs: " + needs.join(" · ")),
+      );
+    children.push(buyBtn);
     return h(
       "wa-card",
       {
@@ -127,11 +151,7 @@ export function ResearchTree(snap, dispatch) {
         "with-footer": true,
         style: `position:absolute;left:${p.x}px;top:${p.y}px;width:${CARD_W}px`,
       },
-      h("div", { class: "res-name", slot: "header" }, r.name),
-      h("div", { class: "res-cost" }, icon(r.currency), " " + fmtCost(r.cost)),
-      h("div", { class: "res-desc" }, r.description || ""),
-      h("div", { class: "res-eff" }, r.effectsText || ""),
-      buyBtn,
+      ...children,
     );
   });
 

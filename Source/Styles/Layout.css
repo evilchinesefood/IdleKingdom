@@ -573,6 +573,13 @@ wa-button.hp-recruit {
   color: var(--ink-soft);
   overflow-wrap: anywhere;
 }
+.res-req {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--bad);
+  margin-top: 0.2rem;
+  overflow-wrap: anywhere;
+}
 .res-node:hover {
   z-index: 2;
 }
