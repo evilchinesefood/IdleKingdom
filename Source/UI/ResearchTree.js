@@ -1,7 +1,7 @@
 import { h } from "./Render/Dom.js";
 import { svg } from "./Render/Svg.js";
 import { icon } from "./Icons.js";
-import { fmtCost } from "./Format/Format.js";
+import { fmtCost, cap } from "./Format/Format.js";
 import { RESEARCH_NODES } from "../Engine/Content/ResearchNodes.js";
 import { INTENT } from "../Engine/Intents.js";
 
@@ -155,9 +155,10 @@ export function ResearchTree(snap, dispatch) {
     );
   });
 
-  return h(
+  const tree = h(
     "div",
     {
+      key: "research-tree",
       class: "research-tree",
       id: "ResearchTree",
       style: `position:relative;width:${width}px;height:${height}px`,
@@ -165,5 +166,56 @@ export function ResearchTree(snap, dispatch) {
     // Embed the prebuilt (memoized) SVG DOM node via the "el" passthrough vnode.
     { el: edgeLayer(), key: "res-edges" },
     ...cards,
+  );
+
+  // Machine Tuning — the endless research sink (one repeatable track per kind).
+  const tuneCards = (snap.tuning || []).map((t) =>
+    h(
+      "wa-card",
+      { key: "tune-" + t.kind, class: "tune-card", "with-footer": true },
+      h("div", { class: "res-name", slot: "header" }, cap(t.kind) + " Tuning"),
+      h(
+        "div",
+        { class: "res-cost" },
+        icon("research"),
+        " " + fmtCost(t.nextCost),
+      ),
+      h(
+        "div",
+        { class: "res-desc" },
+        "Rank " + t.rank + " — output ×" + t.bonus.toFixed(2),
+      ),
+      h(
+        "div",
+        { class: "res-eff" },
+        "Every rank: +10% " + t.kind + " output. No limit.",
+      ),
+      h(
+        "wa-button",
+        {
+          slot: "footer",
+          class: "res-buy " + (t.affordable ? "affordable" : "locked"),
+          variant: "brand",
+          appearance: "accent",
+          size: "s",
+          disabled: !t.affordable,
+          onclick: () => dispatch({ type: INTENT.BuyTuning, kind: t.kind }),
+        },
+        icon("upgrade"),
+        " Tune",
+      ),
+    ),
+  );
+
+  return h(
+    "div",
+    { key: "research-screen", class: "research-screen" },
+    tree,
+    h(
+      "div",
+      { key: "tuning-row", class: "tuning-row" },
+      h("h3", { class: "tuning-title" }, "Machine Tuning"),
+      h("div", { class: "tuning-cards" }, ...tuneCards),
+    ),
   );
 }

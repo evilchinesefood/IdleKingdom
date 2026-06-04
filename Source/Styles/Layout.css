@@ -583,6 +583,22 @@ wa-button.hp-recruit {
 .res-node:hover {
   z-index: 2;
 }
+/* Machine Tuning — endless research sink below the tree */
+.tuning-row {
+  padding: 0 24px 24px;
+}
+.tuning-title {
+  font-family: var(--font-display);
+  margin: 0.5rem 0;
+}
+.tuning-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.tune-card {
+  width: 240px;
+}
 
 /* Expedition board */
 .expedition-board {
