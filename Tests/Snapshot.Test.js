@@ -61,6 +61,17 @@ describe("Snapshot", () => {
     );
   });
 
+  it("research rows expose the territory gate (war_college) so the UI can explain locks", () => {
+    const s = seededState(new FakeClock(0));
+    const solved = solve(s, content);
+    const snap = build(s, solved, content);
+    const wc = snap.research.find((r) => r.id === "res_war_college");
+    expect(wc.requiresTerritory.name).toBe("Smithy Ward");
+    expect(wc.requiresTerritory.met).toBe(false);
+    const scholar = snap.research.find((r) => r.id === "res_scholar");
+    expect(scholar.requiresTerritory).toBe(null);
+  });
+
   it("hero rows carry power + powerBreakdown + levelCost", () => {
     const s = seededState(new FakeClock(0));
     const solved = solve(s, content);

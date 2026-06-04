@@ -157,6 +157,15 @@ export function build(state, solved, content, lastError = null) {
         state.unlocks.researchOwned.includes(p),
       ),
       affordable: canBuyResearch(state, content, rn.id),
+      // surface the territory gate so the tree can explain WHY a node is locked
+      requiresTerritory: rn.requiresTerritory
+        ? {
+            name:
+              (content.territories[rn.requiresTerritory] || {}).name ||
+              rn.requiresTerritory,
+            met: state.territories.reclaimed.includes(rn.requiresTerritory),
+          }
+        : null,
       effectsText: rn.flavor || "",
       description: rn.description || "",
     };
