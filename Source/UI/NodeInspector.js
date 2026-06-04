@@ -63,6 +63,19 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
     }),
   ];
 
+  // Barracks turn gear into siege power (not a routable resource); surface its
+  // contribution, mirroring how the graph card shows market gold / scholar research.
+  if (node.kind === "barracks") {
+    rows.push(
+      h(
+        "div",
+        { class: "ni-line ni-siege-out" },
+        icon("siege"),
+        ` ${fmtNum(node.siegeOut || 0)} power/s`,
+      ),
+    );
+  }
+
   // Stock section — ONLY Storage Rooms hold inventory now. Capacity is a SHARED pool
   // across all held types, so show a Total/cap line + each held type's quantity (with
   // a Sell button for sellable resources).
@@ -120,8 +133,13 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
     );
   }
 
-  // Recipe / raw reassignment
-  if (node.kind === "smelter" || node.kind === "workshop") {
+  // Recipe / raw reassignment. Any recipe-driven crafter (smelter, workshop,
+  // barracks) lists the recipes whose crafterKind is its own kind.
+  if (
+    node.kind === "smelter" ||
+    node.kind === "workshop" ||
+    node.kind === "barracks"
+  ) {
     const opts = (snap.buildMenu ? snap.buildMenu.unlockedRecipes : [])
       .filter((r) => RECIPES[r] && RECIPES[r].crafterKind === node.kind)
       .map((r) =>

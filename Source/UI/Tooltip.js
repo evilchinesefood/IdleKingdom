@@ -72,9 +72,11 @@ const STEPS = {
     body: [
       "That's the core loop — gather, refine, sell, upgrade. Bank ",
       b("Research"),
-      " to unlock new machines, then forge gear and launch ",
-      b("Expeditions"),
-      " to reclaim the city. Good luck!",
+      " to unlock new machines, then forge gear, raise an army in the ",
+      b("Barracks"),
+      ", and march on the ",
+      b("War"),
+      " screen to reclaim the city. Good luck!",
     ],
   },
 };

@@ -9,12 +9,12 @@ describe("Icons.map", () => {
     for (const c of [
       "gold",
       "research",
-      "renown",
       "gatherer",
       "smelter",
       "workshop",
       "market",
       "scholar",
+      "barracks",
     ]) {
       expect(typeof ICONS[c].name).toBe("string");
       expect(ICONS[c].name.length > 0).toBe(true);

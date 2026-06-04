@@ -27,11 +27,17 @@ function mockWin(pathname, baseHref = "/kingdom/") {
 describe("Router.parsePath", () => {
   it("extracts the route segment after the base", () => {
     expect(parsePath("/kingdom/research", "/kingdom/")).toBe("research");
-    expect(parsePath("/kingdom/expeditions", "/kingdom/")).toBe("expeditions");
+    expect(parsePath("/kingdom/war", "/kingdom/")).toBe("war");
   });
   it("defaults a bare base or unknown segment to the default route", () => {
     expect(parsePath("/kingdom/", "/kingdom/")).toBe(DEFAULT_ROUTE);
     expect(parsePath("/kingdom/bogus", "/kingdom/")).toBe(DEFAULT_ROUTE);
+  });
+  it("clamps the retired expeditions/heroes deep links to the default route", () => {
+    // .htaccess still loads the shell for these stale paths; the router treats
+    // them as unknown and clamps to the default route.
+    expect(parsePath("/kingdom/expeditions", "/kingdom/")).toBe(DEFAULT_ROUTE);
+    expect(parsePath("/kingdom/heroes", "/kingdom/")).toBe(DEFAULT_ROUTE);
   });
   it("works at a root base too (local dev)", () => {
     expect(parsePath("/factory", "/")).toBe("factory");
@@ -51,21 +57,21 @@ describe("Router (History-API path routing)", () => {
     expect(emitted).toBe("factory");
   });
   it("start() keeps a valid deep-link route", () => {
-    const win = mockWin("/kingdom/heroes");
+    const win = mockWin("/kingdom/war");
     const r = new Router(win).start();
-    expect(r.current).toBe("heroes");
-    expect(win.location.pathname).toBe("/kingdom/heroes");
+    expect(r.current).toBe("war");
+    expect(win.location.pathname).toBe("/kingdom/war");
   });
   it("navigate() pushes the clean path + emits; re-navigating the same route is a no-op", () => {
     const win = mockWin("/kingdom/factory");
     const r = new Router(win).start();
     const seen = [];
     r.onChange((route) => seen.push(route));
-    r.navigate("expeditions");
-    expect(r.current).toBe("expeditions");
-    expect(win.location.pathname).toBe("/kingdom/expeditions");
-    r.navigate("expeditions"); // already here -> no emit, no dup history
-    expect(seen).toEqual(["expeditions"]);
+    r.navigate("war");
+    expect(r.current).toBe("war");
+    expect(win.location.pathname).toBe("/kingdom/war");
+    r.navigate("war"); // already here -> no emit, no dup history
+    expect(seen).toEqual(["war"]);
   });
   it("popstate (back/forward) re-reads the path and emits", () => {
     const win = mockWin("/kingdom/research");

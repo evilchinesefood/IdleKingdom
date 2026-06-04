@@ -16,7 +16,7 @@
     <script>
       (function () {
         // keep in sync with Router.ROUTES and the .htaccess rewrite rule
-        var routes = ["factory", "research", "expeditions", "heroes"];
+        var routes = ["factory", "research", "war"];
         var p = location.pathname.replace(/[^/]*\.html?$/i, "");
         var parts = p.replace(/\/+$/, "").split("/");
         if (routes.indexOf(parts[parts.length - 1]) >= 0) parts.pop();

@@ -4,8 +4,8 @@ import { fmtNum } from "./Format/Format.js";
 import { TERRITORIES } from "../Engine/Content/Territories.js";
 
 export function OfflineSummary(summary, onClose) {
-  const g = summary.gained || { gold: 0, research: 0, renown: 0 };
-  const reclaimedTags = (summary.expeditionsResolved || []).map((e) =>
+  const g = summary.gained || { gold: 0, research: 0 };
+  const reclaimedTags = (summary.territoriesReclaimed || []).map((t) =>
     h(
       "wa-tag",
       {
@@ -16,9 +16,9 @@ export function OfflineSummary(summary, onClose) {
       },
       icon("ready"),
       " Reclaimed " +
-        (TERRITORIES[e.territoryId]
-          ? TERRITORIES[e.territoryId].name
-          : e.territoryId),
+        (TERRITORIES[t.territoryId]
+          ? TERRITORIES[t.territoryId].name
+          : t.territoryId),
     ),
   );
   return h(
@@ -40,7 +40,6 @@ export function OfflineSummary(summary, onClose) {
         icon("research"),
         " +" + fmtNum(g.research),
       ),
-      h("span", { class: "os-gain" }, icon("renown"), " +" + fmtNum(g.renown)),
     ),
     ...reclaimedTags,
     h(

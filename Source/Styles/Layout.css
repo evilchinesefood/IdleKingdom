@@ -214,9 +214,8 @@ wa-button::part(base) {
 
 .build-menu,
 .node-inspector,
-.hero-panel,
 .research-tree,
-.expedition-board {
+.war-board {
   position: relative;
 }
 .build-menu,
@@ -409,10 +408,7 @@ wa-button::part(base) {
 .ni-sell {
   cursor: pointer;
 }
-wa-button.res-buy,
-wa-button.exp-launch,
-wa-button.hp-levelup,
-wa-button.hp-recruit {
+wa-button.res-buy {
   width: 100%;
   margin-top: 0.4rem;
 }
@@ -431,10 +427,6 @@ wa-button.hp-recruit {
 .bm-detail-title {
   font-size: 0.95rem;
   font-weight: 700;
-  color: var(--ink-soft);
-}
-.hp-slot-label {
-  font-size: 0.8rem;
   color: var(--ink-soft);
 }
 /* Empty (nothing-selected) inspector stays mounted but invisible — avoids the
@@ -483,15 +475,13 @@ wa-button.hp-recruit {
 /* Dropdown options: stronger highlight that fills the option vertically. */
 .ni-recipe wa-option,
 .ni-gatherer wa-option,
-.ni-storage wa-option,
-.hp-equip wa-option {
+.ni-storage wa-option {
   --wa-color-neutral-fill-normal: var(--gold-lt);
 }
 .ni-recipe wa-option::part(base),
 .ni-gatherer wa-option::part(base),
 .ni-storage wa-option::part(base),
-.ni-addbuilding wa-option::part(base),
-.hp-equip wa-option::part(base) {
+.ni-addbuilding wa-option::part(base) {
   padding-block: 0.6em;
 }
 /* The highlighted/selected option fills gold — give it the same top/bottom
@@ -503,22 +493,19 @@ wa-button.hp-recruit {
 .ni-storage wa-option[aria-selected="true"]::part(base),
 .ni-storage wa-option:state(current)::part(base),
 .ni-addbuilding wa-option[aria-selected="true"]::part(base),
-.ni-addbuilding wa-option:state(current)::part(base),
-.hp-equip wa-option[aria-selected="true"]::part(base),
-.hp-equip wa-option:state(current)::part(base) {
+.ni-addbuilding wa-option:state(current)::part(base) {
   padding-block: 0.6em;
 }
 .ni-sell {
   margin-left: 0.4rem;
 }
-.ni-recipe,
-.hp-equip {
+.ni-recipe {
   margin: 0.25rem 0;
   width: 100%;
 }
 
-/* Route host for research / expeditions / heroes — same flat-fantasy grid as
-   the Factory canvas so the pages match. */
+/* Route host for research / war — same flat-fantasy grid as the Factory canvas
+   so the pages match. */
 .panel-host {
   position: absolute;
   inset: 0;
@@ -600,8 +587,8 @@ wa-button.hp-recruit {
   width: 240px;
 }
 
-/* Expedition board */
-.expedition-board {
+/* War board — territory cards in conquest order, siege front and center. */
+.war-board {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 0.75rem;
@@ -611,147 +598,70 @@ wa-button.hp-recruit {
   /* Default card surface; each card overrides with a cycling tint below. */
   --wa-color-surface-default: var(--parchment);
 }
-/* Each expedition panel gets a different background so neighbouring panels read
-   as separate cards (a cycle of 5 muted parchment-family tints, all kept light
-   enough for ink text). The status outlines (.active/.victory/...) layer on top. */
-.exp-card:nth-child(5n + 1) {
+/* Each territory panel gets a different background so neighbouring cards read as
+   separate panels (a cycle of 5 muted parchment-family tints, all kept light
+   enough for ink text). The status outlines (.sieging/.victory/...) layer on top. */
+.war-card:nth-child(5n + 1) {
   --wa-color-surface-default: var(--parchment);
 }
-.exp-card:nth-child(5n + 2) {
+.war-card:nth-child(5n + 2) {
   --wa-color-surface-default: color-mix(
     in srgb,
     var(--parchment) 86%,
     var(--gold)
   );
 }
-.exp-card:nth-child(5n + 3) {
+.war-card:nth-child(5n + 3) {
   --wa-color-surface-default: color-mix(
     in srgb,
     var(--parchment) 88%,
     var(--good)
   );
 }
-.exp-card:nth-child(5n + 4) {
+.war-card:nth-child(5n + 4) {
   --wa-color-surface-default: color-mix(
     in srgb,
     var(--parchment) 88%,
     var(--iron-lt)
   );
 }
-.exp-card:nth-child(5n + 5) {
+.war-card:nth-child(5n + 5) {
   --wa-color-surface-default: var(--parchment-dk);
 }
-/* Power / duration messages need room on all sides. */
-.exp-power,
-.exp-dur {
-  padding: 0.25rem 0.4rem;
-}
-.exp-card.victory {
+.war-card.victory {
   outline: 3px solid #8f6f10;
   border-radius: var(--radius);
 }
-.exp-card.active {
+.war-card.sieging {
   outline: 2px solid var(--good);
   border-radius: var(--radius);
 }
-.exp-card.reclaimed {
+.war-card.reclaimed {
   opacity: 0.85;
 }
-.exp-reward {
-  display: flex;
-  gap: 0.3rem;
-  flex-wrap: wrap;
-  margin: 0.3rem 0;
+.war-name {
+  font-weight: 700;
 }
-.exp-progress {
+.war-cost {
+  padding: 0.25rem 0.4rem;
+}
+.war-flavor {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  margin: 0.25rem 0;
+}
+.war-progress {
   margin-top: 0.3rem;
   --track-height: 6px;
 }
-.exp-name {
-  font-weight: 700;
-}
-.exp-flavor {
+.war-rate {
   font-size: 0.78rem;
   color: var(--ink-soft);
-  margin: 0.25rem 0;
-}
-.exp-nudge {
-  font-size: 0.78rem;
-  color: var(--bad);
   margin-top: 0.25rem;
 }
-/* Give the nudge/busy text breathing room. wa-callout has NO `base` part (only
-   `icon`/`message`); the icon + text are slotted into `message`, so padding it
-   insets the content (on top of the callout host's own :host padding). */
-.exp-nudge::part(message),
-.exp-busy::part(message) {
-  padding: 0.5rem 0.7rem;
-}
-/* Breathing room: reward/cost + Locked tags and the Launch button were cramped
-   (text touching the edges, worsened by the global 44px min-height). */
-.expedition-board wa-tag {
+.war-board wa-tag,
+.war-board wa-badge {
   padding-inline: 0.7rem;
-}
-.exp-launch::part(base) {
-  padding-inline: 1rem;
-}
-/* The disabled Launch reads as a deliberate locked control, not a faded button. */
-.exp-launch.locked::part(base) {
-  opacity: 1;
-  background: var(--parchment-dk);
-  border: 1px solid var(--line);
-  color: var(--ink-soft);
-}
-
-/* Hero panel */
-.hero-panel {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 0.75rem;
-  padding: 1rem;
-  overflow-y: auto;
-  height: 100%;
-  --wa-color-surface-default: var(--parchment);
-}
-/* Same per-panel background cycle as the expedition board so neighbouring hero/
-   recruit cards read as separate panels (5 muted parchment-family tints). */
-.hero-panel > wa-card:nth-child(5n + 1) {
-  --wa-color-surface-default: var(--parchment);
-}
-.hero-panel > wa-card:nth-child(5n + 2) {
-  --wa-color-surface-default: color-mix(
-    in srgb,
-    var(--parchment) 86%,
-    var(--gold)
-  );
-}
-.hero-panel > wa-card:nth-child(5n + 3) {
-  --wa-color-surface-default: color-mix(
-    in srgb,
-    var(--parchment) 88%,
-    var(--good)
-  );
-}
-.hero-panel > wa-card:nth-child(5n + 4) {
-  --wa-color-surface-default: color-mix(
-    in srgb,
-    var(--parchment) 88%,
-    var(--iron-lt)
-  );
-}
-.hero-panel > wa-card:nth-child(5n + 5) {
-  --wa-color-surface-default: var(--parchment-dk);
-}
-.hp-level {
-  margin: 0.25rem 0;
-  display: inline-block;
-  padding-inline: 0.55rem;
-}
-.hp-name {
-  font-weight: 700;
-}
-.hp-slot {
-  margin: 0.25rem 0;
 }
 
 /* Overlay layer (tooltip callout + wa-dialog modals) */
@@ -1020,7 +930,7 @@ wa-button.hp-recruit {
   .build-bar {
     bottom: calc(45dvh + 0.5rem);
   }
-  .hero-panel {
+  .war-board {
     padding-bottom: 56px;
   }
 
@@ -1030,10 +940,6 @@ wa-button.hp-recruit {
   .ni-upgrade,
   .ni-sell,
   .res-buy,
-  .exp-launch,
-  .hp-levelup,
-  .hp-recruit,
-  .hp-equip,
   .ni-recipe,
   .tut-skip,
   .os-close,

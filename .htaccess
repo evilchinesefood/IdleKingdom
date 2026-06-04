@@ -37,6 +37,8 @@ RedirectMatch 404 "/\.(?!well-known/)"
   RewriteBase /kingdom/
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
-  # route list — keep in sync with Router.ROUTES + the inline <base> script in Index.html
-  RewriteRule ^(factory|research|expeditions|heroes)/?$ Index.html [L]
+  # route list — keep in sync with Router.ROUTES + the inline <base> script in Index.html.
+  # The dead expeditions|heroes paths are kept deliberately: a stale client's deep link
+  # still loads the SPA shell (the router then clamps the unknown route -> factory).
+  RewriteRule ^(factory|research|war|expeditions|heroes)/?$ Index.html [L]
 </IfModule>

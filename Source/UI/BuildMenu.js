@@ -53,7 +53,7 @@ function detailForKind(kind, bm, dispatch, ui) {
         );
       }
     }
-  } else if (kind === "smelter" || kind === "workshop") {
+  } else if (kind === "smelter" || kind === "workshop" || kind === "barracks") {
     const unlocked = new Set(bm.unlockedRecipes || []);
     for (const r in RECIPES) {
       const recipe = RECIPES[r];
