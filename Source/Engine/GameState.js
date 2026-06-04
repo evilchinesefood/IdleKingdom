@@ -2,7 +2,7 @@ import { START_STATE } from "./Content/StartState.js";
 import { topoSort } from "./Simulation/Topology.js";
 
 /** Current persisted save schema version (mirrored by SaveManager in Phase 2). */
-export const SAVE_VERSION = 10;
+export const SAVE_VERSION = 11;
 
 /** Structured deep clone with no shared refs; drops the non-persisted _solved cache. */
 export function clone(state) {

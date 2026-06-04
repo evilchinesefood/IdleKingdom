@@ -1,7 +1,7 @@
 import { NewGame, validate } from "../GameState.js";
 import { MIGRATIONS } from "./Migrations.js";
 
-export const SAVE_VERSION = 10;
+export const SAVE_VERSION = 11;
 export const SAVE_KEY = "idlekingdom.save";
 
 /** Strips the _solved cache and meta._saveStatus (live HUD wiring), stamps
