@@ -572,8 +572,8 @@ export function reduce(state, intent, content) {
       next.meta.seenVictory = true;
       break;
     }
-    case "DismissTooltip": {
-      next.meta.tutorialFlags[intent.flag] = true;
+    case "DismissTutorial": {
+      next.meta.tutorialDone = true;
       break;
     }
     default:

@@ -1,67 +1,124 @@
 import { h } from "./Render/Dom.js";
 import { icon } from "./Icons.js";
-import { nextTutorialStep } from "./Logic/Selectors.js";
+import { tutorialStep } from "./Logic/Selectors.js";
 import { INTENT } from "../Engine/Intents.js";
 
-const TIPS = {
-  gold: {
-    flag: "seenGoldTip",
-    text: "Welcome to Yensburg. Open the Build menu and place a Miner, a Smelter, and a Market — connect them so ore becomes iron bars that sell at the Market for Gold.",
+const b = (t) => h("strong", {}, t); // emphasize an important term
+
+// One entry per tutorial step id (see Selectors.TUTORIAL_STEPS + the "done" card).
+// The guide advances automatically when each step's objective is met; there is no
+// "next" button — only Skip (any step) / Finish (the done card).
+const STEPS = {
+  miner: {
+    title: "Build Your First Machine",
+    body: [
+      "The ",
+      b("Build bar"),
+      " runs along the bottom of the screen — that's where you place machines. Tap the ",
+      b("Gatherer"),
+      " and place a ",
+      b("Miner"),
+      " to start gathering ",
+      b("Iron Ore"),
+      ".",
+    ],
   },
-  upgrade: {
-    flag: "seenUpgradeTip",
-    text: "Tap a node, then Upgrade it to raise its rate.",
+  smelter: {
+    title: "Refine the Ore",
+    body: [
+      "Now place a ",
+      b("Smelter"),
+      " — it refines ",
+      b("Iron Ore"),
+      " into ",
+      b("Iron Bars"),
+      ".",
+    ],
+  },
+  market: {
+    title: "Open for Business",
+    body: [
+      "Place a ",
+      b("Market"),
+      ". It sells your goods for ",
+      b("Gold"),
+      ".",
+    ],
   },
   connect: {
-    flag: "seenConnectTip",
-    text: "Drag from an output port to an input port to connect machines.",
+    title: "Connect the Line",
+    body: [
+      "Drag from a machine's ",
+      b("output port"),
+      " to the next machine's ",
+      b("input port"),
+      ". Wire ",
+      b("Miner → Smelter → Market"),
+      " so Iron Ore flows through and sells for Gold.",
+    ],
   },
-  research: {
-    flag: "seenResearchTip",
-    text: "Bank Research and open the tree to unlock new machines.",
+  upgrade: {
+    title: "Scale It Up",
+    body: [
+      "Select a machine and press ",
+      b("Upgrade"),
+      " to raise its output. Faster machines earn more ",
+      b("Gold"),
+      ".",
+    ],
   },
-  expedition: {
-    flag: "seenExpeditionTip",
-    text: "Forge gear, equip a hero, and launch an expedition.",
+  done: {
+    title: "You're Running Yensburg",
+    body: [
+      "That's the core loop — gather, refine, sell, upgrade. Bank ",
+      b("Research"),
+      " to unlock new machines, then forge gear and launch ",
+      b("Expeditions"),
+      " to reclaim the city. Good luck!",
+    ],
   },
 };
 
+// Non-blocking onboarding card pinned below the HUD. It does NOT cover the
+// canvas/build bar, so the player can perform each objective while it's shown.
 export function Tooltip(snap, dispatch) {
-  const flags = (snap.tutorial && snap.tutorial.flags) || {};
-  const step = nextTutorialStep(flags);
+  const step = tutorialStep(snap);
   if (!step) return null;
-  const tip = TIPS[step];
-  if (!tip) return null;
+  const def = STEPS[step.id];
+  if (!def) return null;
+  const isDone = step.id === "done";
+  const skip = () => dispatch({ type: INTENT.DismissTutorial });
 
-  // Centered modal (matches Victory/OfflineSummary). Acknowledged-only: block
-  // wa-hide so Escape / overlay clicks can't close it without setting the
-  // seen-flag (which would just re-open it on the next render). The only way
-  // out is the "Got it" button, which advances to the next tip.
-  const blockDismiss = (e) => e && e.preventDefault && e.preventDefault();
   return h(
-    "wa-dialog",
-    {
-      id: "TooltipLayer",
-      key: "tip-" + step,
-      class: "intro-dialog",
-      open: true,
-      onWaHide: blockDismiss,
-    },
-    h("div", { slot: "label", class: "os-title" }, icon("info"), " Tip"),
-    h("div", { class: "tip-text modal-text" }, tip.text),
+    "div",
+    { class: "tutorial-card", id: "TutorialCard", key: "tut-" + step.id },
     h(
       "div",
-      { slot: "footer", class: "intro-footer" },
+      { class: "tut-head" },
+      h("span", { class: "tut-icon" }, icon(isDone ? "victory" : "info")),
+      h("span", { class: "tut-title" }, def.title),
+      isDone
+        ? null
+        : h(
+            "span",
+            { class: "tut-step" },
+            `Step ${step.index + 1} of ${step.total}`,
+          ),
+    ),
+    h("div", { class: "tut-text" }, ...def.body),
+    h(
+      "div",
+      { class: "tut-actions" },
       h(
         "wa-button",
         {
-          class: "tip-dismiss",
-          variant: "brand",
-          appearance: "accent",
-          onclick: () =>
-            dispatch({ type: INTENT.DismissTooltip, flag: tip.flag }),
+          class: "tut-skip",
+          size: "s",
+          variant: isDone ? "brand" : "neutral",
+          appearance: isDone ? "accent" : "plain",
+          onclick: skip,
         },
-        "Got it",
+        isDone ? "Finish" : "Skip tutorial",
       ),
     ),
   );

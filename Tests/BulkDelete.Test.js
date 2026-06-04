@@ -94,3 +94,59 @@ describe("GraphView._nodeIcon — reflects resource/output, not just kind", () =
     );
   });
 });
+
+describe("GraphView._selectBuilding — a group click drives the action bar", () => {
+  it("adds the clicked group to selBuildings (so the floating bar appears) and clears any prior selection", () => {
+    const sel = [];
+    const s = {
+      selectedBuildingId: null,
+      selectedId: "n9",
+      selectedLinkId: "l1",
+      selNodes: new Set(["n9"]),
+      selBuildings: new Set(),
+      _clearSelectionSets: GraphView.prototype._clearSelectionSets,
+      onSelect: (id) => sel.push("select:" + id),
+      onSelectBuilding: (id) => sel.push("bldg:" + id),
+      _draw() {},
+    };
+    GraphView.prototype._selectBuilding.call(s, "b1");
+    expect(s.selectedBuildingId).toBe("b1"); // slim panel + resize handles
+    expect(s.selBuildings.has("b1")).toBe(true); // hasSelection() -> bar shows
+    expect(s.selNodes.size).toBe(0); // prior node selection cleared
+    expect(s.selectedId).toBe(null);
+    expect(sel).toEqual(["select:null", "bldg:b1"]);
+  });
+});
+
+describe("GraphView._selectedGroupMembers — highlight source for a selected group", () => {
+  it("returns every node in a selected group, recursing nested children", () => {
+    const s = {
+      snap: {
+        buildings: [
+          { id: "b1", nodeIds: ["n1", "n2"], children: ["b2"] },
+          { id: "b2", nodeIds: ["n3"], children: [] },
+          { id: "b3", nodeIds: ["n4"], children: [] }, // not selected
+        ],
+        nodes: [
+          { id: "n1", building: "b1" },
+          { id: "n2", building: "b1" },
+          { id: "n3", building: "b2" },
+          { id: "n4", building: "b3" },
+        ],
+      },
+      selBuildings: new Set(["b1"]),
+      _subtreeBuildingIds: GraphView.prototype._subtreeBuildingIds,
+    };
+    const members = GraphView.prototype._selectedGroupMembers.call(s);
+    expect([...members].sort()).toEqual(["n1", "n2", "n3"]); // b1 + nested b2, not b3
+  });
+
+  it("returns an empty set when nothing is selected", () => {
+    const s = {
+      snap: { buildings: [], nodes: [] },
+      selBuildings: new Set(),
+      _subtreeBuildingIds: GraphView.prototype._subtreeBuildingIds,
+    };
+    expect(GraphView.prototype._selectedGroupMembers.call(s).size).toBe(0);
+  });
+});

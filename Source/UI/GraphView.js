@@ -46,6 +46,7 @@ export class GraphView {
     // Multi-selection set + floating action bar (HTML, anchored to the host).
     this.selNodes = new Set();
     this.selBuildings = new Set();
+    this._grpMembers = new Set(); // node ids inside a selected group (highlight)
     this._clipboard = null; // {nodes:[{kind,level,recipeId,resourceId,resourceIds,dx,dy}], links:[{fromIdx,toIdx,resourceId}]}
     this._paste = null; // {gx,gy} live paste-ghost top-left while in paste mode
     this.actionBarEl = document.createElement("div");
@@ -358,7 +359,7 @@ export class GraphView {
     this._draw();
   }
 
-  // Empty the multi-selection sets (without the redraw/bar-hide of _clearSelection).
+  // Empty the multi-selection sets (no redraw).
   _clearSelectionSets() {
     this.selNodes.clear();
     this.selBuildings.clear();
@@ -368,14 +369,11 @@ export class GraphView {
     return this.selNodes.size + this.selBuildings.size > 0;
   }
 
-  // Bar action: drop the whole multi-selection and hide the action bar.
-  _clearSelection() {
-    this._clearSelectionSets();
-    this._draw();
-  }
-
   // Ctrl/Cmd+click toggle: add/remove an item from the multi-selection.
   _toggleSelect(id, isBuilding) {
+    // Building a multi-selection drops any single-group focus (panel/handles).
+    this.selectedBuildingId = null;
+    if (this.onSelect) this.onSelect(null);
     const set = isBuilding ? this.selBuildings : this.selNodes;
     if (set.has(id)) set.delete(id);
     else set.add(id);
@@ -600,7 +598,12 @@ export class GraphView {
     this.selectedBuildingId = id;
     this.selectedId = null;
     this.selectedLinkId = null;
-    this._clearSelectionSets(); // single-inspect and multi-select never coexist
+    this._clearSelectionSets();
+    // Selecting a group ALSO puts it in the multi-selection set, so the floating
+    // action bar (Group/Copy/Paste/Delete All) appears and the group's member
+    // machines light up — while selectedBuildingId still drives the slim
+    // Rename/Ungroup panel, the resize handles, and drag-as-a-unit.
+    this.selBuildings.add(id);
     this.onSelect(null); // close any node inspector
     this.onSelectBuilding(id);
     this._draw();
@@ -660,6 +663,9 @@ export class GraphView {
       this._draw();
       return;
     }
+    // A fresh marquee replaces any single-group focus (slim panel/handles).
+    this.selectedBuildingId = null;
+    if (this.onSelect) this.onSelect(null);
     this.selNodes.clear();
     this.selBuildings.clear();
     for (const n of this.snap.nodes) {
@@ -762,6 +768,19 @@ export class GraphView {
         if (n.building && subtree.has(n.building)) ids.add(n.id);
     }
     return [...ids];
+  }
+
+  // Node ids that belong to a SELECTED group (its whole subtree). Drives the
+  // group-membership highlight so it's clear which machines a selected group owns.
+  _selectedGroupMembers() {
+    const ids = new Set();
+    if (!this.snap) return ids;
+    for (const bid of this.selBuildings) {
+      const subtree = this._subtreeBuildingIds(bid);
+      for (const n of this.snap.nodes || [])
+        if (n.building && subtree.has(n.building)) ids.add(n.id);
+    }
+    return ids;
   }
 
   // Bar action: group the selected loose nodes AND selected groups into a new
@@ -906,6 +925,8 @@ export class GraphView {
       if (!deleted.has(nid))
         this.game.dispatch({ type: INTENT.RemoveNode, nodeId: nid });
     this._clearSelectionSets();
+    this.selectedBuildingId = null;
+    if (this.onSelect) this.onSelect(null); // close the slim panel for a deleted group
     this._draw();
   }
 
@@ -940,10 +961,8 @@ export class GraphView {
     if (this.selNodes.size > 0 || this.selBuildings.size >= 2)
       mkBtn("Group", () => this._groupSelection());
     mkBtn("Copy", () => this._copySelection(true));
-    mkBtn("Copy struct", () => this._copySelection(false));
     if (this._clipboard) mkBtn("Paste", () => this._pasteSelection());
-    mkBtn("Delete", () => this._deleteSelection());
-    mkBtn("✕", () => this._clearSelection());
+    mkBtn("Delete All", () => this._deleteSelection());
 
     bar.style.display = "flex";
     const cx = bbox.x + bbox.w / 2;
@@ -1077,6 +1096,7 @@ export class GraphView {
     this._replace(this.layerLinks, linkEls);
 
     // nodes
+    this._grpMembers = this._selectedGroupMembers(); // members of any selected group
     const nodeEls = this.snap.nodes.map((n) => this._drawNode(n, v));
     if (this.snap.nodes.length === 0) nodeEls.push(this._emptyHint());
     // The redraw destroys the focused node element — capture its id first so we
@@ -1102,7 +1122,7 @@ export class GraphView {
     );
     if (isChild) bCls += " nested";
     if (b.id === this.selectedBuildingId) bCls += " selected";
-    if (this.selBuildings.has(b.id)) bCls += " multiselect";
+    else if (this.selBuildings.has(b.id)) bCls += " multiselect";
     const g = svg("g", { class: bCls });
     g.appendChild(
       svg("rect", {
@@ -1339,6 +1359,8 @@ export class GraphView {
     let nodeCls = "node-card";
     if (n.id === this.selectedId) nodeCls += " selected";
     if (this.selNodes.has(n.id)) nodeCls += " multiselect";
+    else if (this._grpMembers && this._grpMembers.has(n.id))
+      nodeCls += " group-member";
     const g = svg("g", {
       class: nodeCls,
       transform: `translate(${p.x} ${p.y}) scale(${v.scale})`,

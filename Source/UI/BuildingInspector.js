@@ -1,7 +1,9 @@
 import { h } from "./Render/Dom.js";
 import { icon } from "./Icons.js";
 
-// handlers: { onRename(name), onRenameInput(name), onUngroup(), onDelete() }.
+// Slim "Group" panel: Rename + Ungroup only. Copy / Paste / Delete All live on
+// the floating action bar that also appears whenever a group is selected.
+// handlers: { onRename(name), onRenameInput(name), onUngroup() }.
 export function BuildingInspector(snap, buildingId, handlers) {
   const b = (snap.buildings || []).find((x) => x.id === buildingId);
   if (!b)
@@ -12,13 +14,13 @@ export function BuildingInspector(snap, buildingId, handlers) {
         class: "building-inspector",
         id: "BuildingInspector",
       },
-      " No building selected",
+      " No group selected",
     );
 
   return h(
     "wa-card",
     { key: "binspector", class: "building-inspector", id: "BuildingInspector" },
-    h("div", { class: "bi-title" }, [icon("factory"), " Building"]),
+    h("div", { class: "bi-title" }, [icon("group"), " Group"]),
     h("wa-input", {
       key: "bi-name",
       class: "bi-name",
@@ -38,7 +40,11 @@ export function BuildingInspector(snap, buildingId, handlers) {
         }
       },
     }),
-    h("div", { class: "bi-line" }, `${b.nodeIds.length} machines grouped`),
+    h(
+      "div",
+      { class: "bi-line" },
+      `${b.nodeIds.length} machines in this group`,
+    ),
     h(
       "wa-button",
       {
@@ -49,19 +55,6 @@ export function BuildingInspector(snap, buildingId, handlers) {
         onclick: () => handlers.onUngroup(),
       },
       "Ungroup",
-    ),
-    // Delete the whole building INCLUDING its machines.
-    h(
-      "wa-button",
-      {
-        key: "bi-delete",
-        class: "bi-delete",
-        variant: "danger",
-        appearance: "accent",
-        onclick: () => handlers.onDelete(),
-      },
-      h("span", { slot: "start" }, icon("remove")),
-      "Delete building + machines",
     ),
   );
 }

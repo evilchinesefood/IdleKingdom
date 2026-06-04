@@ -42,6 +42,13 @@
   stroke-width: 3;
   stroke-dasharray: 4 3;
 }
+/* Belongs to the currently-selected GROUP: a teal dotted outline, clearly
+   distinct from the gold single/multi-select, so group membership reads at a glance. */
+.node-card.group-member .node-box {
+  stroke: #1f8f8f;
+  stroke-width: 3;
+  stroke-dasharray: 2 3;
+}
 .node-card .node-label {
   fill: var(--ink);
   font-size: 13px;

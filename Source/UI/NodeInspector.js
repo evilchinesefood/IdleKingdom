@@ -244,7 +244,7 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
   // Add to an existing building (only when this machine isn't already grouped).
   if (!node.building && (snap.buildings || []).length) {
     const opts = [
-      h("wa-option", { key: "ab-none", value: "" }, "— add to building —"),
+      h("wa-option", { key: "ab-none", value: "" }, "— add to group —"),
     ].concat(
       (snap.buildings || []).map((b) =>
         h("wa-option", { key: "ab-" + b.id, value: b.id }, b.name),
@@ -256,7 +256,7 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
         {
           key: "addbuilding-" + node.id,
           class: "ni-addbuilding",
-          label: "Add to building",
+          label: "Add to group",
           appearance: "filled",
           "prop:value": "",
           onchange: (e) => {

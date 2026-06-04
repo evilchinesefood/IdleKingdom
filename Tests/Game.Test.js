@@ -71,7 +71,7 @@ describe("Game facade", () => {
     expect(last.nodes.find((n) => n.id === "n_miner_0").level).toBe(2);
     off();
     last = null;
-    g.dispatch({ type: "DismissTooltip", flag: "seenGoldTip" });
+    g.dispatch({ type: "DismissTutorial" });
     expect(last).toBe(null); // unsubscribed
   });
 

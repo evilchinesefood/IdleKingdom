@@ -268,8 +268,11 @@ export function build(state, solved, content, lastError = null) {
       status: (state.meta && state.meta._saveStatus) || "ok",
       lastSavedAt: state.savedAt || null,
     },
-    tutorial: { flags: { ...state.meta.tutorialFlags } },
-    meta: { won: state.meta.won, seenVictory: !!state.meta.seenVictory },
+    meta: {
+      won: state.meta.won,
+      seenVictory: !!state.meta.seenVictory,
+      tutorialDone: !!state.meta.tutorialDone,
+    },
     lastError: lastError || null,
   };
 

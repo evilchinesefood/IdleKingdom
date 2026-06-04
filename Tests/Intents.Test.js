@@ -18,7 +18,7 @@ describe("Intents", () => {
     expect(INTENT.RemoveLink).toBe("RemoveLink");
     expect(INTENT.SetNodePos).toBe("SetNodePos");
     expect(INTENT.AckVictory).toBe("AckVictory");
-    expect(INTENT.DismissTooltip).toBe("DismissTooltip");
+    expect(INTENT.DismissTutorial).toBe("DismissTutorial");
   });
 
   it("validate accepts well-formed intents", () => {
@@ -87,9 +87,7 @@ describe("Intents", () => {
       validate({ type: "SetNodePos", nodeId: "n_x", pos: { x: 1, y: 2 } }).ok,
     ).toBe(true);
     expect(validate({ type: "AckVictory" }).ok).toBe(true);
-    expect(validate({ type: "DismissTooltip", flag: "seenGoldTip" }).ok).toBe(
-      true,
-    );
+    expect(validate({ type: "DismissTutorial" }).ok).toBe(true);
   });
 
   it("validate rejects unknown type + missing fields", () => {
