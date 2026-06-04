@@ -4,12 +4,6 @@ import {
   storageCapacity,
 } from "./Systems/EconomySystem.js";
 import {
-  heroPower,
-  levelCost,
-  canLevelUp,
-  canRecruit,
-} from "./Systems/HeroSystem.js";
-import {
   researchStatus,
   canBuyResearch,
   TUNING,
@@ -17,7 +11,7 @@ import {
   tuningCost,
   canBuyTuning,
 } from "./Systems/ResearchSystem.js";
-import { nextTerritory, timeRemaining } from "./Systems/ExpeditionSystem.js";
+import { nextTerritory } from "./Systems/SiegeSystem.js";
 
 function fmt(n) {
   if (!Number.isFinite(n)) return "0";
@@ -114,6 +108,8 @@ export function build(state, solved, content, lastError = null) {
       goldOut: (solved.goldByNode && solved.goldByNode[node.id]) || 0,
       researchOut:
         (solved.researchByNode && solved.researchByNode[node.id]) || 0,
+      siegeOut:
+        (solved.siegeRateByNode && solved.siegeRateByNode[node.id]) || 0,
     };
   });
 
@@ -192,64 +188,43 @@ export function build(state, solved, content, lastError = null) {
       affordable: canBuyTuning(state, content, kind),
     }));
 
-  const heroes = state.heroes.map((h) => {
-    const tmpl = content.heroes[h.templateId];
-    const power = heroPower(state, content, h.id);
-    return {
-      id: h.id,
-      templateId: h.templateId,
-      name: tmpl ? tmpl.name : h.templateId,
-      level: h.level,
-      power,
-      powerBreakdown: { gear: power - h.level * 5, level: h.level * 5 },
-      equipped: {
-        weapon: h.equipped.weapon,
-        armor: h.equipped.armor,
-        accessory: h.equipped.accessory,
-      },
-      levelCost: levelCost(h.level),
-      canLevel: canLevelUp(state, content, h.id),
-    };
-  });
-
-  const nextId = nextTerritory(state, content);
-  const active = state.expeditions.active;
+  const targetId = nextTerritory(state, content);
   const territories = Object.values(content.territories)
     .sort((a, b) => a.order - b.order)
     .map((t) => {
       let status;
       if (state.territories.reclaimed.includes(t.id)) status = "reclaimed";
-      else if (active && active.territoryId === t.id) status = "active";
-      else if (state.territories.available.includes(t.id)) status = "available";
+      else if (t.id === targetId) status = "sieging";
       else status = "locked";
       return {
         id: t.id,
         name: t.name,
         order: t.order,
-        requiredPower: t.requiredPower,
-        durationMs: t.durationMs,
+        siegeCost: t.siegeCost,
         rewards: { ...t.rewards },
         status,
         flavor: t.flavor || "",
-        isNext: t.id === nextId,
         isVictory: !!t.isVictory,
       };
     });
 
-  const nowMs = state.lastSeen;
-  const expedition = active
-    ? {
-        active: true,
-        territoryId: active.territoryId,
-        timeRemainingMs: timeRemaining(state, nowMs),
-        durationMs: active.durationMs,
-        heroId: active.heroId,
-      }
-    : null;
+  const siegeRate = solved.siegeRate || 0;
+  const target = targetId ? content.territories[targetId] : null;
+  const siege = {
+    targetId,
+    progress: state.siege ? state.siege.progress : 0,
+    cost: target ? target.siegeCost : null,
+    rate: siegeRate,
+    etaSeconds:
+      target && siegeRate > 0
+        ? Math.max(0, (target.siegeCost - state.siege.progress) / siegeRate)
+        : null,
+  };
 
   // Resources the player has actually unlocked: gatherable raws + the inputs/outputs
   // of unlocked recipes. Drives the Storage Room's "holds" multi-select (so it lists
   // only items the player can handle, not every resource in the game).
+  // Troops (resources with a `power` field) are excluded — not storable.
   const unlockedRes = new Set(["iron_ore"]);
   for (const r of state.unlocks.gathererResources || []) unlockedRes.add(r);
   for (const rid of state.unlocks.recipesUnlocked) {
@@ -263,13 +238,11 @@ export function build(state, solved, content, lastError = null) {
     currencies: {
       gold: state.currencies.gold,
       research: state.currencies.research,
-      renown: state.currencies.renown,
     },
     rates: { goldRate, researchRate },
     currencyStrings: {
       gold: fmt(state.currencies.gold),
       research: fmt(state.currencies.research),
-      renown: fmt(state.currencies.renown),
       goldRate: fmt(goldRate) + "/s",
       researchRate: fmt(researchRate) + "/s",
     },
@@ -278,25 +251,18 @@ export function build(state, solved, content, lastError = null) {
     buildings,
     research,
     tuning,
-    heroes,
     territories,
-    expedition,
+    siege,
     buildMenu: {
       placeableMachines: state.unlocks.machinesUnlocked.slice(),
       unlockedRecipes: state.unlocks.recipesUnlocked.slice(),
       gathererResources: ["iron_ore"].concat(
         (state.unlocks.gathererResources || []).filter((r) => r !== "iron_ore"),
       ),
-      unlockedResources: [...unlockedRes],
+      unlockedResources: [...unlockedRes].filter(
+        (r) => content.resources[r] && content.resources[r].power == null,
+      ),
     },
-    gearTiers: state.unlocks.gearTiersUnlocked.map((g) => ({
-      itemId: g.itemId,
-      tier: g.tier,
-    })),
-    recruitable: Object.keys(content.heroes).map((tpl) => ({
-      templateId: tpl,
-      canRecruit: canRecruit(state, content, tpl),
-    })),
     save: {
       status: (state.meta && state.meta._saveStatus) || "ok",
       lastSavedAt: state.savedAt || null,
