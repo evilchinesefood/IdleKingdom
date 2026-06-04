@@ -16,10 +16,22 @@
       "purpose": "any"
     },
     {
-      "src": "./Source/Assets/Icon.png",
+      "src": "./Source/Assets/Icon192.png",
       "type": "image/png",
-      "sizes": "896x622",
+      "sizes": "192x192",
       "purpose": "any"
+    },
+    {
+      "src": "./Source/Assets/Icon512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
+      "src": "./Source/Assets/IconMaskable512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
     }
   ]
 }

@@ -1,6 +1,6 @@
 import { validate } from "./Intents.js";
 import { clone } from "./GameState.js";
-import { isValidLink, wouldStayAcyclic } from "./Simulation/Topology.js";
+import { isValidLink } from "./Simulation/Topology.js";
 import * as Economy from "./Systems/EconomySystem.js";
 import * as Research from "./Systems/ResearchSystem.js";
 import * as Hero from "./Systems/HeroSystem.js";
@@ -11,6 +11,15 @@ import * as Expedition from "./Systems/ExpeditionSystem.js";
 // unlocks.gathererResources by enableGathererResource effects (res_lumber/res_tannery/
 // res_coalworks and the t_ironreach reclaim). Never hardcode the gated raws here.
 const STARTABLE_GATHERER_RESOURCES = ["iron_ore"];
+
+// A gatherer raw is usable when enabled by research/reclaim or startable from turn one.
+// Shared by PlaceNode / SetGathererResource / PasteNodes so the gate can't drift.
+function gathererResourceAllowed(state, resourceId) {
+  return (
+    (state.unlocks.gathererResources || []).includes(resourceId) ||
+    STARTABLE_GATHERER_RESOURCES.includes(resourceId)
+  );
+}
 
 function reject(state, error) {
   return { state, error };
@@ -174,16 +183,12 @@ export function reduce(state, intent, content) {
       )
         return reject(state, "machine not placeable");
       // Defensive: a gatherer placed with an explicit raw must use an enabled/startable raw.
-      if (intent.kind === "gatherer" && intent.resourceId) {
-        const enabled = (next.unlocks.gathererResources || []).includes(
-          intent.resourceId,
-        );
-        const startable = STARTABLE_GATHERER_RESOURCES.includes(
-          intent.resourceId,
-        );
-        if (!enabled && !startable)
-          return reject(state, "resource not enabled");
-      }
+      if (
+        intent.kind === "gatherer" &&
+        intent.resourceId &&
+        !gathererResourceAllowed(next, intent.resourceId)
+      )
+        return reject(state, "resource not enabled");
       const seq = next.graph.nextNodeSeq;
       const id = "n_" + intent.kind + "_" + seq;
       next.graph.nodes.push({
@@ -200,20 +205,12 @@ export function reduce(state, intent, content) {
       break;
     }
     case "ConnectLink": {
+      // isValidLink already ends with the acyclicity check (wouldStayAcyclic), so a
+      // second topoSort here would be redundant.
       if (
         !isValidLink(next, content, intent.from, intent.to, intent.resourceId)
       ) {
         return reject(state, "invalid link");
-      }
-      if (
-        !wouldStayAcyclic(
-          next.graph.nodes,
-          next.graph.links,
-          intent.from,
-          intent.to,
-        )
-      ) {
-        return reject(state, "cycle");
       }
       const seq = next.graph.nextLinkSeq;
       next.graph.links.push({
@@ -248,13 +245,8 @@ export function reduce(state, intent, content) {
       const node = nodeById(next, intent.nodeId);
       if (!node || node.kind !== "gatherer")
         return reject(state, "not a gatherer");
-      const enabled = (next.unlocks.gathererResources || []).includes(
-        intent.resourceId,
-      );
-      const startable = STARTABLE_GATHERER_RESOURCES.includes(
-        intent.resourceId,
-      );
-      if (!enabled && !startable) return reject(state, "resource not enabled");
+      if (!gathererResourceAllowed(next, intent.resourceId))
+        return reject(state, "resource not enabled");
       node.resourceId = intent.resourceId;
       // outbound connections follow the gatherer's new resource
       for (const l of next.graph.links)
@@ -488,10 +480,29 @@ export function reduce(state, intent, content) {
       break;
     }
     case "PasteNodes": {
-      // Every pasted node must be a real machine kind (guards pasteCost's machine
-      // lookup and keeps the link index map aligned — reject rather than skip).
-      if (!intent.nodes.every((n) => content.machines[n.kind]))
-        return reject(state, "unknown machine in paste");
+      // Every pasted node must clear the same unlock gates as PlaceNode/SetRecipe/
+      // SetGathererResource: a real+unlocked machine kind, an unlocked recipe for
+      // crafters, and an enabled/startable raw for gatherers. Reject (don't strip)
+      // so the link index map stays aligned and locked content can't sneak in.
+      for (const n of intent.nodes) {
+        if (
+          !content.machines[n.kind] ||
+          !next.unlocks.machinesUnlocked.includes(n.kind)
+        )
+          return reject(state, "machine not placeable");
+        if (
+          (n.kind === "smelter" || n.kind === "workshop") &&
+          n.recipeId &&
+          !next.unlocks.recipesUnlocked.includes(n.recipeId)
+        )
+          return reject(state, "recipe locked");
+        if (
+          n.kind === "gatherer" &&
+          n.resourceId &&
+          !gathererResourceAllowed(next, n.resourceId)
+        )
+          return reject(state, "resource not enabled");
+      }
       const cost = Economy.pasteCost(intent.nodes, content);
       if (next.currencies.gold < cost) return reject(state, "cannot afford");
       next.currencies.gold -= cost;

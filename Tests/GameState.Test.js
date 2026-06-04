@@ -45,6 +45,11 @@ describe("GameState.NewGame", () => {
     expect(g.currencies.renown).toBe(0.0);
   });
 
+  it("defaults unlocks.gathererResources to [] (task 8)", () => {
+    const g = NewGame(new FakeClock(0));
+    expect(g.unlocks.gathererResources).toEqual([]);
+  });
+
   it("two NewGames do not share references", () => {
     const a = NewGame(new FakeClock(0));
     const b = NewGame(new FakeClock(0));
@@ -111,5 +116,133 @@ describe("GameState.validate", () => {
       resourceId: "iron_bar",
     });
     expect(validate(g)).toBe(false);
+  });
+});
+
+describe("GameState.validate — content-aware bounds (task 3)", () => {
+  it("rejects a cyclic graph when content is supplied", async () => {
+    const { content } = await import("../Source/Engine/Content/Content.js");
+    const g = NewGame(new FakeClock(0));
+    g.graph.nodes.push(
+      {
+        id: "a",
+        kind: "smelter",
+        level: 1,
+        resourceId: null,
+        recipeId: "r_iron_bar",
+        stockpile: {},
+        pos: { x: 0, y: 0 },
+      },
+      {
+        id: "b",
+        kind: "smelter",
+        level: 1,
+        resourceId: null,
+        recipeId: "r_iron_bar",
+        stockpile: {},
+        pos: { x: 1, y: 0 },
+      },
+    );
+    g.graph.links.push(
+      { id: "lc0", from: "a", to: "b", resourceId: "iron_bar" },
+      { id: "lc1", from: "b", to: "a", resourceId: "iron_bar" },
+    );
+    expect(validate(g, content)).toBe(false); // cycle
+    // without content the cycle check is skipped (shape-only) -> still true
+    expect(validate(g)).toBe(true);
+  });
+
+  it("rejects an unknown node kind when content is supplied", async () => {
+    const { content } = await import("../Source/Engine/Content/Content.js");
+    const g = NewGame(new FakeClock(0));
+    g.graph.nodes.push({
+      id: "x",
+      kind: "not_a_machine",
+      level: 1,
+      resourceId: null,
+      recipeId: null,
+      stockpile: {},
+      pos: { x: 0, y: 0 },
+    });
+    expect(validate(g, content)).toBe(false);
+  });
+
+  it("rejects a crafter with an unknown recipeId", async () => {
+    const { content } = await import("../Source/Engine/Content/Content.js");
+    const g = NewGame(new FakeClock(0));
+    g.graph.nodes.push({
+      id: "x",
+      kind: "smelter",
+      level: 1,
+      resourceId: null,
+      recipeId: "r_nope",
+      stockpile: {},
+      pos: { x: 0, y: 0 },
+    });
+    expect(validate(g, content)).toBe(false);
+  });
+
+  it("ACCEPTS a crafter with no recipe yet (null recipeId) — a just-placed smelter must not wipe the save", async () => {
+    const { content } = await import("../Source/Engine/Content/Content.js");
+    const g = NewGame(new FakeClock(0));
+    g.graph.nodes.push({
+      id: "x",
+      kind: "smelter",
+      level: 1,
+      resourceId: null,
+      recipeId: null, // placed, recipe not assigned yet — legal, common
+      stockpile: {},
+      pos: { x: 0, y: 0 },
+    });
+    expect(validate(g, content)).toBe(true);
+  });
+
+  it("rejects a link carrying an unknown resourceId", async () => {
+    const { content } = await import("../Source/Engine/Content/Content.js");
+    const g = NewGame(new FakeClock(0));
+    g.graph.nodes.push(
+      {
+        id: "a",
+        kind: "gatherer",
+        level: 1,
+        resourceId: "iron_ore",
+        recipeId: null,
+        stockpile: {},
+        pos: { x: 0, y: 0 },
+      },
+      {
+        id: "b",
+        kind: "smelter",
+        level: 1,
+        resourceId: null,
+        recipeId: "r_iron_bar",
+        stockpile: {},
+        pos: { x: 1, y: 0 },
+      },
+    );
+    g.graph.links.push({
+      id: "lr",
+      from: "a",
+      to: "b",
+      resourceId: "unobtanium",
+    });
+    expect(validate(g, content)).toBe(false);
+  });
+
+  it("rejects an active expedition to an unknown territory", async () => {
+    const { content } = await import("../Source/Engine/Content/Content.js");
+    const g = NewGame(new FakeClock(0));
+    g.expeditions.active = {
+      territoryId: "nope",
+      startedAt: 0,
+      durationMs: 1,
+      heroId: "h_0",
+    };
+    expect(validate(g, content)).toBe(false);
+  });
+
+  it("accepts a fresh NewGame with content supplied", async () => {
+    const { content } = await import("../Source/Engine/Content/Content.js");
+    expect(validate(NewGame(new FakeClock(0)), content)).toBe(true);
   });
 });

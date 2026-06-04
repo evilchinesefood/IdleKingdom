@@ -109,54 +109,77 @@ describe("Offline expedition fast-forward", () => {
   });
 });
 
-describe("Offline auto-sell one-shot dump", () => {
-  it("dumps stockpiles to gold once when autoSell is owned; finite and emptied", () => {
+describe("Offline auto-sell via solved goldRate (task 7)", () => {
+  // A lone gatherer producing a LISTED raw with no consumer; its surplus auto-sells
+  // at 50% basePrice through the solved goldRate (no stockpile sweep anymore).
+  function loneGatherer(autoSell) {
+    const clock = new FakeClock(0);
+    const state = seededState(clock);
+    state.lastSeen = 0;
+    state.unlocks.autoSell = autoSell;
+    // strip the seed chain down to a single gatherer with no consumer
+    state.graph.nodes = [
+      {
+        id: "g",
+        kind: "gatherer",
+        level: 1,
+        resourceId: "iron_ore",
+        recipeId: null,
+        stockpile: {},
+        pos: { x: 0, y: 0 },
+      },
+    ];
+    state.graph.links = [];
+    return state;
+  }
+
+  it("credits offline gold from listed surplus at 50% price when autoSell is owned", () => {
+    const state = loneGatherer(true);
+    const price = RESOURCES.iron_ore.basePrice; // 0.5
+    // gatherer L1 surplus 1.0/s; autoSell rate = 1.0 * 0.5 * 0.5 = 0.25 gold/s.
+    const summary = applyOffline(state, content, 100 * 1000); // 100s
+    expect(summary.gained.gold).toBeCloseTo(1.0 * price * 0.5 * 100, 1e-3); // 25
+  });
+
+  it("credits NOTHING extra offline when autoSell is not owned", () => {
+    const state = loneGatherer(false);
+    const summary = applyOffline(state, content, 100 * 1000);
+    expect(summary.gained.gold).toBeCloseTo(0, 1e-6); // no consumer, no market -> 0
+  });
+
+  it("never sells a storage room's surplus offline (protected buffer)", () => {
     const clock = new FakeClock(0);
     const state = seededState(clock);
     state.lastSeen = 0;
     state.unlocks.autoSell = true;
-    // simulate ~8h of accrued surplus iron_bar sitting on the smelter (no consumer)
-    const smelter = state.graph.nodes.find((n) => n.id === "n_smelter_0");
-    smelter.stockpile.iron_bar = 144000; // big but float-safe
-    const beforeGold = state.currencies.gold;
-    const price = RESOURCES.iron_bar.basePrice; // 4.0
-    const tithe = state.unlocks.titheRate; // 0.05
-
-    const summary = applyOffline(state, content, 1000); // tiny dt so factory accrual ~ negligible
-    const dumpGold = 144000 * price;
-
-    expect(Number.isFinite(state.currencies.gold)).toBe(true);
-    expect(smelter.stockpile.iron_bar).toBeCloseTo(0, 1e-6);
-    // gold gained >= the dump (plus a sliver of 1s factory income)
-    expect(summary.gained.gold).toBeCloseTo(dumpGold + 2.0 * 1, 1e-3);
-    expect(state.currencies.gold).toBeCloseTo(
-      beforeGold + dumpGold + 2.0 * 1,
-      1e-3,
-    );
-    expect(summary.gained.research).toBeCloseTo(
-      dumpGold * tithe + 0.1 * 1,
-      1e-3,
-    );
-
-    // second pass: nothing left to dump
-    const summary2 = applyOffline(state, content, 2000);
-    expect(
-      state.graph.nodes.find((n) => n.id === "n_smelter_0").stockpile.iron_bar,
-    ).toBeCloseTo(0, 1e-6);
-    expect(summary2.gained.gold).toBeCloseTo(2.0 * 1, 1e-3); // only 1s of factory income, no second dump
-  });
-
-  it("does NOT dump when autoSell is not owned", () => {
-    const clock = new FakeClock(0);
-    const state = seededState(clock);
-    state.lastSeen = 0;
-    const smelter = state.graph.nodes.find((n) => n.id === "n_smelter_0");
-    smelter.stockpile.iron_bar = 5000;
-    applyOffline(state, content, 1000);
-    // stockpile may grow from accrual but must not be sold off
-    const after = state.graph.nodes.find((n) => n.id === "n_smelter_0")
-      .stockpile.iron_bar;
-    expect(after >= 5000).toBe(true);
+    state.graph.nodes = [
+      {
+        id: "g",
+        kind: "gatherer",
+        level: 7, // 4.0/s
+        resourceId: "iron_ore",
+        recipeId: null,
+        stockpile: {},
+        pos: { x: 0, y: 0 },
+      },
+      {
+        id: "s",
+        kind: "storage",
+        level: 1,
+        resourceId: null,
+        recipeId: null,
+        resourceIds: ["iron_ore"],
+        stockpile: {},
+        pos: { x: 1, y: 0 },
+      },
+    ];
+    state.graph.links = [
+      { id: "l0", from: "g", to: "s", resourceId: "iron_ore" },
+    ];
+    const summary = applyOffline(state, content, 10 * 1000);
+    // storage drains the gatherer fully (no gatherer surplus); the storage room's
+    // own surplus is NOT auto-sold -> no offline gold from auto-sell.
+    expect(summary.gained.gold).toBeCloseTo(0, 1e-6);
   });
 });
 

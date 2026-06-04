@@ -24,6 +24,7 @@ export const START_STATE = {
       "gemstone",
       "iron_bar",
     ],
+    gathererResources: [],
     titheRate: 0.05,
     offlineCapHours: 1,
     productionBonuses: {
@@ -57,6 +58,5 @@ export const START_STATE = {
     seenVictory: false,
     won: false,
     createdAt: 0,
-    playtimeMs: 0,
   },
 };

@@ -106,6 +106,102 @@ describe("Reducer PasteNodes", () => {
     expect(JSON.stringify(s)).toBe(before);
   });
 
+  it("rejects a paste containing a locked machine kind (task 6)", () => {
+    const game = newGame(1e6);
+    const s = game.getState();
+    expect(s.unlocks.machinesUnlocked.includes("scholar")).toBe(false);
+    const before = JSON.stringify(s);
+    const out = reduce(
+      s,
+      {
+        type: INTENT.PasteNodes,
+        nodes: [
+          {
+            kind: "scholar",
+            level: 1,
+            recipeId: null,
+            resourceId: null,
+            dx: 0,
+            dy: 0,
+          },
+        ],
+        links: [],
+        at: { x: 0, y: 0 },
+      },
+      content,
+    );
+    expect(out.error).toBeTruthy();
+    expect(out.state).toBe(s);
+    expect(JSON.stringify(s)).toBe(before);
+  });
+
+  it("rejects a paste containing a locked recipe (task 6)", () => {
+    const game = newGame(1e6);
+    const s = game.getState();
+    expect(s.unlocks.recipesUnlocked.includes("r_steel")).toBe(false);
+    const out = reduce(
+      s,
+      {
+        type: INTENT.PasteNodes,
+        nodes: [
+          {
+            kind: "smelter",
+            level: 1,
+            recipeId: "r_steel",
+            resourceId: null,
+            dx: 0,
+            dy: 0,
+          },
+        ],
+        links: [],
+        at: { x: 0, y: 0 },
+      },
+      content,
+    );
+    expect(out.error).toBeTruthy();
+    expect(out.state).toBe(s);
+  });
+
+  it("rejects a paste with a gatherer on a not-yet-enabled raw (task 6)", () => {
+    const game = newGame(1e6);
+    const s = game.getState(); // timber not enabled at start
+    const out = reduce(
+      s,
+      {
+        type: INTENT.PasteNodes,
+        nodes: [
+          {
+            kind: "gatherer",
+            level: 1,
+            recipeId: null,
+            resourceId: "timber",
+            dx: 0,
+            dy: 0,
+          },
+        ],
+        links: [],
+        at: { x: 0, y: 0 },
+      },
+      content,
+    );
+    expect(out.error).toBeTruthy();
+    expect(out.state).toBe(s);
+  });
+
+  it("accepts a paste of fully-unlocked nodes (task 6 regression)", () => {
+    const game = newGame(1e6);
+    const before = game.getState().graph.nodes.length;
+    const c = clip(); // gatherer iron_ore + smelter r_iron_bar (both unlocked at start)
+    const out = game.dispatch({
+      type: INTENT.PasteNodes,
+      nodes: c.nodes,
+      links: c.links,
+      at: { x: 500, y: 300 },
+    });
+    expect(out.ok).toBe(true);
+    expect(game.getState().graph.nodes.length).toBe(before + 2);
+  });
+
   it("carries resourceIds for a storage node", () => {
     const game = newGame(1e6);
     const out = game.dispatch({

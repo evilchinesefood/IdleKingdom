@@ -39,8 +39,14 @@ export function timeRemaining(state, nowMs) {
 export function tryResolve(state, content, nowMs) {
   const a = state.expeditions.active;
   if (!a) return null;
-  if (nowMs < a.startedAt + a.durationMs) return null;
   const terr = content.territories[a.territoryId];
+  // Unknown territory (corrupt/legacy save): clear the poisoned expedition so it
+  // can't brick boot by deref'ing terr.rewards, and award nothing.
+  if (!terr) {
+    state.expeditions.active = null;
+    return null;
+  }
+  if (nowMs < a.startedAt + a.durationMs) return null;
   state.currencies.gold += terr.rewards.gold;
   state.currencies.research += terr.rewards.research;
   state.currencies.renown += terr.rewards.renown;

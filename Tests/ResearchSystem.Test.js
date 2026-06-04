@@ -197,6 +197,31 @@ describe("ResearchSystem", () => {
     expect(s.unlocks.productionBonuses.workshop).toBeCloseTo(1.1, 1e-9);
   });
 
+  it("res_quartermaster effect wiring: EFFECTS and content effects are in lockstep and set autoSell (task 7)", () => {
+    // content.researchNodes[id].effects (display/validation) must match the applied EFFECTS.
+    const node = content.researchNodes.res_quartermaster;
+    expect(node.effects).toEqual([{ type: "autoSell", enabled: true }]);
+    // buying it (after prereqs/territory) flips state.unlocks.autoSell on.
+    const s = NewGame(new FakeClock(0));
+    s.unlocks.researchOwned.push(
+      "res_scholar",
+      "res_lumber",
+      "res_tannery",
+      "res_coalworks",
+      "res_steelmaking",
+      "res_smithing",
+      "res_fittings",
+      "res_armory",
+      "res_war_college",
+      "res_trade_routes",
+    );
+    s.territories.reclaimed.push("t_ironreach");
+    s.currencies.renown = 1000;
+    expect(canBuyResearch(s, content, "res_quartermaster")).toBe(true);
+    buyResearch(s, content, "res_quartermaster");
+    expect(s.unlocks.autoSell).toBe(true);
+  });
+
   it("applyEffects: marketCapacityBonus, enableGathererResource, heroSlot, autoSell, unlockGearTier", () => {
     const s = NewGame(new FakeClock(0));
     applyEffects(s, content, [{ type: "marketCapacityBonus", mult: 1.3 }]);

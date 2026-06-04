@@ -11,6 +11,11 @@ import { FakeClock } from "../Source/Engine/Clock.js";
 import { MemoryStorageAdapter } from "../Source/Engine/Persistence/MemoryStorageAdapter.js";
 import { Game } from "../Source/Engine/Game.js";
 import { seededState } from "./Fixtures/Seeded.js";
+import { NewGame } from "../Source/Engine/GameState.js";
+import {
+  serialize,
+  SAVE_KEY,
+} from "../Source/Engine/Persistence/SaveManager.js";
 
 const content = {
   resources: RESOURCES,
@@ -146,6 +151,65 @@ describe("Game facade", () => {
     expect(g.getState().territories.reclaimed.includes("t_gatehouse")).toBe(
       true,
     );
+  });
+
+  it("bootstrap recovers from a poisoned cyclic save instead of throwing (task 2/3)", () => {
+    const clock = new FakeClock(0);
+    const storage = new MemoryStorageAdapter();
+    const poisoned = NewGame(clock);
+    poisoned.graph.nodes.push(
+      {
+        id: "a",
+        kind: "smelter",
+        level: 1,
+        resourceId: null,
+        recipeId: "r_iron_bar",
+        stockpile: {},
+        pos: { x: 0, y: 0 },
+      },
+      {
+        id: "b",
+        kind: "smelter",
+        level: 1,
+        resourceId: null,
+        recipeId: "r_iron_bar",
+        stockpile: {},
+        pos: { x: 1, y: 0 },
+      },
+    );
+    poisoned.graph.links.push(
+      { id: "lc0", from: "a", to: "b", resourceId: "iron_bar" },
+      { id: "lc1", from: "b", to: "a", resourceId: "iron_bar" },
+    );
+    storage.set(SAVE_KEY, serialize(poisoned, 0));
+    const g = makeGame(clock);
+    // bootstrap must NOT throw (a thrown boot is an unrecoverable reload loop).
+    const summary = g.bootstrap(storage);
+    expect(summary !== null && typeof summary === "object").toBe(true);
+    expect(g.getState().graph.nodes.length).toBe(0); // fell back to NewGame
+    expect(g.getState().currencies.gold).toBeCloseTo(25, 1e-9);
+  });
+
+  it("bootstrap try/catch falls back to NewGame if boot solve throws (task 2 defense)", () => {
+    const clock = new FakeClock(0);
+    const storage = new MemoryStorageAdapter();
+    storage.set(SAVE_KEY, serialize(seededState(clock), 0));
+    const g = makeGame(clock);
+    // force a throw the first time the boot path solves; the try/catch must
+    // recover to a clean NewGame rather than propagate (defense in depth).
+    const orig = g._ensureSolved.bind(g);
+    let threw = false;
+    g._ensureSolved = function () {
+      if (!threw) {
+        threw = true;
+        throw new Error("boom");
+      }
+      return orig();
+    };
+    const summary = g.bootstrap(storage); // must recover, not propagate
+    expect(summary !== null && typeof summary === "object").toBe(true);
+    expect(threw).toBe(true);
+    expect(g.getState().graph.nodes.length).toBe(0); // recovered to NewGame
   });
 
   it("getState returns the live raw state for autosave (has version, no frozen)", () => {

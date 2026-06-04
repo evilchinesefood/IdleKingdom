@@ -11,6 +11,8 @@ import {
   applyUpgrade,
   isListed,
   sellFromStockpile,
+  buildingCopyCost,
+  buildingCopyCosts,
 } from "../Source/Engine/Systems/EconomySystem.js";
 
 const content = {
@@ -91,6 +93,31 @@ describe("EconomySystem", () => {
       if (outPrice == null) continue;
       expect(outPrice > inCost).toBeTruthy();
     }
+  });
+
+  it("buildingCopyCosts returns the same two values as separate buildingCopyCost calls (task 14)", () => {
+    const s = seededState(new FakeClock(0));
+    // upgrade the smelter twice so the withUpgrades variant differs from structure-only
+    applyUpgrade(s, content, "n_smelter_0");
+    s.currencies.gold = 1e6;
+    applyUpgrade(s, content, "n_smelter_0");
+    const building = {
+      id: "b_0",
+      name: "B",
+      nodeIds: ["n_miner_0", "n_smelter_0"],
+      children: [],
+      rect: { x: 0, y: 0, w: 10, h: 10 },
+    };
+    const combined = buildingCopyCosts(building, s, content);
+    expect(combined.withUpgrades).toBeCloseTo(
+      buildingCopyCost(building, s, content, true),
+      1e-9,
+    );
+    expect(combined.structure).toBeCloseTo(
+      buildingCopyCost(building, s, content, false),
+      1e-9,
+    );
+    expect(combined.withUpgrades > combined.structure).toBe(true);
   });
 
   it("sales tithe is 0.05, then 0.07 after raising titheRate", () => {

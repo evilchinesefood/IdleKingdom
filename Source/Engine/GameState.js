@@ -1,4 +1,5 @@
 import { START_STATE } from "./Content/StartState.js";
+import { topoSort } from "./Simulation/Topology.js";
 
 /** Current persisted save schema version (mirrored by SaveManager in Phase 2). */
 export const SAVE_VERSION = 10;
@@ -35,8 +36,11 @@ function deepFreeze(o) {
   return Object.freeze(o);
 }
 
-/** Structural validation: required keys, finite currencies, node/link referential integrity. */
-export function validate(state) {
+/** Structural validation: required keys, finite currencies, node/link referential integrity.
+ *  When `content` is supplied, also bounds-checks against game content: rejects cyclic graphs,
+ *  unknown node kinds, unknown crafter recipeIds, link resourceIds, and unknown active-expedition
+ *  territories (defends the boot path against corrupt-but-shape-valid saves). */
+export function validate(state, content) {
   if (!state || typeof state !== "object") return false;
   const required = [
     "version",
@@ -86,5 +90,34 @@ export function validate(state) {
         return false;
     }
   }
+  if (content) return validateAgainstContent(state, content);
+  return true;
+}
+
+/** Deeper bounds checks that need game content: acyclic graph, known kinds/recipes/
+ *  resources, and a known active-expedition territory. */
+function validateAgainstContent(state, content) {
+  const g = state.graph;
+  try {
+    topoSort(g.nodes, g.links);
+  } catch {
+    return false; // cyclic graph would crash the solver at boot
+  }
+  for (const n of g.nodes) {
+    if (!content.machines[n.kind]) return false;
+    // null recipeId = a just-placed crafter awaiting assignment (legal, common);
+    // only an UNKNOWN id is corruption.
+    if (
+      (n.kind === "smelter" || n.kind === "workshop") &&
+      n.recipeId != null &&
+      !content.recipes[n.recipeId]
+    )
+      return false;
+  }
+  for (const l of g.links) {
+    if (!content.resources[l.resourceId]) return false;
+  }
+  const active = state.expeditions && state.expeditions.active;
+  if (active && !content.territories[active.territoryId]) return false;
   return true;
 }

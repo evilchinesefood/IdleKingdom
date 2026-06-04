@@ -1,7 +1,6 @@
 import { solve } from "./RateSolver.js";
 import { applyTick } from "./Tick.js";
 import { tryResolve } from "../Systems/ExpeditionSystem.js";
-import { isListed } from "../Systems/EconomySystem.js";
 
 /** One-shot offline catch-up. Clamps elapsed to offlineCapHours, integrates steady-state rates,
  *  fast-forwards an in-flight expedition deterministically, sets state.lastSeen = nowMs, and
@@ -18,26 +17,11 @@ export function applyOffline(state, content, nowMs) {
   const renown0 = state.currencies.renown;
 
   if (appliedMs > 0) {
+    // res_quartermaster surplus auto-sell is folded into the solved goldRate (see
+    // RateSolver), so the steady-state integration above already credits offline
+    // auto-sell income — no separate stockpile sweep needed.
     const solved = solve(state, content);
     applyTick(state, solved, appliedMs / 1000);
-  }
-
-  // res_quartermaster auto-sell: one-shot sweep of every node stockpile (listed resources only).
-  // Done in-line so the whole offline dump is a single deterministic pass; runs after surplus
-  // integration so freshly-accrued surplus is also dumped, and exactly once per call.
-  if (state.unlocks.autoSell) {
-    for (const node of state.graph.nodes) {
-      if (node.kind === "storage") continue; // a holding buffer is never auto-liquidated
-      for (const res in node.stockpile) {
-        const qty = node.stockpile[res];
-        if (qty > 0 && isListed(state, content, res)) {
-          const gold = qty * content.resources[res].basePrice;
-          state.currencies.gold += gold;
-          state.currencies.research += gold * state.unlocks.titheRate;
-          node.stockpile[res] = 0;
-        }
-      }
-    }
   }
 
   const expeditionsResolved = [];

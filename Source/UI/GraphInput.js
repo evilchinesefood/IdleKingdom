@@ -22,6 +22,7 @@ export class GraphInput {
     this.boxStart = null; // graph-space anchor of a select-box drag
     this.startScreen = null;
     this.pinchDist = 0;
+    this.pinchRect = null; // host rect cached at pinch start (no per-move reflow)
     this._bind();
   }
 
@@ -54,6 +55,7 @@ export class GraphInput {
       this.mode = "pinch";
       const pts = [...this.pointers.values()];
       this.pinchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      this.pinchRect = this.el.getBoundingClientRect();
       return;
     }
 
@@ -170,13 +172,13 @@ export class GraphInput {
     if (this.mode === "pinch" && this.pointers.size === 2) {
       const pts = [...this.pointers.values()];
       const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-      const r = this.el.getBoundingClientRect();
+      const r = this.pinchRect || this.el.getBoundingClientRect();
       const cx = (pts[0].x + pts[1].x) / 2 - r.left;
       const cy = (pts[0].y + pts[1].y) / 2 - r.top;
       const factor = this.pinchDist > 0 ? dist / this.pinchDist : 1;
       this.cb.setView(zoomAt(this.cb.getView(), cx, cy, factor));
       this.pinchDist = dist;
-      this.cb.onViewChange();
+      this.cb.onViewChange("gesture");
       return;
     }
     if (this.mode === "dragNode") {
@@ -214,7 +216,7 @@ export class GraphInput {
       const dx = e.clientX - prev.x,
         dy = e.clientY - prev.y;
       this.cb.setView(panBy(this.cb.getView(), dx, dy));
-      this.cb.onViewChange();
+      this.cb.onViewChange("gesture");
       return;
     }
     // 'connect' move: report live pointer so GraphView can draw the pending link
@@ -222,7 +224,7 @@ export class GraphInput {
       const g = this._toGraph(e);
       if (this.cb.onConnectMove)
         this.cb.onConnectMove(this.connectFrom.nodeId, g.x, g.y);
-      else this.cb.onViewChange();
+      else this.cb.onViewChange("gesture");
     }
   }
 
@@ -332,6 +334,6 @@ export class GraphInput {
     this.cb.setView(
       zoomAt(this.cb.getView(), e.clientX - r.left, e.clientY - r.top, factor),
     );
-    this.cb.onViewChange();
+    this.cb.onViewChange("wheel");
   }
 }

@@ -247,7 +247,8 @@ export const RESEARCH_NODES = {
     prereqs: ["res_war_college", "res_trade_routes"],
     requiresTerritory: "t_ironreach",
     effects: [{ type: "autoSell", enabled: true }],
-    description: "Enables auto-selling finished goods at the Market.",
+    description:
+      "Auto-sells the undrained surplus of any listed good at 50% of its Market price (storage buffers are never sold).",
     flavor: "One ledger, one seal, and nothing in Yensburg goes to waste.",
   },
 };

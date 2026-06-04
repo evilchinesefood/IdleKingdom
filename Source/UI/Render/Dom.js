@@ -133,7 +133,14 @@ export function patch(parent, newChildrenRaw, doc = document) {
         continue;
       }
       el = doc.createTextNode(want);
-    } else if (vnode.key != null && byKey.has(vnode.key)) {
+    } else if (
+      vnode.key != null &&
+      byKey.has(vnode.key) &&
+      byKey.get(vnode.key).tagName === String(vnode.tag).toUpperCase()
+    ) {
+      // Reuse the keyed element only when its tag still matches — a keyed vnode
+      // whose tag changed must become a fresh element (task 24), not a misapplied
+      // reuse of the old one.
       el = byKey.get(vnode.key);
       byKey.delete(vnode.key);
       const oldProps = el.__props || {};

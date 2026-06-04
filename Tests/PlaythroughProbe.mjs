@@ -1548,7 +1548,9 @@ step(
       "    [wired] GraphView drag -> SetNodePos persists; _dragPos cleared; _solved kept",
     );
 
-    // --- RemoveLink via the ✕ midpoint control in GraphView (now click-to-reveal, P3) ---
+    // --- RemoveLink via the ✕ midpoint control in GraphView (click-to-reveal, P3) ---
+    // The SVG is pointer-captured, so the ✕'s own onclick can never fire; deletion
+    // routes through GraphInput.hitLinkDelete -> onDeleteLink (task 22). We tap the ✕.
     gv.render(snap(mg));
     const beforeLinks = mg.getState().graph.links.length;
     // pre-reveal: with selectedLinkId null, the ✕ must NOT be present (default-hidden)
@@ -1556,20 +1558,31 @@ step(
       gvHost.querySelector(".link-delete") == null,
       "link ✕ should be hidden until the link is revealed (P3 click-to-reveal)",
     );
-    const someLinkId = mg.getState().graph.links[0].id;
-    gv._selectLink(someLinkId); // [click] tap-to-reveal a link
+    const delLink = mg.getState().graph.links[0];
+    gv._selectLink(delLink.id); // [click] tap-to-reveal a link
     const delX = gvHost.querySelector(".link-delete");
     assert(delX, "GraphView rendered no link-delete ✕ control after reveal");
+    // the ✕ has NO onclick (dead under pointer capture) — deletion is by tap-routing
     assert(
-      typeof delX.onclick === "function",
-      "link-delete control has no onclick",
+      delX.onclick == null,
+      "link-delete ✕ should carry no onclick (task 22: routes via hitLinkDelete)",
     );
-    delX.onclick(); // [click]
+    // compute the ✕ hit center (mirrors GraphView.hitLinkDelete) and tap it
+    const dFrom = mg.getState().graph.nodes.find((n) => n.id === delLink.from);
+    const dTo = mg.getState().graph.nodes.find((n) => n.id === delLink.to);
+    const dmx = (dFrom.pos.x + 120 + dTo.pos.x) / 2;
+    const dmy = (dFrom.pos.y + 32 + (dTo.pos.y + 32)) / 2 + 6 / gv.view.scale;
+    assert(
+      gv.hitLinkDelete(dmx, dmy) === delLink.id,
+      `hitLinkDelete should find ${delLink.id} at the ✕, got ${gv.hitLinkDelete(dmx, dmy)}`,
+    );
+    gv.input._down(dn(3, dmx, dmy)); // [tap] on the ✕
+    gv.input._up(dn(3, dmx, dmy));
     assert(
       mg.getState().graph.links.length === beforeLinks - 1,
       `RemoveLink via ✕ did not drop a link (${beforeLinks} -> ${mg.getState().graph.links.length})`,
     );
-    console.log("    [click] GraphView link reveal + ✕ -> RemoveLink");
+    console.log("    [tap] GraphView link reveal + ✕ tap -> RemoveLink");
 
     // --- B1: a pan-drag that STARTS on a link must NOT toggle its reveal; a tap DOES ---
     const gv2Host = new FakeEl("div");

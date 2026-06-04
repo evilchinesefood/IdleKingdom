@@ -1,5 +1,5 @@
 import { describe, it, expect } from "./Runner.js";
-import { GraphView } from "../Source/UI/GraphView.js";
+import { GraphView, deltaTransform } from "../Source/UI/GraphView.js";
 import { iconName } from "../Source/UI/Icons.js";
 
 // Drive GraphView._onSelectBox in isolation via a stub `this` (no canvas/DOM needed):
@@ -156,6 +156,240 @@ describe("GraphView._selectedGroupMembers — highlight source for a selected gr
       _subtreeBuildingIds: GraphView.prototype._subtreeBuildingIds,
     };
     expect(GraphView.prototype._selectedGroupMembers.call(s).size).toBe(0);
+  });
+});
+
+describe("GraphView deltaTransform — pan/zoom fast-path math (task 9)", () => {
+  it("pan-only (scale unchanged) is a pure translate by the offset delta", () => {
+    const d = { scale: 2, tx: 10, ty: 20 };
+    const v = { scale: 2, tx: 40, ty: 5 }; // panned +30,-15
+    const t = deltaTransform(d, v);
+    expect(t.k).toBeCloseTo(1, 1e-9);
+    expect(t.bx).toBeCloseTo(30, 1e-9);
+    expect(t.by).toBeCloseTo(-15, 1e-9);
+    expect(t.str).toBe("translate(30 -15) scale(1)");
+  });
+
+  it("identity view -> identity transform", () => {
+    const v = { scale: 1.5, tx: 7, ty: -3 };
+    const t = deltaTransform(v, v);
+    expect(t.k).toBeCloseTo(1, 1e-9);
+    expect(t.bx).toBeCloseTo(0, 1e-9);
+    expect(t.by).toBeCloseTo(0, 1e-9);
+  });
+
+  it("the transform maps an already-drawn screen point to the live screen point", () => {
+    // A graph point g, drawn under view d, must land where view v would put it.
+    const d = { scale: 1, tx: 0, ty: 0 };
+    const v = { scale: 2, tx: 50, ty: -10 };
+    const t = deltaTransform(d, v);
+    const g = { x: 120, y: 80 };
+    const Pd = { x: g.x * d.scale + d.tx, y: g.y * d.scale + d.ty }; // drawn pos
+    const Pv = { x: g.x * v.scale + v.tx, y: g.y * v.scale + v.ty }; // wanted pos
+    // SVG "translate(b) scale(k)" => k*P + b
+    const mapped = { x: t.k * Pd.x + t.bx, y: t.k * Pd.y + t.by };
+    expect(mapped.x).toBeCloseTo(Pv.x, 1e-9);
+    expect(mapped.y).toBeCloseTo(Pv.y, 1e-9);
+  });
+
+  it("zoom folds into a single translate+scale (k = ratio of scales)", () => {
+    const d = { scale: 1, tx: 0, ty: 0 };
+    const v = { scale: 3, tx: 12, ty: 24 };
+    const t = deltaTransform(d, v);
+    expect(t.k).toBeCloseTo(3, 1e-9);
+    expect(t.bx).toBeCloseTo(12, 1e-9); // v.tx - d.tx*k = 12 - 0
+    expect(t.by).toBeCloseTo(24, 1e-9);
+  });
+});
+
+describe("GraphView gesture fast-path (task 9 + task 10 bar)", () => {
+  // Minimal stub: a fake layer root + action bar that record attribute writes,
+  // and a _draw spy that recaptures drawnView (as the real _draw does).
+  function gestureStub() {
+    const root = {
+      attrs: {},
+      setAttribute(k, val) {
+        this.attrs[k] = val;
+      },
+      removeAttribute(k) {
+        delete this.attrs[k];
+      },
+    };
+    const bar = { style: {} };
+    const s = {
+      view: { scale: 1, tx: 0, ty: 0 },
+      _drawnView: { scale: 1, tx: 0, ty: 0 },
+      layerRoot: root,
+      actionBarEl: bar,
+      _barAnchor: { left: 100, top: 50 },
+      _gesturing: false,
+      _wheelTimer: null,
+      _hostRect: { width: 800, height: 600 },
+      drawCalls: 0,
+      _draw() {
+        this.drawCalls++;
+        this._drawnView = { ...this.view };
+      },
+      _onViewChange: GraphView.prototype._onViewChange,
+      _applyDeltaTransform: GraphView.prototype._applyDeltaTransform,
+      _endGesture: GraphView.prototype._endGesture,
+      _requestDraw: GraphView.prototype._requestDraw, // headless: falls through to _draw
+    };
+    return s;
+  }
+
+  it("a pan gesture sets the delta transform WITHOUT a full redraw", () => {
+    const s = gestureStub();
+    s.view = { scale: 1, tx: 30, ty: -15 };
+    s._onViewChange("gesture");
+    expect(s._gesturing).toBe(true);
+    expect(s.drawCalls).toBe(0); // no rebuild during the gesture
+    expect(s.layerRoot.attrs.transform).toBe("translate(30 -15) scale(1)");
+  });
+
+  it("translates the floating action bar by the same delta (task 10)", () => {
+    const s = gestureStub();
+    s.view = { scale: 2, tx: 0, ty: 0 }; // zoom 2x about origin
+    s._onViewChange("gesture");
+    // bar anchor (100,50) -> k*anchor + b = 2*100+0, 2*50+0
+    expect(s.actionBarEl.style.left).toBe("200px");
+    expect(s.actionBarEl.style.top).toBe("100px");
+  });
+
+  it("gesture end resets the transform and does one full redraw (recaptures drawnView)", () => {
+    const s = gestureStub();
+    s.view = { scale: 1, tx: 30, ty: 0 };
+    s._onViewChange("gesture");
+    expect("transform" in s.layerRoot.attrs).toBe(true);
+    s._endGesture();
+    expect(s._gesturing).toBe(false);
+    expect("transform" in s.layerRoot.attrs).toBe(false); // reset to identity
+    expect(s.drawCalls).toBe(1);
+    expect(s._drawnView).toEqual({ scale: 1, tx: 30, ty: 0 }); // re-baselined
+    expect(s._hostRect).toBe(null); // task 10: cache invalidated on gesture end
+  });
+
+  it("a wheel gesture arms a debounce timer that ends the gesture when it fires", () => {
+    const s = gestureStub();
+    s.view = { scale: 1.1, tx: 0, ty: 0 };
+    s._onViewChange("wheel");
+    expect(s._wheelTimer != null).toBe(true); // debounce armed, no redraw yet
+    expect(s.drawCalls).toBe(0);
+    const armed = s._wheelTimer;
+    s.view = { scale: 1.2, tx: 0, ty: 0 };
+    s._onViewChange("wheel"); // a 2nd wheel tick resets the timer
+    expect(s._wheelTimer != null).toBe(true);
+    expect(s._wheelTimer === armed).toBe(false);
+    // simulate the debounce elapsing
+    s._endGesture();
+    expect(s._wheelTimer).toBe(null);
+    expect(s.drawCalls).toBe(1);
+  });
+});
+
+describe("GraphView._nodeMap / _nodeAt cache (task 11)", () => {
+  it("_nodeAt resolves via a Map and caches it per snapshot identity", () => {
+    const snap = {
+      nodes: [
+        { id: "n1", pos: { x: 0, y: 0 } },
+        { id: "n2", pos: { x: 1, y: 1 } },
+      ],
+    };
+    const s = {
+      snap,
+      _nodeMap: GraphView.prototype._nodeMap,
+      _nodeAt: GraphView.prototype._nodeAt,
+    };
+    expect(s._nodeAt("n2").id).toBe("n2");
+    const m1 = s._nodeMap();
+    const m2 = s._nodeMap();
+    expect(m1).toBe(m2); // reused, not rebuilt
+    s.snap = { nodes: [{ id: "n3", pos: { x: 0, y: 0 } }] }; // new snapshot
+    expect(s._nodeMap()).toBe(s._nodeMap());
+    expect(m1).toBe(m1);
+    expect(s._nodeAt("n3").id).toBe("n3");
+    expect(s._nodeAt("n1")).toBe(undefined); // old node gone from new snap
+  });
+});
+
+describe("GraphView._dragSubtreeSet — computed once per drag (task 12)", () => {
+  it("calls _subtreeBuildingIds once and reuses across calls; recomputes after grab", () => {
+    let calls = 0;
+    const s = {
+      _buildingDrag: { id: "b1", dx: 0, dy: 0 },
+      _dragSubtree: null,
+      _subtreeBuildingIds() {
+        calls++;
+        return new Set(["b1", "b2"]);
+      },
+      _dragSubtreeSet: GraphView.prototype._dragSubtreeSet,
+      _grabBuilding: GraphView.prototype._grabBuilding,
+    };
+    const a = s._dragSubtreeSet();
+    const b = s._dragSubtreeSet();
+    expect(calls).toBe(1); // not recomputed per call
+    expect(a).toBe(b);
+    expect([...a].sort()).toEqual(["b1", "b2"]);
+    // a fresh grab clears the cache so the next drag recomputes
+    s._grabBuilding("b3", 0, 0);
+    s._dragSubtreeSet();
+    expect(calls).toBe(2);
+  });
+
+  it("returns an empty set when no building is being dragged", () => {
+    const s = {
+      _buildingDrag: null,
+      _dragSubtreeSet: GraphView.prototype._dragSubtreeSet,
+    };
+    expect(s._dragSubtreeSet().size).toBe(0);
+  });
+});
+
+describe("GraphView.reconcileSelection — drop stale selection (task 27)", () => {
+  const snap = {
+    nodes: [{ id: "n1" }, { id: "n2" }],
+    buildings: [{ id: "b1" }],
+    links: [{ id: "l1" }],
+  };
+  function selStub(over) {
+    return {
+      selectedId: null,
+      selectedBuildingId: null,
+      selectedLinkId: null,
+      selNodes: new Set(),
+      selBuildings: new Set(),
+      reconcileSelection: GraphView.prototype.reconcileSelection,
+      ...over,
+    };
+  }
+
+  it("clears a single node selection that no longer exists", () => {
+    const s = selStub({ selectedId: "gone" });
+    expect(s.reconcileSelection(snap)).toBe(true);
+    expect(s.selectedId).toBe(null);
+  });
+
+  it("keeps a single node selection that still exists", () => {
+    const s = selStub({ selectedId: "n1" });
+    expect(s.reconcileSelection(snap)).toBe(false);
+    expect(s.selectedId).toBe("n1");
+  });
+
+  it("clears a stale building + link selection", () => {
+    const s = selStub({ selectedBuildingId: "bX", selectedLinkId: "lX" });
+    expect(s.reconcileSelection(snap)).toBe(true);
+    expect(s.selectedBuildingId).toBe(null);
+    expect(s.selectedLinkId).toBe(null);
+  });
+
+  it("prunes only the absent members from the multi-selection sets", () => {
+    const s = selStub({
+      selNodes: new Set(["n1", "gone"]),
+      selBuildings: new Set(["b1", "bGone"]),
+    });
+    expect(s.reconcileSelection(snap)).toBe(true);
+    expect([...s.selNodes]).toEqual(["n1"]);
+    expect([...s.selBuildings]).toEqual(["b1"]);
   });
 });
 

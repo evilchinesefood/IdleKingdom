@@ -35,10 +35,3 @@ export function reclaim(state, content, territoryId) {
   if (terr.isVictory) state.meta.won = true;
   delete state._solved;
 }
-
-export function checkWin(state, content) {
-  const all = Object.keys(content.territories);
-  const won = all.every((id) => state.territories.reclaimed.includes(id));
-  if (won) state.meta.won = true;
-  return won;
-}

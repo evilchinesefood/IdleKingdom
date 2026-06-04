@@ -18,6 +18,7 @@ import {
   migrate9to10,
   MIGRATIONS,
 } from "../Source/Engine/Persistence/Migrations.js";
+import { MemoryStorageAdapter } from "../Source/Engine/Persistence/MemoryStorageAdapter.js";
 import SaveV1 from "./Fixtures/SaveV1.json" with { type: "json" };
 
 describe("SaveManager.serialize", () => {
@@ -34,6 +35,18 @@ describe("SaveManager.serialize", () => {
     expect(typeof blob.lastSeen).toBe("number");
     expect(blob._solved).toBe(undefined);
     expect(blob.currencies.gold).toBe(25.0);
+  });
+
+  it("strips meta._saveStatus from the persisted blob (task 25)", () => {
+    const clock = new FakeClock(0);
+    const state = NewGame(clock);
+    state.meta._saveStatus = "failed"; // live HUD wiring set by Main.js
+    const blob = JSON.parse(serialize(state, 0));
+    expect(blob.meta._saveStatus).toBe(undefined);
+    // live state retains it (HUD save-failure badge depends on it)
+    expect(state.meta._saveStatus).toBe("failed");
+    // the rest of meta survives
+    expect(blob.meta.won).toBe(false);
   });
 });
 
@@ -254,6 +267,22 @@ describe("SaveManager.deserialize", () => {
     expect(back.version).toBe(SAVE_VERSION);
   });
 
+  it("default-fills unlocks.gathererResources on a migrated save (task 8)", () => {
+    const clock = new FakeClock(5000);
+    // SaveV1 predates gathererResources; deserialize must non-destructively default it.
+    const state = deserialize(JSON.stringify(SaveV1), clock);
+    expect(Array.isArray(state.unlocks.gathererResources)).toBe(true);
+    expect(state.unlocks.gathererResources).toEqual([]);
+  });
+
+  it("does NOT clobber an existing gathererResources on load (task 8)", () => {
+    const clock = new FakeClock(0);
+    const state = NewGame(clock);
+    state.unlocks.gathererResources = ["timber", "hide"];
+    const back = deserialize(serialize(state), clock);
+    expect(back.unlocks.gathererResources).toEqual(["timber", "hide"]);
+  });
+
   it("migrates SaveV1 fixture all the way to v10", () => {
     const clock = new FakeClock(5000);
     const state = deserialize(JSON.stringify(SaveV1), clock);
@@ -282,6 +311,108 @@ describe("SaveManager.deserialize", () => {
       graph: { nodes: [], links: [] },
     });
     const state = deserialize(broken, clock);
+    expect(state.version).toBe(SAVE_VERSION);
+    expect(state.currencies.gold).toBe(25.0);
+  });
+
+  it("content-aware deserialize rejects a cyclic graph -> NewGame (task 3)", async () => {
+    const { content } = await import("../Source/Engine/Content/Content.js");
+    const clock = new FakeClock(0);
+    const g = NewGame(clock);
+    g.graph.nodes.push(
+      {
+        id: "a",
+        kind: "smelter",
+        level: 1,
+        resourceId: null,
+        recipeId: "r_iron_bar",
+        stockpile: {},
+        pos: { x: 0, y: 0 },
+      },
+      {
+        id: "b",
+        kind: "smelter",
+        level: 1,
+        resourceId: null,
+        recipeId: "r_iron_bar",
+        stockpile: {},
+        pos: { x: 1, y: 0 },
+      },
+    );
+    g.graph.links.push(
+      { id: "lc0", from: "a", to: "b", resourceId: "iron_bar" },
+      { id: "lc1", from: "b", to: "a", resourceId: "iron_bar" },
+    );
+    const back = deserialize(serialize(g), clock, content);
+    expect(back.version).toBe(SAVE_VERSION);
+    expect(back.graph.nodes.length).toBe(0); // fresh NewGame, cycle rejected
+  });
+
+  it("content-aware deserialize rejects an unknown-kind node -> NewGame (task 3)", async () => {
+    const { content } = await import("../Source/Engine/Content/Content.js");
+    const clock = new FakeClock(0);
+    const g = NewGame(clock);
+    g.graph.nodes.push({
+      id: "x",
+      kind: "bogus",
+      level: 1,
+      resourceId: null,
+      recipeId: null,
+      stockpile: {},
+      pos: { x: 0, y: 0 },
+    });
+    const back = deserialize(serialize(g), clock, content);
+    expect(back.graph.nodes.length).toBe(0);
+  });
+
+  it("content-aware deserialize accepts a valid round-trip (task 3)", async () => {
+    const { content } = await import("../Source/Engine/Content/Content.js");
+    const clock = new FakeClock(0);
+    const state = seededState(clock);
+    const back = deserialize(serialize(state), clock, content);
+    expect(back.graph.nodes.length).toBe(3); // seed chain survives
+  });
+
+  it("future-version save (v11) -> NewGame + raw blob backed up, original untouched (task 4)", () => {
+    const clock = new FakeClock(0);
+    const storage = new MemoryStorageAdapter();
+    const future = NewGame(clock);
+    future.version = 11;
+    future.currencies.gold = 999; // a marker we can find in the backup
+    const raw = JSON.stringify(future);
+    storage.set(SAVE_KEY, raw); // the live key still holds the future blob
+    const orig = console.warn;
+    let warned = false;
+    console.warn = () => {
+      warned = true;
+    };
+    let state;
+    try {
+      state = deserialize(raw, clock, undefined, storage);
+    } finally {
+      console.warn = orig;
+    }
+    expect(warned).toBe(true);
+    expect(state.version).toBe(SAVE_VERSION); // fresh NewGame, not the v11 blob
+    expect(state.currencies.gold).toBe(25.0);
+    // raw blob copied verbatim to the versioned backup key
+    expect(storage.get("idlekingdom-save-backup-v11")).toBe(raw);
+    // the original live key is untouched (next autosave overwrites it)
+    expect(storage.get(SAVE_KEY)).toBe(raw);
+  });
+
+  it("future-version save with no storage adapter still returns NewGame (task 4)", () => {
+    const clock = new FakeClock(0);
+    const future = NewGame(clock);
+    future.version = 12;
+    const orig = console.warn;
+    console.warn = () => {};
+    let state;
+    try {
+      state = deserialize(JSON.stringify(future), clock);
+    } finally {
+      console.warn = orig;
+    }
     expect(state.version).toBe(SAVE_VERSION);
     expect(state.currencies.gold).toBe(25.0);
   });

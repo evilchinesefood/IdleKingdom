@@ -5,10 +5,13 @@ import { applyTick } from "./Simulation/Tick.js";
 import { applyOffline } from "./Simulation/Offline.js";
 import { tryResolve } from "./Systems/ExpeditionSystem.js";
 import { deserialize, SAVE_KEY } from "./Persistence/SaveManager.js";
+import { NewGame } from "./GameState.js";
 
 // Structural/spatial edits the player expects Ctrl+Z to reverse. Time/economy
 // intents (Sell, expeditions, hero) are deliberately excluded — rewinding them
-// would thrash live currencies/timers.
+// would thrash live currencies/timers. Research is excluded too: it's a
+// progression commitment (it can grant hero slots and other unlocks that other
+// intents already depend on), so undoing it would desync downstream state.
 const UNDOABLE = new Set([
   "PlaceNode",
   "ConnectLink",
@@ -29,9 +32,21 @@ const UNDOABLE = new Set([
   "RemoveFromBuilding",
   "AddToBuilding",
   "RenameBuilding",
-  "BuyResearch",
 ]);
 const clonePart = (o) => JSON.parse(JSON.stringify(o));
+
+// Re-merge LIVE stockpiles (by node id) over a graph restored from an undo/redo
+// snapshot. Stockpiles keep accruing at 20 Hz after an intent is recorded, so the
+// snapshot's stock is stale; the live value is authoritative. Nodes the restore
+// removed lose their stock (correct); nodes the restore resurrects keep the
+// snapshot's stock (correct for un-delete — they have no live counterpart).
+function mergeLiveStockpiles(restoredGraph, liveGraph) {
+  const liveById = new Map(liveGraph.nodes.map((n) => [n.id, n]));
+  for (const node of restoredGraph.nodes) {
+    const live = liveById.get(node.id);
+    if (live && live.stockpile) node.stockpile = clonePart(live.stockpile);
+  }
+}
 
 export class Game {
   constructor({ content, clock }) {
@@ -56,10 +71,22 @@ export class Game {
   bootstrap(storage) {
     this.storage = storage;
     const raw = storage.get(SAVE_KEY);
-    this.state = deserialize(raw, this.clock); // NewGame on null/corrupt
-    const summary = applyOffline(this.state, this.content, this.clock.now());
-    delete this.state._solved;
-    this._ensureSolved();
+    this.state = deserialize(raw, this.clock, this.content, storage); // NewGame on null/corrupt
+    let summary;
+    try {
+      // Defense in depth: even a save that passes validate could throw here (e.g.
+      // a solver edge case). Recover to a clean NewGame rather than re-throwing on
+      // every reload — a thrown bootstrap is an unrecoverable boot loop.
+      summary = applyOffline(this.state, this.content, this.clock.now());
+      delete this.state._solved;
+      this._ensureSolved();
+    } catch (err) {
+      console.warn("[Game] bootstrap failed; starting new game", err);
+      this.state = NewGame(this.clock);
+      delete this.state._solved;
+      summary = applyOffline(this.state, this.content, this.clock.now());
+      this._ensureSolved();
+    }
     this._undo = []; // a freshly loaded/offline-reconciled game has no undo history
     this._redo = [];
     return summary;
@@ -125,7 +152,9 @@ export class Game {
     if (this._redo.length > this._histLimit) this._redo.shift();
     // restore the pre-action structure; reverse the action's currency delta on
     // top of LIVE currencies (keeps accrued gold/research, refunds the cost)
-    this.state.graph = clonePart(entry.graph);
+    const restored = clonePart(entry.graph);
+    mergeLiveStockpiles(restored, this.state.graph);
+    this.state.graph = restored;
     this.state.unlocks = clonePart(entry.unlocks);
     this.state.currencies.gold -= entry.currencyDelta.gold;
     this.state.currencies.research -= entry.currencyDelta.research;
@@ -146,7 +175,9 @@ export class Game {
       currencyDelta: entry.currencyDelta,
     });
     if (this._undo.length > this._histLimit) this._undo.shift();
-    this.state.graph = clonePart(entry.graph);
+    const restored = clonePart(entry.graph);
+    mergeLiveStockpiles(restored, this.state.graph);
+    this.state.graph = restored;
     this.state.unlocks = clonePart(entry.unlocks);
     this.state.currencies.gold += entry.currencyDelta.gold;
     this.state.currencies.research += entry.currencyDelta.research;

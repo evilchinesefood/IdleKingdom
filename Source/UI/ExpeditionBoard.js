@@ -59,7 +59,7 @@ export function ExpeditionBoard(snap, dispatch) {
         h(
           "wa-callout",
           { class: "exp-countdown", variant: "brand", size: "s" },
-          icon("inprogress"),
+          h("span", { slot: "icon" }, icon("inprogress")),
           ` In progress — ${fmtCountdown(rem)}`,
         ),
       );
@@ -96,7 +96,7 @@ export function ExpeditionBoard(snap, dispatch) {
         h(
           "wa-callout",
           { class: "exp-nudge", variant: "warning", size: "s" },
-          icon("starved"),
+          h("span", { slot: "icon" }, icon("starved")),
           " " + launchNudge(heroPower, t.requiredPower),
         ),
       );
@@ -113,7 +113,7 @@ export function ExpeditionBoard(snap, dispatch) {
         h(
           "wa-callout",
           { class: "exp-busy", variant: "neutral", size: "s" },
-          icon("inprogress"),
+          h("span", { slot: "icon" }, icon("inprogress")),
           " Another expedition is running.",
         ),
       );

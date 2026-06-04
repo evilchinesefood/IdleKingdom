@@ -10,8 +10,9 @@ export function topoSort(nodes, links) {
   }
   const queue = ids.filter((id) => indeg.get(id) === 0);
   const order = [];
-  while (queue.length) {
-    const id = queue.shift();
+  // Index pointer instead of queue.shift() (which is O(n) per dequeue -> O(n²) drain).
+  for (let head = 0; head < queue.length; head++) {
+    const id = queue[head];
     order.push(id);
     for (const to of adj.get(id)) {
       const d = indeg.get(to) - 1;
@@ -82,26 +83,4 @@ export function isValidLink(state, content, from, to, resourceId) {
   )
     return false;
   return wouldStayAcyclic(nodes, links, from, to);
-}
-
-/** Cheap structural signature: node ids + link endpoints. */
-function graphSig(state) {
-  const g = state.graph;
-  return (
-    g.nodes.map((n) => n.id).join(",") +
-    "|" +
-    g.links.map((l) => l.from + ">" + l.to).join(",")
-  );
-}
-
-/** Cached topo order keyed off graph structure (rebuilt when topology changes). */
-export function orderFor(state) {
-  const sig = graphSig(state);
-  if (!state._topo || state._topo.sig !== sig) {
-    state._topo = {
-      sig,
-      order: topoSort(state.graph.nodes, state.graph.links),
-    };
-  }
-  return state._topo.order;
 }
