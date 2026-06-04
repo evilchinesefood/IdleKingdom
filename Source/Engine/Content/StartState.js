@@ -25,6 +25,7 @@ export const START_STATE = {
       "iron_bar",
     ],
     gathererResources: [],
+    tuningRanks: {},
     titheRate: 0.05,
     offlineCapHours: 1,
     productionBonuses: {

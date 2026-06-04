@@ -10,6 +10,9 @@ import {
   buyResearch,
   applyEffects,
   researchStatus,
+  tuningCost,
+  canBuyTuning,
+  buyTuning,
 } from "../Source/Engine/Systems/ResearchSystem.js";
 import { reduce } from "../Source/Engine/Reducer.js";
 import { solve } from "../Source/Engine/Simulation/RateSolver.js";
@@ -242,5 +245,59 @@ describe("ResearchSystem", () => {
       (g) => g.itemId === "sword" && g.tier === 2,
     );
     expect(hasSwordT2).toBe(true);
+  });
+});
+
+describe("Machine Tuning — endless research sink", () => {
+  it("cost grows geometrically per rank (50, 80, 128)", () => {
+    const s = NewGame(new FakeClock(0));
+    s.currencies.research = 1000;
+    expect(tuningCost(s, "gatherer")).toBe(50);
+    buyTuning(s, content, "gatherer");
+    expect(tuningCost(s, "gatherer")).toBe(80);
+    buyTuning(s, content, "gatherer");
+    expect(tuningCost(s, "gatherer")).toBe(128);
+    expect(s.currencies.research).toBeCloseTo(1000 - 50 - 80, 1e-9);
+    expect(s.unlocks.tuningRanks.gatherer).toBe(2);
+  });
+
+  it("each rank multiplies the kind's bonus by 1.1, stacking on one-shot research", () => {
+    const s = NewGame(new FakeClock(0));
+    s.currencies.research = 1000;
+    s.unlocks.productionBonuses.smelter = 1.25; // e.g. res_efficient_forges
+    buyTuning(s, content, "smelter");
+    expect(s.unlocks.productionBonuses.smelter).toBeCloseTo(1.375, 1e-9);
+    buyTuning(s, content, "smelter");
+    expect(s.unlocks.productionBonuses.smelter).toBeCloseTo(1.5125, 1e-9);
+  });
+
+  it("rejects locked kinds, non-tunable kinds, and unaffordable buys (pure-on-reject)", () => {
+    const s = NewGame(new FakeClock(0));
+    s.currencies.research = 9;
+    expect(canBuyTuning(s, content, "scholar")).toBe(false); // machine locked at start
+    expect(canBuyTuning(s, content, "storage")).toBe(false); // not a tunable kind
+    expect(canBuyTuning(s, content, "gatherer")).toBe(false); // broke
+    const out = reduce(s, { type: "BuyTuning", kind: "gatherer" }, fullContent);
+    expect(out.error).toBe("cannot buy tuning");
+    expect(out.state).toBe(s); // original untouched on reject
+  });
+
+  it("an accepted BuyTuning intent raises that kind's solved capacity by 10%", () => {
+    const s = NewGame(new FakeClock(0));
+    s.currencies.research = 100;
+    s.graph.nodes.push({
+      id: "g1",
+      kind: "gatherer",
+      level: 1,
+      resourceId: "iron_ore",
+      recipeId: null,
+      stockpile: {},
+      pos: { x: 0, y: 0 },
+    });
+    const before = solve(s, fullContent).capacityByNode.g1;
+    const out = reduce(s, { type: "BuyTuning", kind: "gatherer" }, fullContent);
+    expect(out.error).toBe(undefined);
+    const after = solve(out.state, fullContent).capacityByNode.g1;
+    expect(after).toBeCloseTo(before * 1.1, 1e-9);
   });
 });

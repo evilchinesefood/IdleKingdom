@@ -126,6 +126,13 @@ export function reduce(state, intent, content) {
       structural = true;
       break;
     }
+    case "BuyTuning": {
+      if (!Research.canBuyTuning(next, content, intent.kind))
+        return reject(state, "cannot buy tuning");
+      Research.buyTuning(next, content, intent.kind);
+      structural = true;
+      break;
+    }
     case "EquipItem": {
       if (
         !Hero.canEquip(

@@ -5,6 +5,7 @@ export const INTENT = {
   BulkUpgrade: "BulkUpgrade",
   SetRecipe: "SetRecipe",
   BuyResearch: "BuyResearch",
+  BuyTuning: "BuyTuning",
   EquipItem: "EquipItem",
   StartExpedition: "StartExpedition",
   SellFromStockpile: "SellFromStockpile",
@@ -43,6 +44,7 @@ const SHAPES = {
   BulkUpgrade: (i) => isStrArr(i.nodeIds),
   SetRecipe: (i) => isStr(i.nodeId) && isStr(i.recipeId),
   BuyResearch: (i) => isStr(i.nodeId),
+  BuyTuning: (i) => isStr(i.kind),
   EquipItem: (i) =>
     isStr(i.heroId) && isStr(i.slot) && isStr(i.itemId) && isNum(i.tier),
   StartExpedition: (i) => isStr(i.territoryId) && isStr(i.heroId),

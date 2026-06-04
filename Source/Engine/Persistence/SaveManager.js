@@ -71,6 +71,12 @@ export function deserialize(json, clock, content, storage) {
     // saves and migrations never set so runtime code needn't rely on `|| []` guards.
     if (blob.unlocks && !Array.isArray(blob.unlocks.gathererResources))
       blob.unlocks.gathererResources = [];
+    if (
+      blob.unlocks &&
+      (!blob.unlocks.tuningRanks ||
+        typeof blob.unlocks.tuningRanks !== "object")
+    )
+      blob.unlocks.tuningRanks = {};
     return blob;
   } catch (err) {
     console.warn("[SaveManager] save migration failed; starting new game", err);

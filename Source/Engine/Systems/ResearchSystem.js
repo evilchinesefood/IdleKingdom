@@ -95,6 +95,43 @@ export function buyResearch(state, content, id) {
   delete state._solved;
 }
 
+/** Machine Tuning — the endless research sink: each rank multiplies the kind's
+ *  production bonus by `mult`; the next rank's cost grows by `costGrowth`. */
+export const TUNING = {
+  kinds: ["gatherer", "smelter", "workshop", "market", "scholar"],
+  baseCost: 50,
+  costGrowth: 1.6,
+  mult: 1.1,
+};
+
+export function tuningRank(state, kind) {
+  return (state.unlocks.tuningRanks && state.unlocks.tuningRanks[kind]) || 0;
+}
+
+export function tuningCost(state, kind) {
+  // round (not ceil): 50 * 1.6^2 floats to 128.00000000000003
+  return Math.round(
+    TUNING.baseCost * Math.pow(TUNING.costGrowth, tuningRank(state, kind)),
+  );
+}
+
+export function canBuyTuning(state, content, kind) {
+  if (!TUNING.kinds.includes(kind)) return false;
+  if (!state.unlocks.machinesUnlocked.includes(kind)) return false;
+  return state.currencies.research >= tuningCost(state, kind);
+}
+
+export function buyTuning(state, content, kind) {
+  if (!canBuyTuning(state, content, kind)) return;
+  state.currencies.research -= tuningCost(state, kind);
+  const u = state.unlocks;
+  if (!u.tuningRanks) u.tuningRanks = {};
+  u.tuningRanks[kind] = (u.tuningRanks[kind] || 0) + 1;
+  if (!u.productionBonuses) u.productionBonuses = {};
+  u.productionBonuses[kind] = (u.productionBonuses[kind] ?? 1.0) * TUNING.mult;
+  delete state._solved;
+}
+
 export function applyEffects(state, content, effects) {
   const u = state.unlocks;
   for (const e of effects) {

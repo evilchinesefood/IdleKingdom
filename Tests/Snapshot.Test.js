@@ -258,3 +258,18 @@ describe("Snapshot.throughput/atCapacity/starved (§8)", () => {
     expect(market.throughput).toBeCloseTo(0.5, 1e-9);
   });
 });
+
+describe("Snapshot — Machine Tuning rows", () => {
+  it("covers unlocked kinds with rank/cost/affordable; locked kinds omitted", () => {
+    const s = seededState(new FakeClock(0));
+    s.currencies.research = 100;
+    delete s._solved;
+    const snap = build(s, solve(s, content), content);
+    const g = snap.tuning.find((t) => t.kind === "gatherer");
+    expect(g.rank).toBe(0);
+    expect(g.nextCost).toBe(50);
+    expect(g.affordable).toBe(true);
+    // scholar machine is locked at start -> no tuning row
+    expect(snap.tuning.some((t) => t.kind === "scholar")).toBe(false);
+  });
+});

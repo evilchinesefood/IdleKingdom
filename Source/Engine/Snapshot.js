@@ -9,7 +9,14 @@ import {
   canLevelUp,
   canRecruit,
 } from "./Systems/HeroSystem.js";
-import { researchStatus, canBuyResearch } from "./Systems/ResearchSystem.js";
+import {
+  researchStatus,
+  canBuyResearch,
+  TUNING,
+  tuningRank,
+  tuningCost,
+  canBuyTuning,
+} from "./Systems/ResearchSystem.js";
 import { nextTerritory, timeRemaining } from "./Systems/ExpeditionSystem.js";
 
 function fmt(n) {
@@ -171,6 +178,20 @@ export function build(state, solved, content, lastError = null) {
     };
   });
 
+  // Machine Tuning rows (endless sink) — only kinds the player has unlocked.
+  const tuning = TUNING.kinds
+    .filter((k) => state.unlocks.machinesUnlocked.includes(k))
+    .map((kind) => ({
+      kind,
+      rank: tuningRank(state, kind),
+      bonus:
+        (state.unlocks.productionBonuses &&
+          state.unlocks.productionBonuses[kind]) ??
+        1.0,
+      nextCost: tuningCost(state, kind),
+      affordable: canBuyTuning(state, content, kind),
+    }));
+
   const heroes = state.heroes.map((h) => {
     const tmpl = content.heroes[h.templateId];
     const power = heroPower(state, content, h.id);
@@ -256,6 +277,7 @@ export function build(state, solved, content, lastError = null) {
     links,
     buildings,
     research,
+    tuning,
     heroes,
     territories,
     expedition,
