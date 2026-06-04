@@ -19,19 +19,6 @@ export function reclaim(state, content, territoryId) {
 
   applyEffects(state, content, terr.unlocks || []);
 
-  if (terr.grantsHero) {
-    const already = state.heroes.some((h) => h.templateId === terr.grantsHero);
-    if (!already) {
-      const id = "h_" + state.heroes.length;
-      state.heroes.push({
-        id,
-        templateId: terr.grantsHero,
-        level: 1,
-        equipped: { weapon: null, armor: null, accessory: null },
-      });
-    }
-  }
-
   if (terr.isVictory) state.meta.won = true;
   delete state._solved;
 }

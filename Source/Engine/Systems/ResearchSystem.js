@@ -55,7 +55,36 @@ const EFFECTS = {
     { type: "globalRateBonus", mult: 1.2 },
     { type: "scholarBonus", mult: 1.5 },
   ],
-  res_war_college: [{ type: "heroSlot", count: 1 }],
+  res_drill_yard: [
+    { type: "unlockMachine", kind: "barracks" },
+    { type: "unlockRecipe", recipeId: "r_militia" },
+  ],
+  res_hardened_steel: [
+    { type: "unlockRecipe", recipeId: "r_hardened_steel" },
+    { type: "unlockRecipe", recipeId: "r_fine_sword" },
+    { type: "unlockRecipe", recipeId: "r_fine_armor" },
+    { type: "unlockRecipe", recipeId: "r_fine_shield" },
+    { type: "unlockRecipe", recipeId: "r_soldier" },
+    {
+      type: "unlockListing",
+      resourceIds: [
+        "hardened_steel",
+        "fine_sword",
+        "fine_armor",
+        "fine_shield",
+      ],
+    },
+  ],
+  res_master_smithing: [
+    { type: "unlockRecipe", recipeId: "r_master_sword" },
+    { type: "unlockRecipe", recipeId: "r_master_armor" },
+    { type: "unlockRecipe", recipeId: "r_master_shield" },
+    { type: "unlockRecipe", recipeId: "r_knight" },
+    {
+      type: "unlockListing",
+      resourceIds: ["master_sword", "master_armor", "master_shield"],
+    },
+  ],
   res_quartermaster: [{ type: "autoSell", enabled: true }],
 };
 
@@ -98,7 +127,7 @@ export function buyResearch(state, content, id) {
 /** Machine Tuning — the endless research sink: each rank multiplies the kind's
  *  production bonus by `mult`; the next rank's cost grows by `costGrowth`. */
 export const TUNING = {
-  kinds: ["gatherer", "smelter", "workshop", "market", "scholar"],
+  kinds: ["gatherer", "smelter", "workshop", "barracks", "market", "scholar"],
   baseCost: 50,
   costGrowth: 1.6,
   mult: 1.1,
@@ -178,19 +207,8 @@ export function applyEffects(state, content, effects) {
         // 1h is a hard maximum: clamp so no effect can ever raise the offline cap past it.
         u.offlineCapHours = Math.min(e.value, 1);
         break;
-      case "heroSlot":
-        u.heroSlots = (u.heroSlots || 1) + e.count;
-        break;
       case "autoSell":
         u.autoSell = e.enabled;
-        break;
-      case "unlockGearTier":
-        for (const itemId of e.itemIds) {
-          const exists = u.gearTiersUnlocked.some(
-            (g) => g.itemId === itemId && g.tier === e.tier,
-          );
-          if (!exists) u.gearTiersUnlocked.push({ itemId, tier: e.tier });
-        }
         break;
     }
   }

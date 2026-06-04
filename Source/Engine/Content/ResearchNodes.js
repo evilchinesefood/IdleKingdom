@@ -2,7 +2,7 @@
 /** @typedef {Object} ResearchNode
  *  @property {string}  id
  *  @property {string}  name
- *  @property {"research"|"renown"} currency
+ *  @property {"research"} currency
  *  @property {number}  cost
  *  @property {string[]} prereqs
  *  @property {ResearchEffect[]} effects
@@ -11,7 +11,7 @@
  *  @property {string}  flavor        witty in-world flavor (secondary)
  */
 
-/** Keyed map id -> ResearchNode. 15 backbone (research) + 2 premium (renown). */
+/** Keyed map id -> ResearchNode. */
 export const RESEARCH_NODES = {
   res_scholar: {
     id: "res_scholar",
@@ -227,24 +227,74 @@ export const RESEARCH_NODES = {
       "+20% to all production (gatherers, smelters, workshops) and +50% Scholar research output.",
     flavor: "Every wheel, every fire, every quill — turning as one.",
   },
-  // Premium (renown)
-  res_war_college: {
-    id: "res_war_college",
-    name: "War College",
-    currency: "renown",
-    cost: 30,
+  res_drill_yard: {
+    id: "res_drill_yard",
+    name: "The Drill Yard",
+    currency: "research",
+    cost: 600,
     prereqs: ["res_armory"],
-    requiresTerritory: "t_smithyward",
-    effects: [{ type: "heroSlot", count: 1 }],
-    description: "Adds a second hero slot.",
-    flavor: "Two banners on the wall are harder to break than one.",
+    requiresTerritory: null,
+    effects: [
+      { type: "unlockMachine", kind: "barracks" },
+      { type: "unlockRecipe", recipeId: "r_militia" },
+    ],
+    description:
+      "Unlocks the Barracks and Militia muster (sword + armor + shield).",
+    flavor: "Pikes up. The city remembers how to march.",
+  },
+  res_hardened_steel: {
+    id: "res_hardened_steel",
+    name: "Hardened Steel",
+    currency: "research",
+    cost: 800,
+    prereqs: ["res_steelmaking"],
+    requiresTerritory: null,
+    effects: [
+      { type: "unlockRecipe", recipeId: "r_hardened_steel" },
+      { type: "unlockRecipe", recipeId: "r_fine_sword" },
+      { type: "unlockRecipe", recipeId: "r_fine_armor" },
+      { type: "unlockRecipe", recipeId: "r_fine_shield" },
+      { type: "unlockRecipe", recipeId: "r_soldier" },
+      {
+        type: "unlockListing",
+        resourceIds: [
+          "hardened_steel",
+          "fine_sword",
+          "fine_armor",
+          "fine_shield",
+        ],
+      },
+    ],
+    description:
+      "Unlocks Hardened Steel and Fine (T2) gear — and Soldiers mustered from it.",
+    flavor: "Quench twice; strike once.",
+  },
+  res_master_smithing: {
+    id: "res_master_smithing",
+    name: "Masterwork Smithing",
+    currency: "research",
+    cost: 1500,
+    prereqs: ["res_hardened_steel"],
+    requiresTerritory: "t_ironreach",
+    effects: [
+      { type: "unlockRecipe", recipeId: "r_master_sword" },
+      { type: "unlockRecipe", recipeId: "r_master_armor" },
+      { type: "unlockRecipe", recipeId: "r_master_shield" },
+      { type: "unlockRecipe", recipeId: "r_knight" },
+      {
+        type: "unlockListing",
+        resourceIds: ["master_sword", "master_armor", "master_shield"],
+      },
+    ],
+    description: "Gemstone-set Master (T3) gear — and Knights worthy of it.",
+    flavor: "A blade with a jewel in its hilt has a debt in its edge.",
   },
   res_quartermaster: {
     id: "res_quartermaster",
     name: "Master Quartermaster",
-    currency: "renown",
-    cost: 60,
-    prereqs: ["res_war_college", "res_trade_routes"],
+    currency: "research",
+    cost: 900,
+    prereqs: ["res_trade_routes"],
     requiresTerritory: "t_ironreach",
     effects: [{ type: "autoSell", enabled: true }],
     description:

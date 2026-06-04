@@ -16,6 +16,7 @@ import "./Offline.Test.js";
 import "./Tick.Test.js";
 import "./Economy.Test.js";
 import "./ResearchSystem.Test.js";
+import "./SiegeSystem.Test.js";
 import "./HeroSystem.Test.js";
 import "./Progression.Test.js";
 import "./ExpeditionSystem.Test.js";
