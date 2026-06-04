@@ -279,6 +279,28 @@ export function reduce(state, intent, content) {
           if (!keep.has(r)) delete node.stockpile[r];
       node.resourceIds = kept;
       delete node.resourceId; // migrated to the array form
+      // Outbound connections follow the held types (mirrors SetRecipe /
+      // SetGathererResource): a link carrying a type the room no longer holds is
+      // re-pointed to a held type, preferring one that doesn't duplicate an existing
+      // (from,to,resource) triple. An emptied rule leaves links untouched (they
+      // render dead until the room is reconfigured).
+      if (kept.length) {
+        const links = next.graph.links;
+        for (const l of links) {
+          if (l.from !== node.id || keep.has(l.resourceId)) continue;
+          const fresh = kept.find(
+            (r) =>
+              !links.some(
+                (o) =>
+                  o !== l &&
+                  o.from === l.from &&
+                  o.to === l.to &&
+                  o.resourceId === r,
+              ),
+          );
+          l.resourceId = fresh ?? kept[0];
+        }
+      }
       structural = true;
       break;
     }

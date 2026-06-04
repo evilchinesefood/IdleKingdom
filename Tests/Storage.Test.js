@@ -392,3 +392,112 @@ describe("Storage Room — capacity & stockpile clamp", () => {
     expect(sn.storedTotal).toBeCloseTo(30, 1e-9);
   });
 });
+
+describe("SetStorageRule — outbound links follow the held types", () => {
+  const connect = (game, from, to, resourceId) =>
+    game.dispatch({ type: INTENT.ConnectLink, from, to, resourceId });
+
+  it("re-points a stale outbound link to the new primary type", () => {
+    const game = newGame();
+    const gid = place(game, "gatherer", { resourceId: "iron_ore" }, 0);
+    const sid = place(game, "storage", {}, 200);
+    const mid = place(game, "market", {}, 400);
+    game.dispatch({
+      type: INTENT.SetStorageRule,
+      nodeId: sid,
+      resourceIds: ["iron_ore"],
+    });
+    connect(game, gid, sid, "iron_ore");
+    connect(game, sid, mid, "iron_ore");
+    game.dispatch({
+      type: INTENT.SetStorageRule,
+      nodeId: sid,
+      resourceIds: ["coal_raw"],
+    });
+    const links = game.getState().graph.links;
+    expect(links.find((l) => l.from === sid && l.to === mid).resourceId).toBe(
+      "coal_raw",
+    );
+    // the inbound feed link is NOT touched (rewrite is outbound-only)
+    expect(links.find((l) => l.from === gid && l.to === sid).resourceId).toBe(
+      "iron_ore",
+    );
+  });
+
+  it("keeps still-held links; re-points only stale ones without duplicating a triple", () => {
+    const game = newGame();
+    const sid = place(game, "storage", {}, 0);
+    game.dispatch({ type: INTENT.UpgradeNode, nodeId: sid }); // L2 -> 2 types
+    game.dispatch({
+      type: INTENT.SetStorageRule,
+      nodeId: sid,
+      resourceIds: ["iron_ore", "coal_raw"],
+    });
+    const mid = place(game, "market", {}, 300);
+    connect(game, sid, mid, "iron_ore");
+    connect(game, sid, mid, "coal_raw");
+    game.dispatch({
+      type: INTENT.SetStorageRule,
+      nodeId: sid,
+      resourceIds: ["iron_ore", "timber"],
+    });
+    const out = game.getState().graph.links.filter((l) => l.from === sid);
+    expect(out.filter((l) => l.resourceId === "iron_ore").length).toBe(1); // untouched, no dup
+    expect(out.filter((l) => l.resourceId === "timber").length).toBe(1); // stale followed
+  });
+
+  it("clearing the rule leaves links untouched (dead link stays visible)", () => {
+    const game = newGame();
+    const sid = place(game, "storage", {}, 0);
+    game.dispatch({
+      type: INTENT.SetStorageRule,
+      nodeId: sid,
+      resourceIds: ["iron_ore"],
+    });
+    const mid = place(game, "market", {}, 300);
+    connect(game, sid, mid, "iron_ore");
+    game.dispatch({
+      type: INTENT.SetStorageRule,
+      nodeId: sid,
+      resourceIds: [],
+    });
+    expect(
+      game.getState().graph.links.find((l) => l.from === sid).resourceId,
+    ).toBe("iron_ore");
+  });
+
+  it("flow resumes immediately after a chain retype, no link re-draw needed", () => {
+    const game = newGame();
+    const gid = place(game, "gatherer", { resourceId: "iron_ore" }, 0);
+    const sid = place(game, "storage", {}, 200);
+    const mid = place(game, "market", {}, 400);
+    game.dispatch({
+      type: INTENT.SetStorageRule,
+      nodeId: sid,
+      resourceIds: ["iron_ore"],
+    });
+    connect(game, gid, sid, "iron_ore");
+    connect(game, sid, mid, "iron_ore");
+    const st0 = game.getState();
+    delete st0._solved;
+    const linkId = st0.graph.links.find(
+      (l) => l.from === sid && l.to === mid,
+    ).id;
+    expect(solve(st0, content).linkFlow[linkId] > 0).toBe(true);
+    // retype the whole chain to timber (gather gating bypassed, as elsewhere)
+    game.getState().unlocks.gathererResources = ["timber"];
+    game.dispatch({
+      type: INTENT.SetGathererResource,
+      nodeId: gid,
+      resourceId: "timber",
+    });
+    game.dispatch({
+      type: INTENT.SetStorageRule,
+      nodeId: sid,
+      resourceIds: ["timber"],
+    });
+    const st1 = game.getState();
+    delete st1._solved;
+    expect(solve(st1, content).linkFlow[linkId] > 0).toBe(true);
+  });
+});
