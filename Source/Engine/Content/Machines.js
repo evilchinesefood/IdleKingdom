@@ -25,6 +25,12 @@ export const MACHINES = {
     rateGain: 0.2,
     upgradeBase: 40,
   },
+  barracks: {
+    kind: "barracks",
+    baseOutput: 0.0, // recipe-driven, like smelter/workshop
+    rateGain: 0.02,
+    upgradeBase: 60,
+  },
   market: { kind: "market", baseOutput: 5.0, rateGain: 5.0, upgradeBase: 30 },
   scholar: {
     kind: "scholar",

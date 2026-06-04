@@ -22,14 +22,15 @@ describe("Recipe id integrity", () => {
   });
 });
 
-describe("Value-positivity of all 12 recipes (§3.4)", () => {
-  it("each output basePrice exceeds summed input basePrice (parchment exempt: never listed)", () => {
+describe("Value-positivity of all priced recipes (§3.4)", () => {
+  it("each output basePrice exceeds summed input basePrice (parchment + troops exempt: never listed)", () => {
     for (const r of Object.values(RECIPES)) {
-      if (r.output === "parchment") continue; // research feedstock, never market-listed
       const outPrice = RESOURCES[r.output].basePrice;
+      if (outPrice == null) continue; // never-listed outputs (parchment, troops)
       let inCost = 0;
       for (const [inId, amt] of Object.entries(r.inputs)) {
-        inCost += RESOURCES[inId].basePrice * amt;
+        const p = RESOURCES[inId].basePrice;
+        inCost += (p == null ? 0 : p) * amt;
       }
       // strictly positive margin
       expect(outPrice - inCost > 0).toBe(true);
