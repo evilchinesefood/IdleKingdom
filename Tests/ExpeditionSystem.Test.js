@@ -134,6 +134,27 @@ describe("ExpeditionSystem", () => {
     expect(s.meta.won).toBe(true);
   });
 
+  it("tryResolve on an unknown territory clears the expedition and returns null (task 2)", () => {
+    const s = NewGame(new FakeClock(0));
+    s.expeditions.active = {
+      territoryId: "nope",
+      startedAt: 0,
+      durationMs: 1,
+      heroId: "h_0",
+    };
+    const gold0 = s.currencies.gold;
+    const out = tryResolve(s, content, 1000); // past duration, but territory unknown
+    expect(out).toBe(null);
+    expect(s.expeditions.active).toBe(null); // poisoned expedition cleared
+    expect(s.currencies.gold).toBe(gold0); // no rewards deref'd
+  });
+
+  it("startExpedition with an unknown territory is a no-op (task 2)", () => {
+    const s = NewGame(new FakeClock(0));
+    startExpedition(s, content, "nope", "h_0", 1000);
+    expect(s.expeditions.active).toBe(null);
+  });
+
   it("determinism: identical start + clock yields identical resolution twice", () => {
     function runOnce() {
       const s = NewGame(new FakeClock(0));

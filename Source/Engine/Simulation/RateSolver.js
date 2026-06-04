@@ -1,4 +1,5 @@
 import { topoSort } from "./Topology.js";
+import { isListed, AUTO_SELL_RATE } from "../Systems/EconomySystem.js";
 
 /** Capacity per kind (level adds to the relevant base; bonus = productionBonuses[kind] ?? 1.0). */
 export function capacity(node, state, content) {
@@ -214,6 +215,28 @@ export function solve(state, content) {
       if (sr > 0) {
         if (!surplusRate[id]) surplusRate[id] = {};
         surplusRate[id][resId] = (surplusRate[id][resId] || 0) + sr;
+      }
+    }
+  }
+
+  // Surplus auto-sell (res_quartermaster): a NON-storage producer's undrained surplus
+  // of a LISTED resource liquidates at AUTO_SELL_RATE of basePrice into the gold rate
+  // (the discount keeps markets relevant), and tithes to research like every other
+  // sell path. Storage surplus is never sold — those are protected buffers.
+  // Works online and offline (offline catch-up integrates these rates).
+  if (state.unlocks.autoSell) {
+    for (const id in surplusRate) {
+      const node = byId.get(id);
+      if (!node || node.kind === "storage") continue;
+      const rates = surplusRate[id];
+      for (const resId in rates) {
+        if (!isListed(state, content, resId)) continue;
+        const price = content.resources[resId].basePrice;
+        const gold = rates[resId] * price * AUTO_SELL_RATE;
+        if (!goldByNode[id]) goldByNode[id] = 0;
+        goldByNode[id] += gold;
+        if (!researchByNode[id]) researchByNode[id] = 0;
+        researchByNode[id] += gold * state.unlocks.titheRate;
       }
     }
   }

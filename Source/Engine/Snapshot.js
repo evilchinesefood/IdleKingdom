@@ -1,6 +1,6 @@
 import {
   upgradeCost,
-  buildingCopyCost,
+  buildingCopyCosts,
   storageCapacity,
 } from "./Systems/EconomySystem.js";
 import {
@@ -110,9 +110,11 @@ export function build(state, solved, content, lastError = null) {
     };
   });
 
+  const costIdx = new Map(state.graph.nodes.map((n) => [n.id, n]));
   const buildings = buildingList.map((b) => {
-    const copyCost = buildingCopyCost(b, state, content, true);
-    const copyCostStructure = buildingCopyCost(b, state, content, false);
+    const costs = buildingCopyCosts(b, state, content, costIdx);
+    const copyCost = costs.withUpgrades;
+    const copyCostStructure = costs.structure;
     return {
       id: b.id,
       name: b.name,

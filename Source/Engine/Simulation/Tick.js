@@ -10,9 +10,9 @@ export function applyTick(state, solved, dtSeconds) {
   state.currencies.research += solved.researchRate * dtSeconds;
 
   const surplus = solved.surplusRate || {};
-  const byId = state.graph.nodes;
+  const byId = new Map(state.graph.nodes.map((n) => [n.id, n]));
   for (const nodeId in surplus) {
-    const node = byId.find((n) => n.id === nodeId);
+    const node = byId.get(nodeId);
     // Only Storage Rooms hold inventory now — other machines' undrained surplus is
     // discarded (their production is lost if nothing downstream consumes it).
     if (!node || node.kind !== "storage") continue;

@@ -1,4 +1,4 @@
-const CACHE = "idlekingdom-v48";
+const CACHE = "idlekingdom-v49";
 const SHELL = [
   "./",
   "./Index.html",
@@ -15,10 +15,46 @@ const SHELL = [
   "./Source/Vendor/Fonts/eb-garamond-latin-700-normal.woff2",
   "./Source/Vendor/WebAwesome/webawesome.loader.js",
   "./Source/Vendor/WebAwesome/styles/webawesome.css",
+  "./Source/Vendor/WebAwesome/styles/layers.css",
+  "./Source/Vendor/WebAwesome/styles/native.css",
+  "./Source/Vendor/WebAwesome/styles/utilities.css",
+  "./Source/Vendor/WebAwesome/styles/themes/default.css",
+  "./Source/Vendor/WebAwesome/styles/color/palettes/default.css",
+  "./Source/Vendor/WebAwesome/styles/color/palettes/base.css",
+  "./Source/Vendor/WebAwesome/styles/utilities/align-items.css",
+  "./Source/Vendor/WebAwesome/styles/utilities/border-radius.css",
+  "./Source/Vendor/WebAwesome/styles/utilities/flex-wrap.css",
+  "./Source/Vendor/WebAwesome/styles/utilities/fouce.css",
+  "./Source/Vendor/WebAwesome/styles/utilities/gap.css",
+  "./Source/Vendor/WebAwesome/styles/utilities/justify-content.css",
+  "./Source/Vendor/WebAwesome/styles/utilities/layout.css",
+  "./Source/Vendor/WebAwesome/styles/utilities/placeholder.css",
+  "./Source/Vendor/WebAwesome/styles/utilities/scroll-lock.css",
+  "./Source/Vendor/WebAwesome/styles/utilities/size.css",
+  "./Source/Vendor/WebAwesome/styles/utilities/text.css",
+  "./Source/Vendor/WebAwesome/styles/utilities/variants.css",
+  "./Source/Vendor/WebAwesome/styles/utilities/visually-hidden.css",
   "./Source/Vendor/FontAwesome/css/fontawesome.css",
   "./Source/Vendor/FontAwesome/css/duotone.css",
   "./Source/Vendor/FontAwesome/webfonts/fa-duotone-900.woff2",
 ];
+
+// 256 WA chunks are vendored; keep the ceiling comfortably above a session's loads.
+const MAX_RUNTIME = 300;
+let runtimePuts = 0;
+const SHELL_URLS = new Set(
+  SHELL.map((u) => new URL(u, self.location.href).href),
+);
+
+// Bound runtime cache growth: drop oldest non-SHELL entries beyond MAX_RUNTIME.
+function trim(cache) {
+  return cache.keys().then((keys) => {
+    const runtime = keys.filter((req) => !SHELL_URLS.has(req.url));
+    const over = runtime.length - MAX_RUNTIME;
+    if (over <= 0) return;
+    return Promise.all(runtime.slice(0, over).map((req) => cache.delete(req)));
+  });
+}
 
 self.addEventListener("install", (e) => {
   e.waitUntil(
@@ -56,7 +92,15 @@ self.addEventListener("fetch", (e) => {
           // Web Awesome component/chunk files (not in SHELL) survive offline.
           if (res && res.ok && res.type === "basic") {
             const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(e.request, copy));
+            caches
+              .open(CACHE)
+              .then((c) =>
+                c.put(e.request, copy).then(() => {
+                  // trim() enumerates every cache key — sweep every 20th put only
+                  if (++runtimePuts % 20 === 0) return trim(c);
+                }),
+              )
+              .catch(() => {});
           }
           return res;
         })

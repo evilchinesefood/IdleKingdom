@@ -119,6 +119,7 @@ class AppInstance {
       tag === "INPUT" ||
       tag === "TEXTAREA" ||
       tag === "WA-INPUT" ||
+      tag === "WA-SELECT" ||
       (t && t.isContentEditable);
     const mod = e.metaKey || e.ctrlKey;
     const k = (e.key || "").toLowerCase();
@@ -126,12 +127,18 @@ class AppInstance {
 
     if (mod && !typing) {
       if (k === "z" && !e.shiftKey) {
-        if (this.game.canUndo()) this.game.undo();
+        if (this.game.canUndo()) {
+          this.game.undo();
+          this._reconcileSelection();
+        }
         e.preventDefault();
         return;
       }
       if ((k === "z" && e.shiftKey) || k === "y") {
-        if (this.game.canRedo()) this.game.redo();
+        if (this.game.canRedo()) {
+          this.game.redo();
+          this._reconcileSelection();
+        }
         e.preventDefault();
         return;
       }
@@ -220,6 +227,25 @@ class AppInstance {
       }
       e.preventDefault();
     }
+  }
+
+  // task 27: after undo/redo (or a bulk delete) the selected node/building may no
+  // longer exist. Drop the stale selection on both App and GraphView, then re-render
+  // so the inspector/action-bar reflect the reconciled state.
+  _reconcileSelection() {
+    const snap = this.lastSnap;
+    if (!snap) return;
+    const nodeIds = new Set((snap.nodes || []).map((n) => n.id));
+    const bldgIds = new Set((snap.buildings || []).map((b) => b.id));
+    if (this.selectedNodeId != null && !nodeIds.has(this.selectedNodeId))
+      this.selectedNodeId = null;
+    if (
+      this.selectedBuildingId != null &&
+      !bldgIds.has(this.selectedBuildingId)
+    )
+      this.selectedBuildingId = null;
+    if (this.graphView) this.graphView.reconcileSelection(snap);
+    this.renderNow();
   }
 
   _applyPrefs() {

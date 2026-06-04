@@ -18,38 +18,43 @@ export function applyUpgrade(state, content, nodeId) {
   delete state._solved;
 }
 
-/** Base rebuild cost of a building: the L0->L1 placement price (upgradeBase) per
- *  member machine — i.e. what it costs to recreate the bare structure, no upgrades. */
-export function buildingStructureCost(building, state, content) {
-  let total = 0;
+/** THE building pricing walk — both copy-cost variants in one pass.
+ *  `structure` = bare L0->L1 rebuild (upgradeBase per member); `withUpgrades` =
+ *  structure + every member's upgrade ladder to its current level. Pass a prebuilt
+ *  node id->node Map (`byId`) when pricing many buildings against one state. */
+export function buildingCopyCosts(building, state, content, byId) {
+  const idx = byId || new Map(state.graph.nodes.map((n) => [n.id, n]));
+  let structure = 0;
+  let upgrades = 0;
   for (const nid of building.nodeIds) {
-    const n = state.graph.nodes.find((x) => x.id === nid);
+    const n = idx.get(nid);
     if (!n) continue;
-    total += upgradeCost(n.kind, 0, content); // upgradeBase = base machine cost
+    structure += upgradeCost(n.kind, 0, content); // upgradeBase = base machine cost
+    for (let L = 1; L < n.level; L++)
+      upgrades += upgradeCost(n.kind, L, content);
   }
-  return total;
+  return { structure, withUpgrades: structure + upgrades };
 }
 
-/** Cost to copy a building: always the full structure rebuild, PLUS (when
- *  `withUpgrades`, the default) every member's upgrade ladder to its current level.
- *  `withUpgrades:false` prices a clean structure-only paste (machines at level 1). */
+/** Base rebuild cost of a building (bare structure, no upgrades). */
+export function buildingStructureCost(building, state, content) {
+  return buildingCopyCosts(building, state, content).structure;
+}
+
+/** Cost to copy a building, with (default) or without the upgrade ladder. */
 export function buildingCopyCost(
   building,
   state,
   content,
   withUpgrades = true,
 ) {
-  let total = buildingStructureCost(building, state, content);
-  if (withUpgrades) {
-    for (const nid of building.nodeIds) {
-      const n = state.graph.nodes.find((x) => x.id === nid);
-      if (!n) continue;
-      for (let L = 1; L < n.level; L++)
-        total += upgradeCost(n.kind, L, content);
-    }
-  }
-  return total;
+  const c = buildingCopyCosts(building, state, content);
+  return withUpgrades ? c.withUpgrades : c.structure;
 }
+
+/** Auto-sell (res_quartermaster) liquidates surplus at this fraction of basePrice —
+ *  the discount keeps hand-built market routes the better deal. */
+export const AUTO_SELL_RATE = 0.5;
 
 /** Cost to paste a loose set of cloned nodes: each node's structure (L0->L1) plus
  *  its upgrade ladder up to its target level. Mirrors buildingCopyCost's pricing. */

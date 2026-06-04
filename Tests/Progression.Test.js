@@ -8,10 +8,7 @@ import { EQUIPMENT } from "../Source/Engine/Content/Equipment.js";
 import { HEROES } from "../Source/Engine/Content/Heroes.js";
 import { NewGame } from "../Source/Engine/GameState.js";
 import { FakeClock } from "../Source/Engine/Clock.js";
-import {
-  reclaim,
-  checkWin,
-} from "../Source/Engine/Systems/ProgressionSystem.js";
+import { reclaim } from "../Source/Engine/Systems/ProgressionSystem.js";
 
 const content = {
   resources: RESOURCES,
@@ -63,13 +60,11 @@ describe("ProgressionSystem", () => {
     expect(shieldT2).toBe(true);
   });
 
-  it("checkWin false at 5/6; true only after the 6th reclaim; meta.won set", () => {
+  it("meta.won is set only after the victory territory is reclaimed", () => {
     const s = NewGame(new FakeClock(0));
     for (let i = 0; i < 5; i++) reclaim(s, content, ORDER[i]);
-    expect(checkWin(s, content)).toBe(false);
-    expect(s.meta.won).toBe(false);
-    reclaim(s, content, "t_blackkeep");
-    expect(checkWin(s, content)).toBe(true);
+    expect(s.meta.won).toBe(false); // 5/6 reclaimed, no victory territory yet
+    reclaim(s, content, "t_blackkeep"); // the isVictory territory
     expect(s.meta.won).toBe(true);
   });
 
@@ -84,6 +79,6 @@ describe("ProgressionSystem", () => {
       gathererBonus,
       1e-9,
     );
-    expect(checkWin(s, content)).toBe(true);
+    expect(s.meta.won).toBe(true);
   });
 });

@@ -660,6 +660,149 @@ describe("RateSolver — fan-out conservation", () => {
   });
 });
 
+describe("RateSolver — autoSell surplus liquidation (task 7)", () => {
+  // A lone gatherer producing a LISTED resource with no consumer accrues full
+  // surplus. With autoSell on, that surplus sells at 50% basePrice into goldRate.
+  function loneGathererState(autoSell, resourceId = "iron_ore") {
+    const nodes = [
+      {
+        id: "m",
+        kind: "gatherer",
+        level: 1,
+        resourceId,
+        recipeId: null,
+        stockpile: {},
+        pos: { x: 0, y: 0 },
+      },
+    ];
+    return {
+      currencies: { gold: 0, research: 0, renown: 0 },
+      graph: { nodes, links: [], nextNodeSeq: 1, nextLinkSeq: 0 },
+      unlocks: {
+        researchOwned: [],
+        recipesUnlocked: [],
+        machinesUnlocked: ["gatherer", "market", "storage"],
+        marketListings: [
+          "iron_ore",
+          "timber",
+          "hide",
+          "coal_raw",
+          "gemstone",
+          "iron_bar",
+        ],
+        titheRate: 0.05,
+        offlineCapHours: 1,
+        productionBonuses: {
+          gatherer: 1.0,
+          smelter: 1.0,
+          workshop: 1.0,
+          market: 1.0,
+          scholar: 1.0,
+          storage: 1.0,
+        },
+        gearTiersUnlocked: [],
+        autoSell,
+        heroSlots: 1,
+      },
+    };
+  }
+
+  it("listed surplus sells at 50% basePrice into goldRate only when autoSell is on", () => {
+    // iron_ore basePrice 0.5; gatherer L1 -> 1.0/s surplus. 1.0 * 0.5 * 0.5 = 0.25 gold/s.
+    const off = solve(loneGathererState(false), content());
+    expect(off.goldRate).toBeCloseTo(0, 1e-9);
+    const on = solve(loneGathererState(true), content());
+    expect(on.goldRate).toBeCloseTo(1.0 * 0.5 * 0.5, 1e-9); // 0.25
+  });
+
+  it("autoSell gold tithes to research like every other sell path", () => {
+    // 0.25 gold/s sold * titheRate 0.05 = 0.0125 research/s
+    const on = solve(loneGathererState(true), content());
+    expect(on.researchRate).toBeCloseTo(0.25 * 0.05, 1e-9);
+    const off = solve(loneGathererState(false), content());
+    expect(off.researchRate).toBeCloseTo(0, 1e-9);
+  });
+
+  it("does NOT sell an UNLISTED resource even with autoSell", () => {
+    // parchment has basePrice null (never listed); coal not in marketListings here.
+    const st = loneGathererState(true, "coal");
+    st.unlocks.recipesUnlocked = []; // coal stays unlisted
+    const solved = solve(st, content());
+    expect(solved.goldRate).toBeCloseTo(0, 1e-9);
+  });
+
+  it("NEVER sells storage-room surplus (buffers protected)", () => {
+    // A storage room fed beyond its passthrough leaves surplus that must NOT auto-sell.
+    const nodes = [
+      {
+        id: "g",
+        kind: "gatherer",
+        level: 7, // 4.0 iron_ore/s
+        resourceId: "iron_ore",
+        recipeId: null,
+        stockpile: {},
+        pos: { x: 0, y: 0 },
+      },
+      {
+        id: "s",
+        kind: "storage",
+        level: 1,
+        resourceId: null,
+        recipeId: null,
+        resourceIds: ["iron_ore"],
+        stockpile: {},
+        pos: { x: 1, y: 0 },
+      },
+    ];
+    const links = [{ id: "l0", from: "g", to: "s", resourceId: "iron_ore" }];
+    const st = {
+      currencies: { gold: 0, research: 0, renown: 0 },
+      graph: { nodes, links, nextNodeSeq: 2, nextLinkSeq: 1 },
+      unlocks: {
+        researchOwned: [],
+        recipesUnlocked: [],
+        machinesUnlocked: ["gatherer", "storage"],
+        marketListings: ["iron_ore", "iron_bar"],
+        titheRate: 0.05,
+        offlineCapHours: 1,
+        productionBonuses: {
+          gatherer: 1.0,
+          smelter: 1.0,
+          workshop: 1.0,
+          market: 1.0,
+          scholar: 1.0,
+          storage: 1.0,
+        },
+        gearTiersUnlocked: [],
+        autoSell: true,
+        heroSlots: 1,
+      },
+    };
+    const solved = solve(st, content());
+    // Storage passthrough (cap 10/s) drains the gatherer's 4.0/s fully (no gatherer
+    // surplus), but the storage room has no downstream consumer so its OWN surplus is
+    // 4.0/s. That storage surplus must NOT auto-sell -> goldRate stays 0.
+    const gSurplus =
+      (solved.surplusRate["g"] && solved.surplusRate["g"]["iron_ore"]) || 0;
+    const sSurplus =
+      (solved.surplusRate["s"] && solved.surplusRate["s"]["iron_ore"]) || 0;
+    expect(gSurplus).toBeCloseTo(0, 1e-9);
+    expect(sSurplus).toBeCloseTo(4.0, 1e-9); // storage holds the surplus
+    expect(solved.goldRate).toBeCloseTo(0, 1e-9); // storage surplus never sold
+  });
+
+  it("autoSell goldRate flows through offline catch-up", async () => {
+    const { applyOffline } =
+      await import("../Source/Engine/Simulation/Offline.js");
+    const st = loneGathererState(true);
+    st.lastSeen = 0;
+    st.expeditions = { active: null, completed: [] };
+    // 100s of offline at 0.25 gold/s autoSell rate = 25 gold.
+    const summary = applyOffline(st, content(), 100 * 1000);
+    expect(summary.gained.gold).toBeCloseTo(0.25 * 100, 1e-6);
+  });
+});
+
 describe("RateSolver — cycle rejection", () => {
   it("solve throws 'cycle' on a looped graph", () => {
     const { state, content } = cycleGraph();

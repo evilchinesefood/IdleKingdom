@@ -19,6 +19,19 @@ const NODE_W = 120,
   HIT_R = 22,
   GRID = 40;
 
+// Pure affine delta from the view baked into the last full draw (`d`) to the live
+// view (`v`). Both views map graph->screen as screen = graph*scale + offset, so a
+// point drawn at Pd = g*d.scale + d.offset must move to Pv = g*v.scale + v.offset.
+// Eliminating g gives T(P) = k*P + b with k = v.scale/d.scale and
+// b = v.offset - d.offset*k. SVG "translate(bx,by) scale(k)" applies exactly that.
+// DOM-free + testable.
+export function deltaTransform(d, v) {
+  const k = v.scale / d.scale;
+  const bx = v.tx - d.tx * k;
+  const by = v.ty - d.ty * k;
+  return { k, bx, by, str: `translate(${bx} ${by}) scale(${k})` };
+}
+
 export class GraphView {
   constructor(host, game, opts = {}) {
     this.host = host;
@@ -33,15 +46,26 @@ export class GraphView {
     this.selectedLinkId = null;
 
     this.svgEl = svg("svg", { class: "graph-svg" });
+    // All layers live under ONE root <g> so an active pan/zoom gesture can apply a
+    // single delta transform (task 9 fast path) instead of rebuilding everything.
+    this.layerRoot = svg("g", {});
     this.layerBuildings = svg("g", {}); // building outlines/labels, behind all
     this.layerLinks = svg("g", {});
     this.layerNodes = svg("g", {});
     this.layerOverlay = svg("g", {}); // select box + copy ghost, on top
-    this.svgEl.appendChild(this.layerBuildings);
-    this.svgEl.appendChild(this.layerLinks);
-    this.svgEl.appendChild(this.layerNodes);
-    this.svgEl.appendChild(this.layerOverlay);
+    this.layerRoot.appendChild(this.layerBuildings);
+    this.layerRoot.appendChild(this.layerLinks);
+    this.layerRoot.appendChild(this.layerNodes);
+    this.layerRoot.appendChild(this.layerOverlay);
+    this.svgEl.appendChild(this.layerRoot);
     this.host.appendChild(this.svgEl);
+
+    // task 9: view captured at the last full _draw + gesture/coalesce state.
+    this._drawnView = { ...this.view };
+    this._gesturing = false;
+    this._rafId = null;
+    this._wheelTimer = null;
+    this._hostRect = null; // task 10: cached host rect, invalidated on resize/gesture-end
 
     // Multi-selection set + floating action bar (HTML, anchored to the host).
     this.selNodes = new Set();
@@ -107,10 +131,22 @@ export class GraphView {
       onToggleSelect: (id, isBuilding) => this._toggleSelect(id, isBuilding),
       onPasteMove: (gx, gy) => this._pasteMove(gx, gy),
       onPastePlace: (gx, gy) => this._pastePlace(gx, gy),
-      onPointersCleared: () => this._clearTransient(),
-      onViewChange: () => this._draw(),
+      onPointersCleared: () => {
+        this._clearTransient();
+        this._endGesture(); // pan/pinch over -> full redraw + reset transform
+      },
+      onViewChange: (kind) => this._onViewChange(kind),
     });
     this._pendingLink = null; // {fromId, gx, gy} live mouse drag-connect preview
+
+    // task 10: invalidate the cached host rect when the canvas resizes (guarded for
+    // the headless shim, where ResizeObserver is absent).
+    if (typeof ResizeObserver === "function") {
+      this._ro = new ResizeObserver(() => {
+        this._hostRect = null;
+      });
+      this._ro.observe(this.host);
+    }
   }
 
   // Graph-space coordinate near the center of the current viewport (for BuildMenu spawnPos).
@@ -128,6 +164,65 @@ export class GraphView {
   _connectEnd() {
     this._pendingLink = null;
     this._draw();
+  }
+
+  // task 9 fast path: during an active pan/zoom gesture, don't rebuild the SVG.
+  // Apply a single affine delta (drawnView -> live view) to the layer root and
+  // coalesce the eventual full redraw. `kind` is "wheel" (no pointers -> debounce
+  // the end) or "gesture" (pan/pinch -> end on pointer clear).
+  _onViewChange(kind) {
+    this._gesturing = true;
+    this._applyDeltaTransform();
+    if (kind === "wheel") {
+      if (this._wheelTimer != null) clearTimeout(this._wheelTimer);
+      this._wheelTimer = setTimeout(() => {
+        this._wheelTimer = null;
+        this._endGesture();
+      }, 150);
+    }
+  }
+
+  // Set the drawnView->liveView delta transform on the layer root so already-drawn
+  // elements track the gesture without a rebuild. Guarded for the headless shim.
+  _applyDeltaTransform() {
+    const t = deltaTransform(this._drawnView, this.view);
+    if (this.layerRoot && this.layerRoot.setAttribute)
+      this.layerRoot.setAttribute("transform", t.str);
+    // task 10: shift the floating action bar by the same delta instead of
+    // recomputing its anchor (which would force a reflow every gesture frame).
+    if (this._barAnchor && this.actionBarEl && this.actionBarEl.style) {
+      const left = t.k * this._barAnchor.left + t.bx;
+      const top = t.k * this._barAnchor.top + t.by;
+      this.actionBarEl.style.left = left + "px";
+      this.actionBarEl.style.top = top + "px";
+    }
+  }
+
+  // Gesture over: drop the delta transform and do one full redraw (rAF-coalesced;
+  // recaptures drawnView), then invalidate the cached host rect.
+  _endGesture() {
+    if (this._wheelTimer != null) {
+      clearTimeout(this._wheelTimer);
+      this._wheelTimer = null;
+    }
+    this._gesturing = false;
+    if (this.layerRoot && this.layerRoot.removeAttribute)
+      this.layerRoot.removeAttribute("transform");
+    this._hostRect = null;
+    this._requestDraw();
+  }
+
+  // rAF-coalesce a full redraw (guarded for the headless shim, where rAF is absent).
+  _requestDraw() {
+    if (typeof requestAnimationFrame !== "function") {
+      this._draw();
+      return;
+    }
+    if (this._rafId != null) return;
+    this._rafId = requestAnimationFrame(() => {
+      this._rafId = null;
+      this._draw();
+    });
   }
 
   // Toggle which link's flow label is revealed (touch-friendly alternative to hover).
@@ -206,8 +301,20 @@ export class GraphView {
     this._draw();
   }
 
+  // id -> node Map, built once per snapshot identity (task 11). Replaces the
+  // O(links×nodes) linear Array.find used in _draw, _pos and the hit-tests.
+  _nodeMap() {
+    if (this._nodeMapSnap !== this.snap) {
+      this._nodeMapCache = new Map(
+        (this.snap.nodes || []).map((n) => [n.id, n]),
+      );
+      this._nodeMapSnap = this.snap;
+    }
+    return this._nodeMapCache;
+  }
+
   _nodeAt(id) {
-    return this.snap.nodes.find((n) => n.id === id);
+    return this._nodeMap().get(id);
   }
   _outPort(n) {
     return { x: n.pos.x + NODE_W, y: n.pos.y + NODE_H / 2 };
@@ -366,6 +473,45 @@ export class GraphView {
     this.selBuildings.clear();
   }
 
+  // task 27: drop any selection (single + multi) whose id is absent from the fresh
+  // snapshot — e.g. after undo/redo or a bulk delete removed the selected items.
+  // Returns true if anything was cleared. No redraw (the caller re-renders).
+  reconcileSelection(snap) {
+    if (!snap) return false;
+    const nodeIds = new Set((snap.nodes || []).map((n) => n.id));
+    const bldgIds = new Set((snap.buildings || []).map((b) => b.id));
+    let changed = false;
+    if (this.selectedId != null && !nodeIds.has(this.selectedId)) {
+      this.selectedId = null;
+      changed = true;
+    }
+    if (
+      this.selectedBuildingId != null &&
+      !bldgIds.has(this.selectedBuildingId)
+    ) {
+      this.selectedBuildingId = null;
+      changed = true;
+    }
+    if (this.selectedLinkId != null) {
+      const linkIds = new Set((snap.links || []).map((l) => l.id));
+      if (!linkIds.has(this.selectedLinkId)) {
+        this.selectedLinkId = null;
+        changed = true;
+      }
+    }
+    for (const id of [...this.selNodes])
+      if (!nodeIds.has(id)) {
+        this.selNodes.delete(id);
+        changed = true;
+      }
+    for (const id of [...this.selBuildings])
+      if (!bldgIds.has(id)) {
+        this.selBuildings.delete(id);
+        changed = true;
+      }
+    return changed;
+  }
+
   hasSelection() {
     return this.selNodes.size + this.selBuildings.size > 0;
   }
@@ -396,13 +542,22 @@ export class GraphView {
     if (
       this._buildingDrag &&
       n.building &&
-      this._subtreeBuildingIds(this._buildingDrag.id).has(n.building)
+      this._dragSubtreeSet().has(n.building)
     )
       return {
         x: n.pos.x + this._buildingDrag.dx,
         y: n.pos.y + this._buildingDrag.dy,
       };
     return n.pos;
+  }
+
+  // The dragged building's subtree id set, computed once per drag (task 12) rather
+  // than rebuilding a buildings Map for every node/building each _draw frame.
+  _dragSubtreeSet() {
+    if (!this._buildingDrag) return new Set();
+    if (!this._dragSubtree)
+      this._dragSubtree = this._subtreeBuildingIds(this._buildingDrag.id);
+    return this._dragSubtree;
   }
 
   // The building `id` plus every group nested under it via `children` (snapshot,
@@ -468,6 +623,7 @@ export class GraphView {
     if (this._buildingDrag || this._bGrab || this._selectBox || this._resize) {
       this._buildingDrag = null;
       this._bGrab = null;
+      this._dragSubtree = null;
       this._selectBox = null;
       this._resize = null;
       this._draw();
@@ -482,10 +638,7 @@ export class GraphView {
   _buildingRect(b) {
     if (this._resize && this._resize.id === b.id) return this._resize.rect;
     // a live building-move nudges the dragged group AND every nested descendant.
-    if (
-      this._buildingDrag &&
-      this._subtreeBuildingIds(this._buildingDrag.id).has(b.id)
-    )
+    if (this._buildingDrag && this._dragSubtreeSet().has(b.id))
       return {
         x: b.rect.x + this._buildingDrag.dx,
         y: b.rect.y + this._buildingDrag.dy,
@@ -621,6 +774,7 @@ export class GraphView {
   _grabBuilding(id, gx, gy) {
     this._buildingDrag = { id, dx: 0, dy: 0 };
     this._bGrab = { gx, gy };
+    this._dragSubtree = null; // recomputed once on first _pos/_buildingRect of this drag
   }
 
   _dragBuilding(id, gx, gy) {
@@ -634,6 +788,7 @@ export class GraphView {
     const d = this._buildingDrag;
     this._buildingDrag = null;
     this._bGrab = null;
+    this._dragSubtree = null;
     if (!d) {
       this._draw();
       return;
@@ -938,6 +1093,10 @@ export class GraphView {
         this.game.dispatch({ type: INTENT.RemoveNode, nodeId: nid });
     this._clearSelectionSets();
     this.selectedBuildingId = null;
+    // task 27: a single-selected node/link may also have been removed by the bulk
+    // delete — reconcile against the fresh snapshot so no stale id survives.
+    if (this.game && this.game.getSnapshot)
+      this.reconcileSelection(this.game.getSnapshot());
     if (this.onSelect) this.onSelect(null); // close the slim panel for a deleted group
     this._draw();
   }
@@ -950,40 +1109,67 @@ export class GraphView {
     if (!bar) return;
     if (!this.hasSelection() || this._mode === "paste") {
       bar.style.display = "none";
+      this._barAnchor = null;
+      this._barSig = null;
       return;
     }
     const bbox = this._selectionBBox();
     if (!bbox) {
       bar.style.display = "none";
+      this._barAnchor = null;
+      this._barSig = null;
       return;
     }
-    while (bar.firstChild) bar.removeChild(bar.firstChild);
-    const mkBtn = (label, fn) => {
-      const b = document.createElement("button");
-      b.className = "sel-act";
-      b.textContent = label;
-      b.onclick = (e) => {
-        if (e && e.stopPropagation) e.stopPropagation();
-        fn();
+    // task 23: only tear down + rebuild the buttons when the SET changes. A plain
+    // re-draw (pan/zoom/tick) keeps the same buttons, so reusing them avoids churn
+    // and a dropped focus on the bar.
+    const showGroup = this.selNodes.size > 0 || this.selBuildings.size >= 2;
+    const sig = `${showGroup ? "G" : ""}C${this._clipboard ? "P" : ""}D`;
+    if (sig !== this._barSig || bar.childNodes.length === 0) {
+      // capture which button (by label) had focus so we can restore it post-rebuild
+      let focusLabel = null;
+      try {
+        const a = document.activeElement;
+        if (a && a.parentNode === bar && a.textContent)
+          focusLabel = a.textContent;
+      } catch {}
+      while (bar.firstChild) bar.removeChild(bar.firstChild);
+      const mkBtn = (label, fn) => {
+        const b = document.createElement("button");
+        b.className = "sel-act";
+        b.textContent = label;
+        b.onclick = (e) => {
+          if (e && e.stopPropagation) e.stopPropagation();
+          fn();
+        };
+        bar.appendChild(b);
       };
-      bar.appendChild(b);
-    };
-    // Group is available when grouping would nest at least one thing: any loose
-    // node, or 2+ selected groups (one lone group has nothing to nest under).
-    if (this.selNodes.size > 0 || this.selBuildings.size >= 2)
-      mkBtn("Group", () => this._groupSelection());
-    mkBtn("Copy", () => this._copySelection(true));
-    if (this._clipboard) mkBtn("Paste", () => this._pasteSelection());
-    mkBtn("Delete All", () => this._deleteSelection());
+      // Group is available when grouping would nest at least one thing: any loose
+      // node, or 2+ selected groups (one lone group has nothing to nest under).
+      if (showGroup) mkBtn("Group", () => this._groupSelection());
+      mkBtn("Copy", () => this._copySelection(true));
+      if (this._clipboard) mkBtn("Paste", () => this._pasteSelection());
+      mkBtn("Delete All", () => this._deleteSelection());
+      this._barSig = sig;
+      if (focusLabel) {
+        for (const b of bar.childNodes)
+          if (b.textContent === focusLabel && typeof b.focus === "function") {
+            b.focus();
+            break;
+          }
+      }
+    }
 
     bar.style.display = "flex";
     const cx = bbox.x + bbox.w / 2;
     const screen = graphToScreen(this.view, cx, bbox.y);
-    let hostRect = null,
+    // task 10: cache the host rect (it only changes on resize/gesture-end, where
+    // we null it) so we don't read-after-write thrash layout on every draw.
+    let hostRect = this._hostRect,
       barRect = null;
     try {
-      if (this.host.getBoundingClientRect)
-        hostRect = this.host.getBoundingClientRect();
+      if (!hostRect && this.host.getBoundingClientRect)
+        hostRect = this._hostRect = this.host.getBoundingClientRect();
       if (bar.getBoundingClientRect) barRect = bar.getBoundingClientRect();
     } catch {}
     if (!hostRect || !barRect || !barRect.width) return; // headless: skip positioning
@@ -998,6 +1184,9 @@ export class GraphView {
     }
     bar.style.left = left + "px";
     bar.style.top = top + "px";
+    // Record the anchor so the gesture fast path (task 9) can translate the bar by
+    // the same delta instead of re-reading layout each frame.
+    this._barAnchor = { left, top };
   }
 
   _draw() {
@@ -1054,6 +1243,8 @@ export class GraphView {
           );
           // link-delete affordance: a small × at the midpoint (its own hit target
           // so it doesn't interfere with the port drag-connect gesture).
+          // Delete routes through GraphInput.hitLinkDelete -> onDeleteLink: the
+          // SVG is pointer-captured, so an onclick here would never fire (task 22).
           const del = svg("g", { class: "link-delete-g" });
           del.appendChild(
             svg("circle", {
@@ -1061,8 +1252,6 @@ export class GraphView {
               cx: mid.x,
               cy: mid.y + 12,
               r: 13,
-              onclick: () =>
-                this.game.dispatch({ type: INTENT.RemoveLink, linkId: l.id }),
             }),
           );
           del.appendChild(
@@ -1073,8 +1262,6 @@ export class GraphView {
                 x: mid.x,
                 y: mid.y + 16,
                 "text-anchor": "middle",
-                onclick: () =>
-                  this.game.dispatch({ type: INTENT.RemoveLink, linkId: l.id }),
               },
               ["×"],
             ),
@@ -1119,6 +1306,15 @@ export class GraphView {
 
     // overlay: live select box + copy ghost (on top of everything)
     this._replace(this.layerOverlay, this._drawOverlay(v));
+
+    // task 9: a full draw bakes the live view into every element — record it so the
+    // next gesture frame can compute its delta transform against this baseline.
+    this._drawnView = { scale: v.scale, tx: v.tx, ty: v.ty };
+    // A redraw landing MID-gesture (e.g. a snapshot from an expedition resolving
+    // during a pan) just rebaked the live view, so any gesture delta still on the
+    // layer root is stale — clear it or everything double-transforms.
+    if (this.layerRoot && this.layerRoot.removeAttribute)
+      this.layerRoot.removeAttribute("transform");
 
     // floating action bar follows the selection bbox
     this._renderActionBar();

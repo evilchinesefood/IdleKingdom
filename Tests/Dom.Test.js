@@ -208,6 +208,30 @@ describe("Dom.patch text reconciliation (regression: stacking saved badge)", () 
   });
 });
 
+describe("Dom.patch keyed tag-mismatch (task 24)", () => {
+  it("creates a FRESH element when a keyed vnode changes tag (no misapplied reuse)", () => {
+    const root = new FakeEl("div");
+    patch(root, [h("div", { key: "x" }, ["A"])], fakeDoc);
+    const firstX = root.children[0];
+    expect(firstX.tagName).toBe("DIV");
+    patch(root, [h("span", { key: "x" }, ["B"])], fakeDoc); // same key, new tag
+    expect(root.children.length).toBe(1); // old DIV removed, not left behind
+    const now = root.children[0];
+    expect(now.tagName).toBe("SPAN");
+    expect(now).toBe(now); // fresh element
+    expect(now === firstX).toBe(false);
+    expect(now.textContent).toBe("B");
+  });
+  it("still reuses the keyed element when the tag is unchanged", () => {
+    const root = new FakeEl("div");
+    patch(root, [h("div", { key: "x" }, ["A"])], fakeDoc);
+    const firstX = root.children[0];
+    patch(root, [h("div", { key: "x" }, ["A2"])], fakeDoc);
+    expect(root.children[0]).toBe(firstX); // same instance
+    expect(root.children[0].textContent).toBe("A2");
+  });
+});
+
 describe("Dom.patch — Web Awesome extensions", () => {
   it("onWa* binds the kebab custom event; firing it calls the fn", () => {
     const root = new FakeEl("div");

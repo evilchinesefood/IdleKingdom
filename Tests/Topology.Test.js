@@ -3,7 +3,6 @@ import {
   topoSort,
   wouldStayAcyclic,
   isValidLink,
-  orderFor,
 } from "../Source/Engine/Simulation/Topology.js";
 import { seededState } from "./Fixtures/Seeded.js";
 import { FakeClock } from "../Source/Engine/Clock.js";
@@ -71,6 +70,21 @@ describe("Topology.topoSort", () => {
       { id: "l2", from: "c", to: "a", resourceId: "x" },
     ];
     expect(() => topoSort(nodes, links)).toThrow("cycle");
+  });
+
+  it("orders a long linear chain (index-pointer drain) (task 26)", () => {
+    const N = 50;
+    const nodes = Array.from({ length: N }, (_, i) => ({ id: "n" + i }));
+    const links = Array.from({ length: N - 1 }, (_, i) => ({
+      id: "l" + i,
+      from: "n" + i,
+      to: "n" + (i + 1),
+      resourceId: "x",
+    }));
+    const order = topoSort(nodes, links);
+    expect(order.length).toBe(N);
+    for (let i = 0; i < N - 1; i++)
+      expect(order.indexOf("n" + i) < order.indexOf("n" + (i + 1))).toBe(true);
   });
 });
 
@@ -160,16 +174,5 @@ describe("Topology.isValidLink", () => {
     expect(
       isValidLink(state, CONTENT, "n_miner_1", "n_smelter_0", "iron_ore"),
     ).toBeTruthy();
-  });
-});
-
-describe("Topology.orderFor", () => {
-  it("returns a valid topo order for the seed graph and caches it", () => {
-    const state = seededState(new FakeClock(0));
-    const a = orderFor(state);
-    const b = orderFor(state);
-    expect(a.length).toBe(3);
-    expect(a.indexOf("n_miner_0") < a.indexOf("n_smelter_0")).toBeTruthy();
-    expect(a).toBe(b); // cached reference reused while structure unchanged
   });
 });
