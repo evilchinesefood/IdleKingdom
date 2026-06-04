@@ -3,8 +3,6 @@ import { clone } from "./GameState.js";
 import { isValidLink } from "./Simulation/Topology.js";
 import * as Economy from "./Systems/EconomySystem.js";
 import * as Research from "./Systems/ResearchSystem.js";
-import * as Hero from "./Systems/HeroSystem.js";
-import * as Expedition from "./Systems/ExpeditionSystem.js";
 
 // Gatherer resources assignable from the very start (before any research/reclaim).
 // Seeded with ONLY iron_ore; timber/hide/coal_raw/gemstone are added to
@@ -131,56 +129,6 @@ export function reduce(state, intent, content) {
         return reject(state, "cannot buy tuning");
       Research.buyTuning(next, content, intent.kind);
       structural = true;
-      break;
-    }
-    case "EquipItem": {
-      if (
-        !Hero.canEquip(
-          next,
-          content,
-          intent.heroId,
-          intent.slot,
-          intent.itemId,
-          intent.tier,
-        )
-      ) {
-        return reject(state, "cannot equip");
-      }
-      Hero.equip(
-        next,
-        content,
-        intent.heroId,
-        intent.slot,
-        intent.itemId,
-        intent.tier,
-      );
-      break;
-    }
-    case "LevelUpHero": {
-      if (!Hero.canLevelUp(next, content, intent.heroId))
-        return reject(state, "cannot level up");
-      Hero.levelUp(next, content, intent.heroId);
-      break;
-    }
-    case "RecruitHero": {
-      if (!Hero.canRecruit(next, content, intent.templateId))
-        return reject(state, "cannot recruit");
-      Hero.recruit(next, content, intent.templateId);
-      break;
-    }
-    case "StartExpedition": {
-      if (
-        !Expedition.canStart(next, content, intent.territoryId, intent.heroId)
-      ) {
-        return reject(state, "cannot start expedition");
-      }
-      Expedition.startExpedition(
-        next,
-        content,
-        intent.territoryId,
-        intent.heroId,
-        nowMs,
-      );
       break;
     }
     case "PlaceNode": {
