@@ -796,7 +796,8 @@ describe("RateSolver — autoSell surplus liquidation (task 7)", () => {
       await import("../Source/Engine/Simulation/Offline.js");
     const st = loneGathererState(true);
     st.lastSeen = 0;
-    st.expeditions = { active: null, completed: [] };
+    st.siege = { progress: 0 };
+    st.territories = { reclaimed: [] };
     // 100s of offline at 0.25 gold/s autoSell rate = 25 gold.
     const summary = applyOffline(st, content(), 100 * 1000);
     expect(summary.gained.gold).toBeCloseTo(0.25 * 100, 1e-6);
@@ -807,5 +808,112 @@ describe("RateSolver — cycle rejection", () => {
   it("solve throws 'cycle' on a looped graph", () => {
     const { state, content } = cycleGraph();
     expect(() => solve(state, content)).toThrow("cycle");
+  });
+});
+
+describe("RateSolver — barracks: troops feed siegeRate, not the graph", () => {
+  // Three L1 gatherers forced onto sword/armor/shield (the solver routes by
+  // link.resourceId + producer availableOut, so a gatherer is a resource-agnostic
+  // 1.0/s source) amply feed a militia barracks. r_militia: in {sword:1,armor:1,
+  // shield:1}, out militia (power 1), baseOut 0.05; barracks L1 cap = 0.05.
+  function warState() {
+    const nodes = [
+      {
+        id: "g1",
+        kind: "gatherer",
+        level: 1,
+        resourceId: "sword",
+        recipeId: null,
+        stockpile: {},
+        pos: { x: 0, y: 0 },
+      },
+      {
+        id: "g2",
+        kind: "gatherer",
+        level: 1,
+        resourceId: "armor",
+        recipeId: null,
+        stockpile: {},
+        pos: { x: 0, y: 1 },
+      },
+      {
+        id: "g3",
+        kind: "gatherer",
+        level: 1,
+        resourceId: "shield",
+        recipeId: null,
+        stockpile: {},
+        pos: { x: 0, y: 2 },
+      },
+      {
+        id: "b",
+        kind: "barracks",
+        level: 1,
+        resourceId: null,
+        recipeId: "r_militia",
+        stockpile: {},
+        pos: { x: 1, y: 0 },
+      },
+    ];
+    const links = [
+      { id: "l1", from: "g1", to: "b", resourceId: "sword" },
+      { id: "l2", from: "g2", to: "b", resourceId: "armor" },
+      { id: "l3", from: "g3", to: "b", resourceId: "shield" },
+    ];
+    return {
+      currencies: { gold: 0, research: 0, renown: 0 },
+      graph: { nodes, links, nextNodeSeq: 4, nextLinkSeq: 3 },
+      unlocks: {
+        researchOwned: [],
+        recipesUnlocked: ["r_militia"],
+        machinesUnlocked: ["gatherer", "barracks"],
+        marketListings: [],
+        titheRate: 0.05,
+        offlineCapHours: 8,
+        productionBonuses: {
+          gatherer: 1.0,
+          smelter: 1.0,
+          workshop: 1.0,
+          barracks: 1.0,
+          market: 1.0,
+          scholar: 1.0,
+        },
+        gearTiersUnlocked: [],
+        autoSell: false,
+        heroSlots: 1,
+      },
+    };
+  }
+
+  it("a fully-fed militia barracks emits siegeRate = rate * power(1), no availableOut", () => {
+    const solved = solve(warState(), content());
+    // r_militia baseOut 0.05; inputs amply fed by 1.0/s gatherers; militia power 1.
+    expect(solved.siegeRate).toBeCloseTo(0.05 * 1, 1e-9);
+    expect(Object.keys(solved.availableOut.b || {}).length).toBe(0);
+    expect(solved.siegeRateByNode.b).toBeCloseTo(0.05, 1e-9);
+  });
+
+  it("a starved barracks (only sword fed) sieges at 0", () => {
+    const s = warState();
+    s.graph.links = s.graph.links.slice(0, 1); // only sword feed
+    const solved = solve(s, content());
+    expect(solved.siegeRate).toBeCloseTo(0, 1e-9);
+    expect(solved.siegeRateByNode.b).toBeCloseTo(0, 1e-9);
+  });
+
+  it("barracks shares the crafter fedFrac path (starved input reports < 1)", () => {
+    const s = warState();
+    s.graph.links = s.graph.links.slice(0, 1); // only sword fed; armor/shield absent
+    const solved = solve(s, content());
+    expect(solved.fedFrac["b|armor"]).toBeCloseTo(0, 1e-9);
+    expect(solved.fedFrac["b|sword"]).toBeCloseTo(1, 1e-9); // sword amply supplied
+  });
+
+  it("barracks inherits productionBonuses.barracks like other crafters", () => {
+    const s = warState();
+    s.unlocks.productionBonuses.barracks = 2.0; // doubles capacity -> doubles siegeRate
+    const solved = solve(s, content());
+    expect(solved.siegeRate).toBeCloseTo(0.05 * 2, 1e-9); // still amply fed
+    expect(solved.siegeRateByNode.b).toBeCloseTo(0.1, 1e-9);
   });
 });

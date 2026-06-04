@@ -10,7 +10,11 @@ export function capacity(node, state, content) {
     1.0;
   if (node.kind === "gatherer")
     return (m.baseOutput + m.rateGain * (node.level - 1)) * bonus;
-  if (node.kind === "smelter" || node.kind === "workshop") {
+  if (
+    node.kind === "smelter" ||
+    node.kind === "workshop" ||
+    node.kind === "barracks"
+  ) {
     const r = content.recipes[node.recipeId];
     if (!r) return 0;
     return (r.baseOut + m.rateGain * (node.level - 1)) * bonus; // level adds to recipe base output
@@ -26,7 +30,11 @@ export function capacity(node, state, content) {
 
 /** A consumer link's capacity-limited want for its carried resource (supply-independent). */
 function linkWant(consumer, resourceId, cap, content) {
-  if (consumer.kind === "smelter" || consumer.kind === "workshop") {
+  if (
+    consumer.kind === "smelter" ||
+    consumer.kind === "workshop" ||
+    consumer.kind === "barracks"
+  ) {
     const r = content.recipes[consumer.recipeId];
     if (!r || !(resourceId in r.inputs)) return 0;
     return cap * r.inputs[resourceId]; // units of resource needed to run at full capacity
@@ -61,6 +69,8 @@ export function solve(state, content) {
   const fedFrac = {}; // `${consumerId}|${resId}` -> received/want in [0,1] (under-feed signal)
   const goldByNode = {}; // nodeId -> gold/s
   const researchByNode = {}; // nodeId -> research/s (scholar + market tithe)
+  const siegeRateByNode = {}; // nodeId -> troops/s produced by a barracks
+  let siegePower = 0; // Σ barracks rate * output troop power (drives state.siege.progress)
 
   for (const n of nodes) capacityByNode[n.id] = capacity(n, state, content);
   // Demand-limited fan-in: track each consumer's REMAINING unfilled demand per resource.
@@ -96,7 +106,11 @@ export function solve(state, content) {
     if (node.kind === "gatherer") {
       availableOut[id] = node.resourceId ? { [node.resourceId]: cap } : {};
       perNodeDraw[id] = {};
-    } else if (node.kind === "smelter" || node.kind === "workshop") {
+    } else if (
+      node.kind === "smelter" ||
+      node.kind === "workshop" ||
+      node.kind === "barracks"
+    ) {
       const r = content.recipes[node.recipeId];
       if (!r) {
         availableOut[id] = {};
@@ -107,7 +121,15 @@ export function solve(state, content) {
           limit = Math.min(limit, (incoming[inId] || 0) / r.inputs[inId]);
         }
         const out = Math.max(0, limit);
-        availableOut[id] = { [r.output]: out };
+        if (node.kind === "barracks") {
+          // Troops never enter the resource graph: their power feeds the siege.
+          const res = content.resources[r.output];
+          siegeRateByNode[id] = out;
+          siegePower += out * ((res && res.power) || 0);
+          availableOut[id] = {};
+        } else {
+          availableOut[id] = { [r.output]: out };
+        }
         const draw = {};
         for (const inId in r.inputs) draw[inId] = out * r.inputs[inId];
         perNodeDraw[id] = draw;
@@ -257,5 +279,7 @@ export function solve(state, content) {
     fedFrac,
     goldByNode,
     researchByNode,
+    siegeRate: siegePower,
+    siegeRateByNode,
   };
 }

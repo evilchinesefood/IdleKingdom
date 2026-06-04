@@ -46,12 +46,18 @@ function outputsOf(node, content) {
   }
   if (node.kind === "storage")
     return Array.isArray(node.resourceIds) ? node.resourceIds.slice() : [];
-  return []; // market and scholar are sinks, never producers
+  // barracks is terminal: its troops feed the siege, never the resource graph, so
+  // it emits nothing routable (a barracks-out link can never validate).
+  return []; // market, scholar, barracks are sinks, never producers
 }
 
 /** Resources a node can consume as input given its kind/assignment. */
 function acceptsOf(node, content) {
-  if (node.kind === "smelter" || node.kind === "workshop") {
+  if (
+    node.kind === "smelter" ||
+    node.kind === "workshop" ||
+    node.kind === "barracks"
+  ) {
     const r = content.recipes[node.recipeId];
     return r ? Object.keys(r.inputs) : [];
   }

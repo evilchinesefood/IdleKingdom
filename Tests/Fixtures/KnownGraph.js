@@ -6,14 +6,17 @@ import {
   GATHERER_VARIANTS,
 } from "../../Source/Engine/Content/Machines.js";
 import { RECIPES } from "../../Source/Engine/Content/Recipes.js";
+import { TERRITORIES } from "../../Source/Engine/Content/Territories.js";
 
-/** Aggregate content slice the solver needs. */
+/** Aggregate content slice the solver needs (territories included so offline
+ *  catch-up's siege resolution has its targets). */
 export function content() {
   return {
     resources: RESOURCES,
     machines: MACHINES,
     recipes: RECIPES,
     gathererVariants: GATHERER_VARIANTS,
+    territories: TERRITORIES,
   };
 }
 
