@@ -8,10 +8,10 @@ import { deserialize, SAVE_KEY } from "./Persistence/SaveManager.js";
 import { NewGame } from "./GameState.js";
 
 // Structural/spatial edits the player expects Ctrl+Z to reverse. Time/economy
-// intents (Sell, expeditions, hero) are deliberately excluded — rewinding them
-// would thrash live currencies/timers. Research is excluded too: it's a
-// progression commitment (it can grant hero slots and other unlocks that other
-// intents already depend on), so undoing it would desync downstream state.
+// intents (Sell) are deliberately excluded — rewinding them would thrash live
+// currencies/timers. Research is excluded too: it's a progression commitment
+// (it grants unlocks that other intents already depend on), so undoing it
+// would desync downstream state.
 const UNDOABLE = new Set([
   "PlaceNode",
   "ConnectLink",
@@ -117,7 +117,6 @@ export class Game {
         currencyDelta: {
           gold: out.state.currencies.gold - prev.currencies.gold,
           research: out.state.currencies.research - prev.currencies.research,
-          renown: out.state.currencies.renown - prev.currencies.renown,
         },
       });
       if (this._undo.length > this._histLimit) this._undo.shift();
@@ -158,7 +157,6 @@ export class Game {
     this.state.unlocks = clonePart(entry.unlocks);
     this.state.currencies.gold -= entry.currencyDelta.gold;
     this.state.currencies.research -= entry.currencyDelta.research;
-    this.state.currencies.renown -= entry.currencyDelta.renown;
     delete this.state._solved;
     this._ensureSolved();
     this._emit();
@@ -181,7 +179,6 @@ export class Game {
     this.state.unlocks = clonePart(entry.unlocks);
     this.state.currencies.gold += entry.currencyDelta.gold;
     this.state.currencies.research += entry.currencyDelta.research;
-    this.state.currencies.renown += entry.currencyDelta.renown;
     delete this.state._solved;
     this._ensureSolved();
     this._emit();

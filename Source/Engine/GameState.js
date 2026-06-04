@@ -38,8 +38,8 @@ function deepFreeze(o) {
 
 /** Structural validation: required keys, finite currencies, node/link referential integrity.
  *  When `content` is supplied, also bounds-checks against game content: rejects cyclic graphs,
- *  unknown node kinds, unknown crafter recipeIds, link resourceIds, and unknown active-expedition
- *  territories (defends the boot path against corrupt-but-shape-valid saves). */
+ *  unknown node kinds, unknown crafter recipeIds, and link resourceIds (defends the
+ *  boot path against corrupt-but-shape-valid saves). */
 export function validate(state, content) {
   if (!state || typeof state !== "object") return false;
   const required = [
@@ -47,8 +47,7 @@ export function validate(state, content) {
     "currencies",
     "graph",
     "unlocks",
-    "heroes",
-    "expeditions",
+    "siege",
     "territories",
     "meta",
   ];
@@ -56,13 +55,9 @@ export function validate(state, content) {
     if (!Object.prototype.hasOwnProperty.call(state, k)) return false;
   }
   const c = state.currencies;
-  if (
-    !c ||
-    !Number.isFinite(c.gold) ||
-    !Number.isFinite(c.research) ||
-    !Number.isFinite(c.renown)
-  )
+  if (!c || !Number.isFinite(c.gold) || !Number.isFinite(c.research))
     return false;
+  if (!state.siege || !Number.isFinite(state.siege.progress)) return false;
   const g = state.graph;
   if (!g || !Array.isArray(g.nodes) || !Array.isArray(g.links)) return false;
   const nodeIds = new Set();
@@ -95,7 +90,7 @@ export function validate(state, content) {
 }
 
 /** Deeper bounds checks that need game content: acyclic graph, known kinds/recipes/
- *  resources, and a known active-expedition territory. */
+ *  resources. */
 function validateAgainstContent(state, content) {
   const g = state.graph;
   try {
@@ -108,7 +103,9 @@ function validateAgainstContent(state, content) {
     // null recipeId = a just-placed crafter awaiting assignment (legal, common);
     // only an UNKNOWN id is corruption.
     if (
-      (n.kind === "smelter" || n.kind === "workshop") &&
+      (n.kind === "smelter" ||
+        n.kind === "workshop" ||
+        n.kind === "barracks") &&
       n.recipeId != null &&
       !content.recipes[n.recipeId]
     )
@@ -117,7 +114,5 @@ function validateAgainstContent(state, content) {
   for (const l of g.links) {
     if (!content.resources[l.resourceId]) return false;
   }
-  const active = state.expeditions && state.expeditions.active;
-  if (active && !content.territories[active.territoryId]) return false;
   return true;
 }
