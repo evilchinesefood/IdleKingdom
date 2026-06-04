@@ -58,6 +58,14 @@ describe("GraphView._onSelectBox — marquee populates the selection", () => {
     expect(s.selNodes.size).toBe(0);
     expect(s.dispatched.length).toBe(0);
   });
+
+  it("clears a stale single selection so a later Ctrl+click can't re-inject it", () => {
+    const s = stub([], [{ id: "n1", pos: { x: 10, y: 10 } }]);
+    s.selectedId = "stale"; // a prior plain-click selection
+    GraphView.prototype._onSelectBox.call(s, { x: 0, y: 0, w: 300, h: 300 });
+    expect(s.selectedId).toBe(null); // marquee replaced it
+    expect([...s.selNodes]).toEqual(["n1"]);
+  });
 });
 
 describe("GraphView._nodeIcon — reflects resource/output, not just kind", () => {
@@ -148,5 +156,32 @@ describe("GraphView._selectedGroupMembers — highlight source for a selected gr
       _subtreeBuildingIds: GraphView.prototype._subtreeBuildingIds,
     };
     expect(GraphView.prototype._selectedGroupMembers.call(s).size).toBe(0);
+  });
+});
+
+describe("GraphView._toggleSelect — Ctrl+click folds in a prior single selection", () => {
+  const stub = (over) => ({
+    selectedId: null,
+    selectedBuildingId: null,
+    selNodes: new Set(),
+    selBuildings: new Set(),
+    _draw() {},
+    onSelectionChange() {},
+    ...over,
+  });
+
+  it("includes a previously single-selected node so the count isn't off by one", () => {
+    const s = stub({ selectedId: "n1" }); // plain-clicked first, then Ctrl+click n2
+    GraphView.prototype._toggleSelect.call(s, "n2", false);
+    expect([...s.selNodes].sort()).toEqual(["n1", "n2"]); // BOTH counted (was off-by-one)
+    expect(s.selectedId).toBe(null); // folded into the multi-selection
+  });
+
+  it("plain toggle (no prior single selection) adds then removes", () => {
+    const s = stub({ selNodes: new Set(["a"]) });
+    GraphView.prototype._toggleSelect.call(s, "b", false);
+    expect([...s.selNodes].sort()).toEqual(["a", "b"]);
+    GraphView.prototype._toggleSelect.call(s, "a", false); // toggle off
+    expect([...s.selNodes].sort()).toEqual(["b"]);
   });
 });

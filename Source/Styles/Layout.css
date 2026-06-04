@@ -221,7 +221,8 @@ wa-button::part(base) {
 }
 .build-menu,
 .node-inspector,
-.building-inspector {
+.building-inspector,
+.bulk-inspector {
   background: #fff;
   border: 1px solid var(--line);
   border-radius: var(--radius);

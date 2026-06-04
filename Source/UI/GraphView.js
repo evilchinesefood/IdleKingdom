@@ -374,6 +374,13 @@ export class GraphView {
   _toggleSelect(id, isBuilding) {
     // Building a multi-selection drops any single-group focus (panel/handles).
     this.selectedBuildingId = null;
+    // Fold a prior single-selected node (from a plain click) INTO the set so the
+    // first machine is counted too — otherwise Ctrl+clicking N machines after a
+    // click yields a set of N-1 (and 2 clicks never reaches the 2+ bulk gate).
+    if (this.selectedId != null) {
+      this.selNodes.add(this.selectedId);
+      this.selectedId = null;
+    }
     const set = isBuilding ? this.selBuildings : this.selNodes;
     if (set.has(id)) set.delete(id);
     else set.add(id);
@@ -665,7 +672,9 @@ export class GraphView {
       this._draw();
       return;
     }
-    // A fresh marquee replaces any single-group focus (slim panel/handles).
+    // A fresh marquee replaces any prior single selection (node or group), so a
+    // stale selectedId can't be re-injected by a later Ctrl+click fold.
+    this.selectedId = null;
     this.selectedBuildingId = null;
     this.selNodes.clear();
     this.selBuildings.clear();
