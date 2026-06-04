@@ -445,23 +445,16 @@ class AppInstance {
       // committed on blur/Enter
       onRename: (name) => this._commitRename(name),
       onUngroup: () => {
-        this._pendingRename = null; // building is going away; nothing to commit
+        this._pendingRename = null; // group is going away; nothing to commit
         this.dispatch({
           type: INTENT.UngroupBuilding,
           buildingId: this.selectedBuildingId,
         });
         this.selectedBuildingId = null;
-        if (this.graphView) this.graphView.selectedBuildingId = null;
-        this.renderNow();
-      },
-      onDelete: () => {
-        this._pendingRename = null;
-        this.dispatch({
-          type: INTENT.DeleteBuilding,
-          buildingId: this.selectedBuildingId,
-        });
-        this.selectedBuildingId = null;
-        if (this.graphView) this.graphView.selectedBuildingId = null;
+        if (this.graphView) {
+          this.graphView.selectedBuildingId = null;
+          this.graphView._clearSelectionSets(); // drop the now-stale group from the bar
+        }
         this.renderNow();
       },
     };
@@ -615,8 +608,7 @@ class AppInstance {
       },
       gearTiers: [],
       recruitable: [],
-      tutorial: { flags: {} },
-      meta: { won: false, seenVictory: false },
+      meta: { won: false, seenVictory: false, tutorialDone: true },
     };
   }
 }

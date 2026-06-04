@@ -1214,63 +1214,81 @@ step(
 );
 
 // ============================================================================
-// STEP 9 — Onboarding: tooltips advance; DismissTooltip persists through save R/T
+// STEP 9 — Guided tutorial: the card is ACTION-TRIGGERED (advances only when the
+//          player completes each objective), Skip ends it, tutorialDone persists
 // ============================================================================
 step(
   9,
-  "Tooltips advance via Dismiss button; seen-flag survives serialize/deserialize",
+  "Tutorial card advances on actions; Skip ends it; tutorialDone survives save R/T",
   () => {
-    // Fresh game with default tutorial flags.
     const tclock = new FakeClock(0);
     const tg = new Game({ content, clock: tclock });
     tg.bootstrap(new MemoryStorageAdapter());
-
-    // First tip should be the gold tip (TUTORIAL_ORDER[0]).
     const dispatch = recordingDispatch(tg);
-    const host1 = renderPanel(Tooltip(snap(tg), dispatch));
+
+    // Fresh game -> first objective is "place a Miner".
+    let host = renderPanel(Tooltip(snap(tg), dispatch));
     assert(
-      host1.querySelector("#TooltipLayer"),
-      "no tooltip rendered initially",
+      host.querySelector("#TutorialCard"),
+      "no tutorial card on a fresh game",
     );
-    const text1 = host1.querySelector(".tip-text").text;
-    assert(/Gold/.test(text1), `first tip not the gold tip: "${text1}"`);
-    const dismiss1 = host1.querySelector(".tip-dismiss");
+    const title1 = host.querySelector(".tut-title").text;
     assert(
-      dismiss1 && typeof dismiss1.onclick === "function",
-      "no tip dismiss button",
-    );
-    dismiss1.onclick(); // [click]
-    assert(
-      dispatch.last.type === "DismissTooltip" &&
-        dispatch.last.flag === "seenGoldTip",
-      `expected DismissTooltip seenGoldTip, got ${JSON.stringify(dispatch.last)}`,
+      /Build Your First Machine/.test(title1),
+      `first step not the miner step: "${title1}"`,
     );
     assert(
-      tg.getState().meta.tutorialFlags.seenGoldTip === true,
-      "seenGoldTip flag not set after dismiss",
+      /Step 1 of 5/.test(host.querySelector(".tut-step").text),
+      "missing step counter on the first card",
     );
 
-    // Tooltip must ADVANCE to the next step (upgrade tip).
-    const host2 = renderPanel(Tooltip(snap(tg), dispatch));
-    const text2 = host2.querySelector(".tip-text").text;
+    // ACTION-TRIGGERED: placing a Miner (gatherer) advances the guide to the
+    // Smelter step with NO "next" click — the card reads the live snapshot.
+    dispatch({
+      type: "PlaceNode",
+      kind: "gatherer",
+      resourceId: "iron_ore",
+      pos: { x: 300, y: 320 },
+    });
+    host = renderPanel(Tooltip(snap(tg), dispatch));
     assert(
-      text2 !== text1,
-      "tooltip did not advance to a new tip after dismiss",
+      /Refine the Ore/.test(host.querySelector(".tut-title").text),
+      "card did not advance to the smelter step after placing a Miner",
     );
-    assert(
-      /Upgrade/i.test(text2),
-      `second tip not the upgrade tip: "${text2}"`,
-    );
-    console.log("    [click] Tooltip Dismiss button (advances to next tip)");
+    console.log("    [trigger] placing a Miner advanced the guide (no button)");
 
-    // Persist the seen-flag through a real serialize/deserialize round-trip.
+    // Skip is ALWAYS available and ends the whole tutorial.
+    const skip = host.querySelector(".tut-skip");
+    assert(
+      skip && typeof skip.onclick === "function",
+      "no Skip button on the tutorial card",
+    );
+    skip.onclick(); // [click]
+    assert(
+      dispatch.last.type === "DismissTutorial",
+      `expected DismissTutorial, got ${JSON.stringify(dispatch.last)}`,
+    );
+    assert(
+      tg.getState().meta.tutorialDone === true,
+      "tutorialDone not set after Skip",
+    );
+
+    // Once skipped, no card renders at all.
+    host = renderPanel(Tooltip(snap(tg), dispatch));
+    assert(
+      !host.querySelector("#TutorialCard"),
+      "tutorial card still shown after Skip",
+    );
+    console.log("    [click] Skip tutorial -> DismissTutorial, card gone");
+
+    // tutorialDone survives a real serialize/deserialize round-trip.
     const json = serialize(tg.getState(), 0);
     const restored = deserialize(json, tclock);
     assert(
-      restored.meta.tutorialFlags.seenGoldTip === true,
-      "seenGoldTip did NOT survive serialize/deserialize round-trip",
+      restored.meta.tutorialDone === true,
+      "tutorialDone did NOT survive serialize/deserialize round-trip",
     );
-    console.log("    [round-trip] DismissTooltip flag persisted");
+    console.log("    [round-trip] tutorialDone persisted");
   },
 );
 

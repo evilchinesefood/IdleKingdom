@@ -170,15 +170,11 @@ describe("Reducer", () => {
     expect(out.state).toBe(s);
   });
 
-  it("DismissTooltip flips a tutorial flag (non-structural, no solver dirty needed)", () => {
+  it("DismissTutorial marks the tutorial done (non-structural, no solver dirty needed)", () => {
     const s = seededState(new FakeClock(0));
-    const out = reduce(
-      s,
-      { type: "DismissTooltip", flag: "seenGoldTip" },
-      content,
-    );
+    const out = reduce(s, { type: "DismissTutorial" }, content);
     expect(out.error).toBe(undefined);
-    expect(out.state.meta.tutorialFlags.seenGoldTip).toBe(true);
+    expect(out.state.meta.tutorialDone).toBe(true);
   });
 
   it("SetGathererResource rejects timber/hide before their research; accepts after enableGathererResource", () => {

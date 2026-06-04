@@ -15,6 +15,7 @@ import {
   migrate6to7,
   migrate7to8,
   migrate8to9,
+  migrate9to10,
   MIGRATIONS,
 } from "../Source/Engine/Persistence/Migrations.js";
 import SaveV1 from "./Fixtures/SaveV1.json" with { type: "json" };
@@ -27,7 +28,7 @@ describe("SaveManager.serialize", () => {
     const json = serialize(state);
     const blob = JSON.parse(json);
     expect(blob.version).toBe(SAVE_VERSION);
-    expect(SAVE_VERSION).toBe(9);
+    expect(SAVE_VERSION).toBe(10);
     expect(SAVE_KEY).toBe("idlekingdom.save");
     expect(typeof blob.savedAt).toBe("number");
     expect(typeof blob.lastSeen).toBe("number");
@@ -215,6 +216,23 @@ describe("Migrations", () => {
   it("8->9 is safe on a blob with no graph/buildings", () => {
     expect(migrate8to9({ version: 8 }).version).toBe(9);
   });
+
+  it("9->10 drops tutorialFlags and marks the tutorial done", () => {
+    const v10 = migrate9to10({
+      version: 9,
+      meta: { tutorialFlags: { seenGoldTip: false }, won: false },
+    });
+    expect(v10.version).toBe(10);
+    expect(v10.meta.tutorialFlags).toBe(undefined);
+    expect(v10.meta.tutorialDone).toBe(true);
+    expect(v10.meta.won).toBe(false); // other meta preserved
+  });
+
+  it("9->10 is safe on a blob with no meta", () => {
+    const v10 = migrate9to10({ version: 9 });
+    expect(v10.version).toBe(10);
+    expect(v10.meta.tutorialDone).toBe(true);
+  });
 });
 
 describe("SaveManager.deserialize", () => {
@@ -236,11 +254,11 @@ describe("SaveManager.deserialize", () => {
     expect(back.version).toBe(SAVE_VERSION);
   });
 
-  it("migrates SaveV1 fixture all the way to v9", () => {
+  it("migrates SaveV1 fixture all the way to v10", () => {
     const clock = new FakeClock(5000);
     const state = deserialize(JSON.stringify(SaveV1), clock);
-    expect(state.version).toBe(9);
-    expect(state.meta.tutorialFlags.seenGoldTip).toBe(false);
+    expect(state.version).toBe(10);
+    expect(state.meta.tutorialDone).toBe(true); // v9->v10 marks existing saves done
     expect(state.unlocks.offlineCapHours).toBe(1); // v3 default 8, clamped to 1 by v7->v8
     expect(state.unlocks.offlineCap).toBe(undefined);
     expect(state.unlocks.productionBonuses.smelter).toBe(1.0);

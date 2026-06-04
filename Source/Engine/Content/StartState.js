@@ -53,13 +53,7 @@ export const START_STATE = {
   expeditions: { active: null, completed: [] },
   territories: { reclaimed: [], available: ["t_gatehouse"] },
   meta: {
-    tutorialFlags: {
-      seenGoldTip: false,
-      seenUpgradeTip: false,
-      seenConnectTip: false,
-      seenResearchTip: false,
-      seenExpeditionTip: false,
-    },
+    tutorialDone: false,
     seenVictory: false,
     won: false,
     createdAt: 0,

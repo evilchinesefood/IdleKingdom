@@ -345,8 +345,7 @@ wa-button::part(base) {
   color: var(--ink-soft);
   margin-bottom: 0.4rem;
 }
-.bi-ungroup,
-.bi-delete {
+.bi-ungroup {
   display: block;
   width: 100%;
   margin: 4px 0;
@@ -726,34 +725,53 @@ wa-button.hp-recruit {
   padding-inline: 1.1rem;
 }
 
-/* Onboarding tips: centered modal dialog (matches Victory/OfflineSummary).
-   Explicit part padding so the tip text, title icon, and button each get
-   breathing room (WA's default body/footer padding reads cramped here). */
-.intro-dialog::part(header) {
-  padding: 1.25rem 1.75rem 0;
+/* Action-triggered onboarding guide: a small NON-blocking card pinned below the
+   HUD. It never covers the build bar or canvas, so the player can complete each
+   objective while it's shown; it advances automatically as objectives complete. */
+.tutorial-card {
+  position: fixed;
+  top: 4.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(28rem, calc(100vw - 1.5rem));
+  background: #fff;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--gold);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.9rem 1.1rem;
 }
-.intro-dialog::part(body) {
-  padding: 1.5rem 1.75rem;
-}
-.intro-dialog::part(footer) {
-  padding: 0 1.75rem 1.5rem;
-}
-.intro-dialog .os-title {
-  gap: 0.6rem;
-}
-.intro-dialog .os-title i {
-  padding: 0.25rem;
-}
-.tip-text {
-  font-size: 1.1rem;
-  line-height: 1.45;
-  text-align: center;
-}
-/* "Got it" sits on its own line, clearly separated from the tip text. */
-.intro-footer {
+.tut-head {
   display: flex;
-  justify-content: center;
-  width: 100%;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.tut-icon {
+  display: inline-flex;
+}
+.tut-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+.tut-step {
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.tut-text {
+  font-size: 1rem;
+  line-height: 1.45;
+}
+.tut-text strong {
+  color: #8f6f10;
+  font-weight: 700;
+}
+.tut-actions {
+  display: flex;
+  justify-content: flex-end;
   margin-top: 0.75rem;
 }
 
@@ -968,7 +986,7 @@ wa-button.hp-recruit {
   .hp-recruit,
   .hp-equip,
   .ni-recipe,
-  .tip-dismiss,
+  .tut-skip,
   .os-close,
   .victory-close {
     min-height: 44px;

@@ -110,6 +110,17 @@ export function migrate8to9(blob) {
   return next;
 }
 
+export function migrate9to10(blob) {
+  // The onboarding tutorial moved from per-step "seen" flags to a single
+  // action-triggered guide gated by meta.tutorialDone. Any existing save is a
+  // returning player, so mark the tutorial done — it shouldn't replay.
+  const next = { ...blob, version: 10 };
+  if (!next.meta) next.meta = {};
+  delete next.meta.tutorialFlags;
+  next.meta.tutorialDone = true;
+  return next;
+}
+
 export const MIGRATIONS = {
   1: migrate1to2,
   2: migrate2to3,
@@ -119,4 +130,5 @@ export const MIGRATIONS = {
   6: migrate6to7,
   7: migrate7to8,
   8: migrate8to9,
+  9: migrate9to10,
 };

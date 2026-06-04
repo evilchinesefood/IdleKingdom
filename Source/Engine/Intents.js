@@ -25,7 +25,7 @@ export const INTENT = {
   RemoveFromBuilding: "RemoveFromBuilding",
   RenameBuilding: "RenameBuilding",
   AckVictory: "AckVictory",
-  DismissTooltip: "DismissTooltip",
+  DismissTutorial: "DismissTutorial",
 };
 
 const isStr = (v) => typeof v === "string" && v.length > 0;
@@ -79,7 +79,7 @@ const SHAPES = {
   RemoveFromBuilding: (i) => isStr(i.nodeId),
   RenameBuilding: (i) => isStr(i.buildingId) && typeof i.name === "string",
   AckVictory: () => true,
-  DismissTooltip: (i) => isStr(i.flag),
+  DismissTutorial: () => true,
 };
 
 export function validate(intent) {
