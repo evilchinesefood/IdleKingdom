@@ -90,6 +90,35 @@ export function segmentIntersectsRect(a, b, vp) {
   );
 }
 
+// Pure derivation of the floating action bar's button list, so its rules are
+// testable without a DOM. Two modes:
+//  - multi: a marquee / Ctrl-click selection (selNodes/selBuildings). Offers
+//    Group (when grouping nests >=1 thing), Copy, Paste (if clipboard), "Delete All".
+//  - single: one inspected machine (selectedId, sets empty). No Group; the delete
+//    button reads "Delete" (one machine, not a bulk op).
+// Returns [{ id, label }] in render order; id drives the click handler dispatch.
+export function actionBarSpec({
+  selNodesSize,
+  selBuildingsSize,
+  selectedId,
+  clipboardNonEmpty,
+}) {
+  const single = selNodesSize + selBuildingsSize === 0 && selectedId != null;
+  const out = [];
+  if (single) {
+    out.push({ id: "copy", label: "Copy" });
+    if (clipboardNonEmpty) out.push({ id: "paste", label: "Paste" });
+    out.push({ id: "delete", label: "Delete" });
+    return out;
+  }
+  const showGroup = selNodesSize > 0 || selBuildingsSize >= 2;
+  if (showGroup) out.push({ id: "group", label: "Group" });
+  out.push({ id: "copy", label: "Copy" });
+  if (clipboardNonEmpty) out.push({ id: "paste", label: "Paste" });
+  out.push({ id: "delete", label: "Delete All" });
+  return out;
+}
+
 // Cached setters: skip the DOM call when the value is unchanged (the common
 // case for retained elements — most attrs are stable between draws).
 function setAttr(el, k, v) {
@@ -1052,8 +1081,24 @@ export class GraphView {
     return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
   }
 
-  // All member node ids: the selected loose nodes plus every node in a selected building.
+  // Bbox the action bar anchors to: the multi-selection bbox, or — in single mode
+  // (one inspected machine, sets empty) — that one machine's box.
+  _barBBox() {
+    const bbox = this._selectionBBox();
+    if (bbox) return bbox;
+    if (this.selectedId != null) {
+      const n = this._nodeAt(this.selectedId);
+      if (n) return { x: n.pos.x, y: n.pos.y, w: NODE_W, h: NODE_H };
+    }
+    return null;
+  }
+
+  // All member node ids: the selected loose nodes plus every node in a selected
+  // building. In single mode (sets empty) it's just the inspected machine, so the
+  // bar's Copy seeds the clipboard with that one node.
   _selectionMemberIds() {
+    if (this.selNodes.size + this.selBuildings.size === 0)
+      return this.selectedId != null ? [this.selectedId] : [];
     const ids = new Set(this.selNodes);
     // A selected group contributes ALL its machines, recursively through nested
     // children (so copying a parent group copies the whole unit, not just its
@@ -1230,19 +1275,37 @@ export class GraphView {
     this._draw();
   }
 
+  // Bar action (single mode): delete the one inspected machine. Same intent +
+  // selection cleanup as the NodeInspector trash, so both paths behave identically.
+  _deleteSingleSelection() {
+    const id = this.selectedId;
+    if (id == null) return;
+    this.game.dispatch({ type: INTENT.RemoveNode, nodeId: id });
+    this.selectedId = null;
+    if (this.game && this.game.getSnapshot)
+      this.reconcileSelection(this.game.getSnapshot());
+    if (this.onSelect) this.onSelect(null); // close the inspector
+    this._draw();
+  }
+
+  // The action bar shows for a multi-selection OR a single inspected machine.
+  _barHasSelection() {
+    return this.hasSelection() || this.selectedId != null;
+  }
+
   // Build + position the floating action bar above the selection bbox. Re-run
   // every _draw so it follows pan/zoom/selection. Guarded for the headless shim
   // (no getBoundingClientRect → skip positioning).
   _renderActionBar() {
     const bar = this.actionBarEl;
     if (!bar) return;
-    if (!this.hasSelection() || this._mode === "paste") {
+    if (!this._barHasSelection() || this._mode === "paste") {
       bar.style.display = "none";
       this._barAnchor = null;
       this._barSig = null;
       return;
     }
-    const bbox = this._selectionBBox();
+    const bbox = this._barBBox();
     if (!bbox) {
       bar.style.display = "none";
       this._barAnchor = null;
@@ -1252,8 +1315,20 @@ export class GraphView {
     // task 23: only tear down + rebuild the buttons when the SET changes. A plain
     // re-draw (pan/zoom/tick) keeps the same buttons, so reusing them avoids churn
     // and a dropped focus on the bar.
-    const showGroup = this.selNodes.size > 0 || this.selBuildings.size >= 2;
-    const sig = `${showGroup ? "G" : ""}C${this._clipboard ? "P" : ""}D`;
+    const single =
+      this.selNodes.size + this.selBuildings.size === 0 &&
+      this.selectedId != null;
+    const spec = actionBarSpec({
+      selNodesSize: this.selNodes.size,
+      selBuildingsSize: this.selBuildings.size,
+      selectedId: this.selectedId,
+      clipboardNonEmpty: !!this._clipboard,
+    });
+    // Sig must capture single-mode + the selected id so the bar rebuilds when the
+    // selection flips between machines or between single/multi modes.
+    const sig =
+      (single ? "S" + this.selectedId + ":" : "M:") +
+      spec.map((b) => b.id).join(",");
     if (sig !== this._barSig || bar.childNodes.length === 0) {
       // capture which button (by label) had focus so we can restore it post-rebuild
       let focusLabel = null;
@@ -1263,6 +1338,13 @@ export class GraphView {
           focusLabel = a.textContent;
       } catch {}
       while (bar.firstChild) bar.removeChild(bar.firstChild);
+      const handlers = {
+        group: () => this._groupSelection(),
+        copy: () => this._copySelection(true),
+        paste: () => this._pasteSelection(),
+        delete: () =>
+          single ? this._deleteSingleSelection() : this._deleteSelection(),
+      };
       const mkBtn = (label, fn) => {
         const b = document.createElement("button");
         b.className = "sel-act";
@@ -1273,12 +1355,7 @@ export class GraphView {
         };
         bar.appendChild(b);
       };
-      // Group is available when grouping would nest at least one thing: any loose
-      // node, or 2+ selected groups (one lone group has nothing to nest under).
-      if (showGroup) mkBtn("Group", () => this._groupSelection());
-      mkBtn("Copy", () => this._copySelection(true));
-      if (this._clipboard) mkBtn("Paste", () => this._pasteSelection());
-      mkBtn("Delete All", () => this._deleteSelection());
+      for (const { id, label } of spec) mkBtn(label, handlers[id]);
       this._barSig = sig;
       if (focusLabel) {
         for (const b of bar.childNodes)

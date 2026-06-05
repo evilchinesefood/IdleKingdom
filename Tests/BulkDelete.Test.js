@@ -1,5 +1,9 @@
 import { describe, it, expect } from "./Runner.js";
-import { GraphView, deltaTransform } from "../Source/UI/GraphView.js";
+import {
+  GraphView,
+  deltaTransform,
+  actionBarSpec,
+} from "../Source/UI/GraphView.js";
 import { iconName } from "../Source/UI/Icons.js";
 
 // Drive GraphView._onSelectBox in isolation via a stub `this` (no canvas/DOM needed):
@@ -417,5 +421,168 @@ describe("GraphView._toggleSelect — Ctrl+click folds in a prior single selecti
     expect([...s.selNodes].sort()).toEqual(["a", "b"]);
     GraphView.prototype._toggleSelect.call(s, "a", false); // toggle off
     expect([...s.selNodes].sort()).toEqual(["b"]);
+  });
+});
+
+describe("actionBarSpec — single-machine vs multi-selection button list", () => {
+  const labels = (spec) => spec.map((b) => b.label);
+  const ids = (spec) => spec.map((b) => b.id);
+
+  it("single machine (sets empty, selectedId set): Copy + Delete, NO Group", () => {
+    const spec = actionBarSpec({
+      selNodesSize: 0,
+      selBuildingsSize: 0,
+      selectedId: "n1",
+      clipboardNonEmpty: false,
+    });
+    expect(labels(spec)).toEqual(["Copy", "Delete"]);
+    expect(ids(spec).includes("group")).toBe(false);
+    // delete reads exactly "Delete" (not the bulk "Delete All")
+    expect(spec.find((b) => b.id === "delete").label).toBe("Delete");
+  });
+
+  it("single machine with a clipboard adds Paste between Copy and Delete", () => {
+    const spec = actionBarSpec({
+      selNodesSize: 0,
+      selBuildingsSize: 0,
+      selectedId: "n1",
+      clipboardNonEmpty: true,
+    });
+    expect(labels(spec)).toEqual(["Copy", "Paste", "Delete"]);
+  });
+
+  it("multi loose nodes: Group + Copy + Delete All (unchanged)", () => {
+    const spec = actionBarSpec({
+      selNodesSize: 2,
+      selBuildingsSize: 0,
+      selectedId: null,
+      clipboardNonEmpty: false,
+    });
+    expect(labels(spec)).toEqual(["Group", "Copy", "Delete All"]);
+  });
+
+  it("multi with clipboard: Group + Copy + Paste + Delete All", () => {
+    const spec = actionBarSpec({
+      selNodesSize: 1,
+      selBuildingsSize: 0,
+      selectedId: null,
+      clipboardNonEmpty: true,
+    });
+    expect(labels(spec)).toEqual(["Group", "Copy", "Paste", "Delete All"]);
+  });
+
+  it("a single selected group (1 building, 0 nodes) hides Group", () => {
+    const spec = actionBarSpec({
+      selNodesSize: 0,
+      selBuildingsSize: 1,
+      selectedId: null,
+      clipboardNonEmpty: false,
+    });
+    expect(labels(spec)).toEqual(["Copy", "Delete All"]);
+  });
+
+  it("two selected groups show Group (grouping nests them)", () => {
+    const spec = actionBarSpec({
+      selNodesSize: 0,
+      selBuildingsSize: 2,
+      selectedId: null,
+      clipboardNonEmpty: false,
+    });
+    expect(labels(spec)).toEqual(["Group", "Copy", "Delete All"]);
+  });
+
+  it("multi takes precedence over a stray selectedId (no single fallback)", () => {
+    const spec = actionBarSpec({
+      selNodesSize: 1,
+      selBuildingsSize: 0,
+      selectedId: "n1",
+      clipboardNonEmpty: false,
+    });
+    expect(labels(spec)).toEqual(["Group", "Copy", "Delete All"]);
+  });
+});
+
+describe("GraphView single-mode action bar helpers", () => {
+  it("_barBBox: single selectedId yields that machine's box when sets are empty", () => {
+    const s = {
+      selNodes: new Set(),
+      selBuildings: new Set(),
+      selectedId: "n1",
+      snap: { nodes: [{ id: "n1", pos: { x: 100, y: 200 } }], buildings: [] },
+      _selectionBBox: GraphView.prototype._selectionBBox,
+      _barBBox: GraphView.prototype._barBBox,
+      _nodeAt: (id) => s.snap.nodes.find((n) => n.id === id),
+    };
+    const box = s._barBBox();
+    expect(box.x).toBe(100);
+    expect(box.y).toBe(200);
+    expect(box.w).toBe(120); // NODE_W
+    expect(box.h).toBe(64); // NODE_H
+  });
+
+  it("_barBBox: nothing selected -> null", () => {
+    const s = {
+      selNodes: new Set(),
+      selBuildings: new Set(),
+      selectedId: null,
+      snap: { nodes: [], buildings: [] },
+      _selectionBBox: GraphView.prototype._selectionBBox,
+      _barBBox: GraphView.prototype._barBBox,
+      _nodeAt: () => undefined,
+    };
+    expect(s._barBBox()).toBe(null);
+  });
+
+  it("_selectionMemberIds: falls back to [selectedId] in single mode", () => {
+    const s = {
+      selNodes: new Set(),
+      selBuildings: new Set(),
+      selectedId: "n7",
+      snap: { nodes: [], buildings: [] },
+      _selectionMemberIds: GraphView.prototype._selectionMemberIds,
+      _subtreeBuildingIds: GraphView.prototype._subtreeBuildingIds,
+    };
+    expect(s._selectionMemberIds()).toEqual(["n7"]);
+  });
+
+  it("_deleteSingleSelection: dispatches RemoveNode for the selected machine + clears", () => {
+    const dispatched = [];
+    let onSelectArg = "unset";
+    const s = {
+      selectedId: "n3",
+      game: { dispatch: (i) => dispatched.push(i) }, // no getSnapshot (guarded)
+      reconcileSelection: GraphView.prototype.reconcileSelection,
+      onSelect: (id) => (onSelectArg = id),
+      _draw() {},
+      _deleteSingleSelection: GraphView.prototype._deleteSingleSelection,
+    };
+    s._deleteSingleSelection();
+    expect(dispatched).toEqual([{ type: "RemoveNode", nodeId: "n3" }]);
+    expect(s.selectedId).toBe(null);
+    expect(onSelectArg).toBe(null); // inspector closed
+  });
+
+  it("_deleteSingleSelection: no-op when nothing is single-selected", () => {
+    const dispatched = [];
+    const s = {
+      selectedId: null,
+      game: { dispatch: (i) => dispatched.push(i) },
+      _deleteSingleSelection: GraphView.prototype._deleteSingleSelection,
+    };
+    s._deleteSingleSelection();
+    expect(dispatched.length).toBe(0);
+  });
+
+  it("_barHasSelection: true for a lone selectedId, false when fully clear", () => {
+    const base = {
+      selNodes: new Set(),
+      selBuildings: new Set(),
+      selectedId: null,
+      hasSelection: GraphView.prototype.hasSelection,
+      _barHasSelection: GraphView.prototype._barHasSelection,
+    };
+    expect(base._barHasSelection()).toBe(false);
+    base.selectedId = "n1";
+    expect(base._barHasSelection()).toBe(true);
   });
 });
