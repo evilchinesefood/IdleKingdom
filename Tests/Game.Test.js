@@ -126,6 +126,50 @@ describe("Game facade", () => {
     expect(g.getState()._solved !== undefined).toBe(true);
   });
 
+  it("a passive siege reclaim clears the undo/redo history (reclaim mutates unlocks outside the intent system)", () => {
+    const g = makeGame(new FakeClock(0));
+    g.bootstrap(new MemoryStorageAdapter()); // empty graph -> no siege accrual on its own
+    // an UNDOABLE intent records an undo entry capturing pre-reclaim unlocks
+    const r = g.dispatch({
+      type: "PlaceNode",
+      kind: "gatherer",
+      resourceId: "iron_ore",
+      pos: { x: 100, y: 100 },
+    });
+    expect(r.ok).toBe(true);
+    expect(g.canUndo()).toBe(true);
+    // gatehouse not yet reclaimed; its production bonus has not applied
+    expect(g.getState().unlocks.productionBonuses.gatherer).toBeCloseTo(
+      1.0,
+      1e-9,
+    );
+
+    // push siege progress past t_gatehouse (cost 40) and tick: it falls + reclaims
+    g.getState().siege.progress = TERRITORIES.t_gatehouse.siegeCost + 1;
+    delete g.getState()._solved;
+    g.tick(0.05);
+    expect(g.getState().territories.reclaimed.includes("t_gatehouse")).toBe(
+      true,
+    );
+
+    // the reclaim mutated unlocks, so the stale undo/redo history is wiped:
+    // undo()/redo() are dead no-ops (a pre-reclaim snapshot would desync them)
+    expect(g.canUndo()).toBe(false);
+    expect(g.canRedo()).toBe(false);
+    expect(g.undo().ok).toBe(false);
+    expect(g.redo().ok).toBe(false);
+
+    // and the reclaim-granted content survives (undo could not roll it back):
+    // the gatehouse gatherer production bonus (x1.1) + the reclaimed entry persist
+    expect(g.getState().unlocks.productionBonuses.gatherer).toBeCloseTo(
+      1.1,
+      1e-9,
+    );
+    expect(g.getState().territories.reclaimed.includes("t_gatehouse")).toBe(
+      true,
+    );
+  });
+
   it("bootstrap recovers from a poisoned cyclic save instead of throwing (task 2/3)", () => {
     const clock = new FakeClock(0);
     const storage = new MemoryStorageAdapter();

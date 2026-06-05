@@ -173,7 +173,7 @@ describe("Territories content", () => {
       expect(ordered[i].siegeCost > ordered[i - 1].siegeCost).toBe(true);
     }
     expect(ordered.map((t) => t.siegeCost)).toEqual([
-      40, 150, 500, 1500, 4500, 12000,
+      40, 150, 500, 40000, 120000, 400000,
     ]);
   });
 });
