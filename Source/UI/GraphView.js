@@ -392,9 +392,22 @@ export class GraphView {
     this._draw();
   }
 
-  // Wired in the culling task; null = render everything (also the headless path).
+  // The padded viewport in graph space, or null when unmeasurable (headless) —
+  // null disables culling. Reuses the cached host rect (`_hostRect` is
+  // invalidated on resize and gesture-end, the only times it changes).
   _cullRect() {
-    return null;
+    let r = this._hostRect;
+    if (!r) {
+      try {
+        r =
+          this.host.getBoundingClientRect && this.host.getBoundingClientRect();
+        if (r && r.width) this._hostRect = r;
+      } catch {
+        r = null;
+      }
+    }
+    if (!r || !r.width || !r.height) return null;
+    return cullRectFor(this.view, r.width, r.height, CULL_MARGIN);
   }
 
   // Nodes that must render even off-viewport: live interaction targets.

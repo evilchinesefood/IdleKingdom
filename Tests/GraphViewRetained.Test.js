@@ -354,3 +354,87 @@ describe("GraphView retained link layer", () => {
     expect(classes.some((c) => c.includes("link-delete-g"))).toBe(false);
   });
 });
+
+describe("GraphView viewport culling", () => {
+  it("renders only nodes inside the padded viewport; map keeps culled entries", () => {
+    const gv = mount({
+      nodes: [nrow("in"), nrow("out", { pos: { x: 5000, y: 5000 } })],
+      links: [],
+      buildings: [],
+    });
+    // headless default: no host rect -> everything rendered
+    expect(gv.layerNodes.childNodes.length).toBe(2);
+    // inject a measurable viewport (the shim has no layout)
+    gv._hostRect = { width: 800, height: 600 };
+    gv.render({
+      nodes: [nrow("in"), nrow("out", { pos: { x: 5000, y: 5000 } })],
+      links: [],
+      buildings: [],
+    });
+    expect(gv.layerNodes.childNodes.length).toBe(1);
+    expect(gv._nodeEls.has("out")).toBe(true); // entry kept, DOM-detached
+    expect(gv._nodeEls.get("out").g.parentNode).toBe(null);
+  });
+
+  it("selected node renders even when off-viewport", () => {
+    const gv = mount({
+      nodes: [nrow("far", { pos: { x: 5000, y: 5000 } })],
+      links: [],
+      buildings: [],
+    });
+    gv._hostRect = { width: 800, height: 600 };
+    gv.selectedId = "far";
+    gv.render({
+      nodes: [nrow("far", { pos: { x: 5000, y: 5000 } })],
+      links: [],
+      buildings: [],
+    });
+    expect(gv.layerNodes.childNodes.length).toBe(1);
+  });
+
+  it("a link crossing the view renders even with both endpoints culled", () => {
+    const gv = mount({
+      nodes: [
+        nrow("L", { pos: { x: -2000, y: 200 } }),
+        nrow("R", { pos: { x: 3000, y: 200 } }),
+      ],
+      links: [lrow("x", "L", "R")],
+      buildings: [],
+    });
+    gv._hostRect = { width: 800, height: 600 };
+    gv.render({
+      nodes: [
+        nrow("L", { pos: { x: -2000, y: 200 } }),
+        nrow("R", { pos: { x: 3000, y: 200 } }),
+      ],
+      links: [lrow("x", "L", "R")],
+      buildings: [],
+    });
+    expect(gv.layerNodes.childNodes.length).toBe(0);
+    expect(gv.layerLinks.childNodes.length).toBe(1);
+  });
+
+  it("scrolling a culled node back into view re-attaches the SAME element", () => {
+    const gv = mount({
+      nodes: [nrow("a", { pos: { x: 5000, y: 100 } })],
+      links: [],
+      buildings: [],
+    });
+    gv._hostRect = { width: 800, height: 600 };
+    gv.render({
+      nodes: [nrow("a", { pos: { x: 5000, y: 100 } })],
+      links: [],
+      buildings: [],
+    });
+    const detached = gv._nodeEls.get("a").g;
+    expect(detached.parentNode).toBe(null);
+    gv.view = { scale: 1, tx: -4800, ty: 0 }; // pan so the node is on-screen
+    gv.render({
+      nodes: [nrow("a", { pos: { x: 5000, y: 100 } })],
+      links: [],
+      buildings: [],
+    });
+    expect(gv._nodeEls.get("a").g === detached).toBe(true);
+    expect(detached.parentNode === gv.layerNodes).toBe(true);
+  });
+});
