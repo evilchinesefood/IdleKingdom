@@ -260,7 +260,17 @@ const localStorageShim = (() => {
 })();
 
 const windowShim = {
-  location: { hash: "" },
+  location: { hash: "", pathname: "/" },
+  // History API shim: the real Router.navigate() calls history.pushState; record
+  // the pathname so parsePath round-trips (no real browser history stack needed).
+  history: {
+    pushState: (_s, _t, url) => {
+      if (url != null) windowShim.location.pathname = String(url);
+    },
+    replaceState: (_s, _t, url) => {
+      if (url != null) windowShim.location.pathname = String(url);
+    },
+  },
   addEventListener: () => {},
   removeEventListener: () => {},
   localStorage: localStorageShim,
@@ -292,19 +302,18 @@ const { content } = await import("../Source/Engine/Content/Content.js");
 const { build: buildSnapshot } = await import("../Source/Engine/Snapshot.js");
 const { solve } = await import("../Source/Engine/Simulation/RateSolver.js");
 const { TERRITORIES } = await import("../Source/Engine/Content/Territories.js");
-const { heroPower } = await import("../Source/Engine/Systems/HeroSystem.js");
 const { applyOffline } = await import("../Source/Engine/Simulation/Offline.js");
 
 const { ResearchTree } = await import("../Source/UI/ResearchTree.js");
 const { BuildMenu } = await import("../Source/UI/BuildMenu.js");
 const { NodeInspector } = await import("../Source/UI/NodeInspector.js");
-const { HeroPanel } = await import("../Source/UI/HeroPanel.js");
-const { ExpeditionBoard } = await import("../Source/UI/ExpeditionBoard.js");
+const { WarBoard } = await import("../Source/UI/WarBoard.js");
 const { Victory } = await import("../Source/UI/Victory.js");
 const { victoryReady } = await import("../Source/UI/Logic/Selectors.js");
 const { OfflineSummary } = await import("../Source/UI/OfflineSummary.js");
 const { Tooltip } = await import("../Source/UI/Tooltip.js");
 const { Hud } = await import("../Source/UI/Hud.js");
+const { Router } = await import("../Source/UI/Router.js");
 const { GraphView } = await import("../Source/UI/GraphView.js");
 const { patch } = await import("../Source/UI/Render/Dom.js");
 
@@ -485,17 +494,19 @@ step(
       goldValText.includes("25"),
       `HUD gold cell "${goldValText}" did not show 25`,
     );
-    // HUD must render multiple currency cells + tabs (regression: "first child only" bug)
+    // HUD must render multiple currency cells + tabs (regression: "first child only" bug).
+    // The war rework dropped Renown -> two currencies remain: Gold + Research.
     assert(
-      hudEl.querySelectorAll(".hud-cur").length === 3,
-      `HUD rendered ${hudEl.querySelectorAll(".hud-cur").length} currency cells (expected 3 — first-child-only regression?)`,
+      hudEl.querySelectorAll(".hud-cur").length === 2,
+      `HUD rendered ${hudEl.querySelectorAll(".hud-cur").length} currency cells (expected 2 — Gold + Research; first-child-only regression?)`,
     );
     // Tabs are now wa-tab[panel] inside the wa-tab-group (no <a>, no wa-tab-panel).
+    // The war rework replaced expeditions/heroes with a single War tab.
     assert(
-      hudEl.querySelectorAll(".hud-tabs wa-tab").length === 4,
-      `HUD rendered ${hudEl.querySelectorAll(".hud-tabs wa-tab").length} tabs (expected 4 wa-tab)`,
+      hudEl.querySelectorAll(".hud-tabs wa-tab").length === 3,
+      `HUD rendered ${hudEl.querySelectorAll(".hud-tabs wa-tab").length} tabs (expected 3 wa-tab)`,
     );
-    for (const route of ["factory", "research", "expeditions", "heroes"]) {
+    for (const route of ["factory", "research", "war"]) {
       assert(
         hudEl.querySelector(`wa-tab[panel="${route}"]`),
         `HUD missing wa-tab for route "${route}"`,
@@ -834,285 +845,627 @@ step(
   },
 );
 
+// ----------------------------------------------------------------------------
+// War helpers: build a fully-fed gear chain feeding a militia/knight Barracks.
+// The FOCAL war controls (BuildMenu place, NodeInspector recipe wa-select, the
+// GraphView drag-connect into the Barracks) are driven through their REAL
+// rendered handlers ([click]/[wired]); the deep upstream gear chain is built via
+// the wired PlaceNode/ConnectLink intents the UI fires (same discipline the seed
+// chain used). Returns the barracks node ids placed.
+// ----------------------------------------------------------------------------
+function placeWired(game, kind, extra) {
+  const d = recordingDispatch(game);
+  const before = game.getState().graph.nodes.length;
+  const r = d({ type: "PlaceNode", kind, pos: { x: 60, y: 60 }, ...extra });
+  assert(
+    r.ok,
+    `PlaceNode ${kind} (${JSON.stringify(extra)}) rejected: ${r.error}`,
+  );
+  assert(
+    game.getState().graph.nodes.length === before + 1,
+    `PlaceNode ${kind} added no node`,
+  );
+  return game.getState().graph.nodes.slice(-1)[0].id;
+}
+function connectWired(game, from, to, resourceId) {
+  const r = game.dispatch({ type: "ConnectLink", from, to, resourceId });
+  assert(
+    r.ok,
+    `ConnectLink ${from}->${to} (${resourceId}) rejected: ${r.error}`,
+  );
+}
+function levelWired(game, nodeId, level) {
+  while (
+    game.getState().graph.nodes.find((n) => n.id === nodeId).level < level
+  ) {
+    game.getState().currencies.gold = 1e9;
+    delete game.getState()._solved;
+    const r = game.dispatch({ type: "UpgradeNode", nodeId });
+    assert(r.ok, `UpgradeNode ${nodeId} rejected: ${r.error}`);
+  }
+}
+// Build the base militia gear chain (miners/foresters/trappers -> smelters ->
+// component+gear workshops). Returns { swords, armors, shields } producer ids.
+function buildMilitiaGearChain(game) {
+  const iron = [
+    placeWired(game, "gatherer", { resourceId: "iron_ore" }),
+    placeWired(game, "gatherer", { resourceId: "iron_ore" }),
+  ];
+  const coalRaw = [placeWired(game, "gatherer", { resourceId: "coal_raw" })];
+  const timber = [placeWired(game, "gatherer", { resourceId: "timber" })];
+  const hide = [placeWired(game, "gatherer", { resourceId: "hide" })];
+  for (const id of [...iron, ...coalRaw, ...timber, ...hide])
+    levelWired(game, id, 10);
+
+  const ironBar = [
+    placeWired(game, "smelter", { recipeId: "r_iron_bar" }),
+    placeWired(game, "smelter", { recipeId: "r_iron_bar" }),
+  ];
+  const coal = [placeWired(game, "smelter", { recipeId: "r_coal" })];
+  const plank = [placeWired(game, "smelter", { recipeId: "r_plank" })];
+  const leather = [placeWired(game, "smelter", { recipeId: "r_leather" })];
+  const steel = [
+    placeWired(game, "smelter", { recipeId: "r_steel" }),
+    placeWired(game, "smelter", { recipeId: "r_steel" }),
+  ];
+  for (const id of [...ironBar, ...coal, ...plank, ...leather, ...steel])
+    levelWired(game, id, 12);
+
+  const blade = [placeWired(game, "workshop", { recipeId: "r_blade" })];
+  const plating = [placeWired(game, "workshop", { recipeId: "r_plating" })];
+  const fitting = [placeWired(game, "workshop", { recipeId: "r_fitting" })];
+  const swords = [placeWired(game, "workshop", { recipeId: "r_sword" })];
+  const armors = [placeWired(game, "workshop", { recipeId: "r_armor" })];
+  const shields = [placeWired(game, "workshop", { recipeId: "r_shield" })];
+  for (const id of [
+    ...blade,
+    ...plating,
+    ...fitting,
+    ...swords,
+    ...armors,
+    ...shields,
+  ])
+    levelWired(game, id, 14);
+
+  for (const m of iron)
+    for (const s of ironBar) connectWired(game, m, s, "iron_ore");
+  for (const m of coalRaw)
+    for (const s of coal) connectWired(game, m, s, "coal_raw");
+  for (const m of timber)
+    for (const s of plank) connectWired(game, m, s, "timber");
+  for (const m of hide)
+    for (const s of leather) connectWired(game, m, s, "hide");
+  for (const s of ironBar)
+    for (const t of steel) connectWired(game, s, t, "iron_bar");
+  for (const c of coal) for (const t of steel) connectWired(game, c, t, "coal");
+  for (const t of steel)
+    for (const w of blade) connectWired(game, t, w, "steel");
+  for (const p of plank)
+    for (const w of blade) connectWired(game, p, w, "plank");
+  for (const t of steel)
+    for (const w of plating) connectWired(game, t, w, "steel");
+  for (const l of leather)
+    for (const w of plating) connectWired(game, l, w, "leather");
+  for (const s of ironBar)
+    for (const w of fitting) connectWired(game, s, w, "iron_bar");
+  for (const l of leather)
+    for (const w of fitting) connectWired(game, l, w, "leather");
+  for (const b of blade)
+    for (const w of swords) connectWired(game, b, w, "blade");
+  for (const f of fitting)
+    for (const w of swords) connectWired(game, f, w, "fitting");
+  for (const p of plating)
+    for (const w of armors) connectWired(game, p, w, "plating");
+  for (const f of fitting)
+    for (const w of armors) connectWired(game, f, w, "fitting");
+  for (const p of plating)
+    for (const w of shields) connectWired(game, p, w, "plating");
+  for (const p of plank)
+    for (const w of shields) connectWired(game, p, w, "plank");
+  return { swords, armors, shields };
+}
+
 // ============================================================================
-// STEP 5 — equip T1 gear via HeroPanel; level hero; heroPower rises + shown
+// STEP 5 — buy The Drill Yard on the real ResearchTree, place a Barracks from the
+//          real BuildMenu (bottom-bar popover), set r_militia in the real
+//          NodeInspector wa-select, connect sword/armor/shield producers through
+//          real GraphView drag-connect taps. Barracks then musters militia.
 // ============================================================================
 step(
   5,
-  "Equip T1 gear via HeroPanel select; level hero; power rises and panel reflects it",
+  "Buy Drill Yard (ResearchTree), place Barracks (BuildMenu), set r_militia (NodeInspector wa-select), wire gear (GraphView connect)",
   () => {
-    game.getState().currencies.renown = 100000;
+    game.getState().currencies.research = 100000;
+    game.getState().currencies.gold = 1e9;
     delete game.getState()._solved;
-    const heroId = game.getState().heroes[0].id;
-    const p0 = heroPower(game.getState(), content, heroId);
 
-    // Equip each slot via the rendered <select>.onchange handler.
-    const slots = [
-      ["weapon", "sword"],
-      ["armor", "armor"],
-      ["accessory", "shield"],
-    ];
-    for (const [slot] of slots) {
-      const dispatch = recordingDispatch(game);
-      const host = renderPanel(HeroPanel(snap(game), dispatch));
-      const selects = host.querySelectorAll(".hp-equip");
-      // slots render in order weapon, armor, accessory for hero 0
-      const idx = ["weapon", "armor", "accessory"].indexOf(slot);
-      const sel = selects[idx];
-      assert(sel, `HeroPanel rendered no select for slot ${slot}`);
-      assert(
-        typeof sel.onchange === "function",
-        `select for ${slot} has no onchange`,
-      );
-      // MINOR: gear option labels must use the resource display, never "undefined T#"
-      const optText = sel.querySelectorAll("wa-option").map((o) => o.text);
-      assert(
-        !optText.some((t) => /undefined/.test(t)),
-        `HeroPanel ${slot} option labels contain "undefined": ${JSON.stringify(optText)}`,
-      );
-      const tierOpt = optText.find((t) => /T1$/.test(t));
-      assert(
-        tierOpt && /[A-Za-z]/.test(tierOpt),
-        `HeroPanel ${slot} T1 option has no display name: ${JSON.stringify(optText)}`,
-      );
-      sel.onchange({ target: { value: "1" } }); // [click] choose T1
-      assert(
-        dispatch.last.type === "EquipItem" &&
-          dispatch.last.slot === slot &&
-          dispatch.last.tier === 1,
-        `expected EquipItem ${slot} T1, got ${JSON.stringify(dispatch.last)}`,
-      );
-    }
-    const pGear = heroPower(game.getState(), content, heroId);
+    // --- Buy res_drill_yard via the rendered ResearchTree button ---
+    const rdispatch = recordingDispatch(game);
+    const rHost = renderPanel(ResearchTree(snap(game), rdispatch));
+    const idx = Object.keys(content.researchNodes).indexOf("res_drill_yard");
+    const card = rHost.querySelectorAll(".res-node")[idx];
+    const buyBtn = card.querySelector(".res-buy");
+    assert(buyBtn, "no buy button for res_drill_yard");
     assert(
-      pGear === p0 + 30,
-      `gear power expected ${p0 + 30} (10+12+8), got ${pGear}`,
+      typeof buyBtn.onclick === "function",
+      "res_drill_yard buy button has no onclick (still locked?)",
     );
-    console.log("    [click] HeroPanel equip selects (onchange)");
-
-    // Level the hero via the rendered Level Up button.
-    const lvlDispatch = recordingDispatch(game);
-    const host = renderPanel(HeroPanel(snap(game), lvlDispatch));
-    const lvlBtn = host.querySelector(".hp-levelup");
-    assert(lvlBtn, "HeroPanel rendered no Level Up button");
-    const lvlBefore = game.getState().heroes[0].level;
-    lvlBtn.onclick(); // [click]
+    buyBtn.onclick(); // [click]
     assert(
-      lvlDispatch.last.type === "LevelUpHero",
-      "Level Up did not dispatch LevelUpHero",
+      rdispatch.last.type === "BuyResearch" &&
+        rdispatch.last.nodeId === "res_drill_yard",
+      `expected BuyResearch res_drill_yard, got ${JSON.stringify(rdispatch.last)}`,
     );
     assert(
-      game.getState().heroes[0].level === lvlBefore + 1,
-      "hero level did not rise",
+      game.getState().unlocks.researchOwned.includes("res_drill_yard"),
+      "res_drill_yard not owned after click",
     );
-    const pAfter = heroPower(game.getState(), content, heroId);
+    // barracks now placeable in the BuildMenu
     assert(
-      pAfter === pGear + 5,
-      `power after level expected ${pGear + 5}, got ${pAfter}`,
-    );
-
-    // The HeroPanel must SHOW the new power.
-    const finalHost = renderPanel(
-      HeroPanel(snap(game), recordingDispatch(game)),
-    );
-    const powerText = finalHost.querySelector(".hp-power").text;
-    assert(
-      powerText.includes(String(pAfter)),
-      `HeroPanel power text "${powerText}" does not show power ${pAfter}`,
+      snap(game).buildMenu.placeableMachines.includes("barracks"),
+      "barracks not placeable after res_drill_yard",
     );
     console.log(
-      "    [click] HeroPanel Level Up button (power reflected in panel)",
+      "    [click] ResearchTree Drill Yard button -> barracks unlocked",
+    );
+
+    // --- Place a Barracks via the real BuildMenu bottom-bar popover ---
+    const bdispatch = recordingDispatch(game);
+    const ui = {
+      selectedPaletteKind: "barracks",
+      setPalette() {},
+      spawnPos: () => ({ x: 700, y: 400 }),
+    };
+    const bmHost = renderPanel(BuildMenu(snap(game), bdispatch, ui));
+    // the popover lists barracks recipes; r_militia is the only unlocked one.
+    const placeBtns = bmHost
+      .querySelectorAll(".bm-place")
+      .filter((b) => !b.classList.contains("locked"));
+    assert(
+      placeBtns.length > 0,
+      "BuildMenu rendered no unlocked barracks recipe buttons",
+    );
+    const labels = placeBtns.map((b) => b.text);
+    assert(
+      labels.some((l) => l.includes("Militia")),
+      `no Militia barracks place button; got ${JSON.stringify(labels)}`,
+    );
+    const beforeNodes = game.getState().graph.nodes.length;
+    placeBtns[0].onclick(); // [click]
+    assert(
+      bdispatch.last.type === "PlaceNode" && bdispatch.last.kind === "barracks",
+      `expected PlaceNode barracks, got ${JSON.stringify(bdispatch.last)}`,
+    );
+    assert(
+      game.getState().graph.nodes.length === beforeNodes + 1,
+      "barracks node not added",
+    );
+    const barracksId = game.getState().graph.nodes.slice(-1)[0].id;
+    // level it so its capacity (and thus militia rate) is meaningful
+    levelWired(game, barracksId, 6);
+    console.log("    [click] BuildMenu place Barracks (r_militia)");
+
+    // --- Confirm/set r_militia via the real NodeInspector recipe wa-select ---
+    const nidispatch = recordingDispatch(game);
+    const niHost = renderPanel(
+      NodeInspector(snap(game), nidispatch, barracksId),
+    );
+    const recipeSel = niHost.querySelector(".ni-recipe");
+    assert(
+      recipeSel,
+      "NodeInspector rendered no recipe wa-select for barracks",
+    );
+    assert(
+      typeof recipeSel.onchange === "function",
+      "barracks recipe select has no onchange",
+    );
+    // option labels must use resource displays (e.g. "Militia"), never "undefined"
+    const optText = recipeSel.querySelectorAll("wa-option").map((o) => o.text);
+    assert(
+      optText.some((t) => /Militia/.test(t)) &&
+        !optText.some((t) => /undefined/.test(t)),
+      `barracks recipe options bad: ${JSON.stringify(optText)}`,
+    );
+    recipeSel.onchange({ target: { value: "r_militia" } }); // [click]
+    assert(
+      nidispatch.last.type === "SetRecipe" &&
+        nidispatch.last.nodeId === barracksId &&
+        nidispatch.last.recipeId === "r_militia",
+      `expected SetRecipe r_militia, got ${JSON.stringify(nidispatch.last)}`,
+    );
+    assert(
+      game.getState().graph.nodes.find((n) => n.id === barracksId).recipeId ===
+        "r_militia",
+      "barracks recipe not set to r_militia",
+    );
+    console.log("    [click] NodeInspector recipe wa-select -> r_militia");
+
+    // --- Build the upstream gear chain, then connect gear -> Barracks via the
+    //     real GraphView drag-connect path (GraphInput.onConnect -> _connect). ---
+    const gear = buildMilitiaGearChain(game);
+    const gvHost = new FakeEl("div");
+    const gv = new GraphView(gvHost, game, {});
+    gv.render(snap(game));
+    const beforeLinks = game.getState().graph.links.length;
+    for (const w of gear.swords) gv._connect(w, barracksId); // sword -> barracks
+    for (const w of gear.armors) gv._connect(w, barracksId); // armor -> barracks
+    for (const w of gear.shields) gv._connect(w, barracksId); // shield -> barracks
+    const added = game.getState().graph.links.length - beforeLinks;
+    assert(
+      added === gear.swords.length + gear.armors.length + gear.shields.length,
+      `GraphView._connect added ${added} barracks-feed links (expected 3)`,
+    );
+    const barracksLinks = game
+      .getState()
+      .graph.links.filter((l) => l.to === barracksId)
+      .map((l) => l.resourceId)
+      .sort();
+    assert(
+      JSON.stringify(barracksLinks) ===
+        JSON.stringify(["armor", "shield", "sword"]),
+      `barracks not fed sword+armor+shield; got ${JSON.stringify(barracksLinks)}`,
+    );
+    console.log(
+      "    [wired] GraphView._connect sword/armor/shield -> Barracks",
+    );
+
+    // The army now produces siege power (the barracks emits a siege rate).
+    delete game.getState()._solved;
+    const sRate = snap(game).siege.rate;
+    assert(sRate > 0, `militia army produced no siege rate (${sRate})`);
+    // and the NodeInspector surfaces the barracks' power/s contribution.
+    const niHost2 = renderPanel(
+      NodeInspector(snap(game), recordingDispatch(game), barracksId),
+    );
+    const siegeLine = niHost2.querySelector(".ni-siege-out");
+    assert(siegeLine, "NodeInspector showed no barracks siege-out line");
+    assert(
+      /power\/s/.test(siegeLine.text),
+      `barracks siege-out line malformed: "${siegeLine.text}"`,
+    );
+    console.log(
+      `    [render] militia army siege rate ${sRate.toFixed(3)} power/s`,
     );
   },
 );
 
 // ============================================================================
-// STEP 6 — launch t_gatehouse via ExpeditionBoard: gated below power, launchable
-//          at/above; fast-forward; resolves -> renown+reclaim+unlock+board advances
+// STEP 6 — open the War tab via the real router/tabs; assert the sieging card
+//          shows a NONZERO rate (real .war-rate text); tick until t_gatehouse
+//          falls; assert the card flips to Reclaimed (real .war-done badge).
 // ============================================================================
 step(
   6,
-  "ExpeditionBoard gates t_gatehouse below power, launches at power; resolves with unlock + advance",
+  "War tab: sieging card shows nonzero rate; tick to fall t_gatehouse; card flips to Reclaimed",
   () => {
-    const heroId = game.getState().heroes[0].id;
+    // Navigate to the War route exactly as a tab click would (the Hud's
+    // onWaTabShow handler calls router.navigate(name)).
+    const router = new Router(windowShim);
+    router.navigate("war");
+    assert(router.current === "war", "router did not navigate to the War tab");
+    console.log("    [click] router.navigate('war') (tab show)");
 
-    // First confirm gating: temporarily strip power below 30 by un-equipping is not
-    // exposed; instead build a low-power snapshot by reading current power vs req.
-    // Current power is 40 (30 gear + level 2*5). Required for t_gatehouse is 30 -> ready.
-    // To prove the gated branch, render a board with a synthetic low-power lead via a
-    // hand-built snapshot derived from the real one.
-    const liveSnap = snap(game);
-    const lowSnap = JSON.parse(JSON.stringify(liveSnap));
-    lowSnap.heroes[0].power = 5; // below 30
-    const gateHost = renderPanel(
-      ExpeditionBoard(lowSnap, recordingDispatch(game)),
-    );
-    // the gatehouse card (status underpowered) renders a disabled launch + nudge
-    const lockedBtns = gateHost.querySelectorAll(".exp-launch.locked");
+    // Render the real WarBoard for the sieging snapshot.
+    let s = snap(game);
+    const gate0 = s.territories.find((t) => t.id === "t_gatehouse");
     assert(
-      lockedBtns.length >= 1,
-      "underpowered gatehouse did not render a locked Launch",
+      gate0.status === "sieging",
+      `t_gatehouse status=${gate0.status}, expected sieging`,
     );
+    let host = renderPanel(WarBoard(s));
+    // the sieging card carries a progress bar + a .war-rate line reading "X power/s"
+    const sieging = host.querySelector(".war-card.sieging");
+    assert(sieging, "WarBoard rendered no sieging card");
     assert(
-      gateHost.querySelector(".exp-nudge"),
-      "no underpowered nudge rendered",
+      sieging.querySelector(".war-progress"),
+      "sieging card has no wa-progress-bar",
     );
-    // ensure NO affordable launch in the low-power board
+    const rateLine = sieging.querySelector(".war-rate");
+    assert(rateLine, "sieging card has no .war-rate line");
+    const rateText = rateLine.text;
     assert(
-      gateHost.querySelectorAll(".exp-launch.affordable").length === 0,
-      "low-power board still offered an affordable Launch",
+      /power\/s/.test(rateText) && /falls in/.test(rateText),
+      `.war-rate did not show a live rate: "${rateText}"`,
     );
-    console.log(
-      "    [render] underpowered board => locked Launch + nudge (gating verified)",
+    // the rate text must reflect a NONZERO siege rate (not the "No army" fallback)
+    assert(
+      !/No army/.test(rateText) && s.siege.rate > 0,
+      `expected a nonzero siege rate in the card; text="${rateText}", rate=${s.siege.rate}`,
     );
+    console.log(`    [render] War sieging card: "${rateText.trim()}"`);
 
-    // Now launch for real at sufficient power via the rendered Launch button.
-    const dispatch = recordingDispatch(game);
-    const host = renderPanel(ExpeditionBoard(snap(game), dispatch));
-    const launch = host.querySelector(".exp-launch.affordable");
-    assert(
-      launch,
-      "no launchable (affordable) Launch button at sufficient power",
-    );
-    assert(
-      typeof launch.onclick === "function",
-      "Launch button has no onclick",
-    );
-    const renownBefore = game.getState().currencies.renown;
-    const bonusBefore = game.getState().unlocks.productionBonuses.gatherer;
-    launch.onclick(); // [click]
-    assert(
-      dispatch.last.type === "StartExpedition" &&
-        dispatch.last.territoryId === "t_gatehouse" &&
-        dispatch.last.heroId === heroId,
-      `expected StartExpedition t_gatehouse, got ${JSON.stringify(dispatch.last)}`,
-    );
-    assert(
-      game.getState().expeditions.active &&
-        game.getState().expeditions.active.territoryId === "t_gatehouse",
-      "expedition did not start",
-    );
-    console.log("    [click] ExpeditionBoard Launch button");
-
-    // Fast-forward the clock past duration; a tick resolves it.
-    clock.advance(TERRITORIES.t_gatehouse.durationMs + 1000);
-    game.tick(0.05); // [wired] clock fast-forward + tick (the RAF loop's resolve path)
+    // Tick (big-dt; siege accrues linearly) until t_gatehouse (cost 40) falls.
+    let guard = 0;
+    while (
+      !game.getState().territories.reclaimed.includes("t_gatehouse") &&
+      guard++ < 2000
+    ) {
+      clock.advance(60_000);
+      game.tick(60);
+    }
     assert(
       game.getState().territories.reclaimed.includes("t_gatehouse"),
-      "t_gatehouse not reclaimed after fast-forward + tick",
+      `t_gatehouse not reclaimed after ${guard} ticks`,
     );
-    assert(
-      game.getState().currencies.renown >= renownBefore + 10,
-      `renown reward not applied (before ${renownBefore}, after ${game.getState().currencies.renown})`,
-    );
-    const bonusAfter = game.getState().unlocks.productionBonuses.gatherer;
-    assert(
-      bonusAfter > bonusBefore,
-      `gatherer factory unlock did not fire (${bonusBefore} -> ${bonusAfter})`,
-    );
+    console.log("    [wired] game.tick siege loop -> t_gatehouse falls");
 
-    // Board advances: t_smithyward becomes the next available target.
-    const s = snap(game);
-    const gate = s.territories.find((t) => t.id === "t_gatehouse");
+    // Re-render the War tab: the gatehouse card now shows the Reclaimed badge.
+    s = snap(game);
+    const gate1 = s.territories.find((t) => t.id === "t_gatehouse");
+    assert(
+      gate1.status === "reclaimed",
+      `gatehouse status=${gate1.status}, expected reclaimed`,
+    );
+    host = renderPanel(WarBoard(s));
+    const doneCard = host.querySelector(".war-card.reclaimed");
+    assert(doneCard, "WarBoard rendered no reclaimed card after the fall");
+    const badge = doneCard.querySelector(".war-done");
+    assert(badge, "reclaimed card has no .war-done badge");
+    assert(
+      /Reclaimed/.test(badge.text),
+      `reclaimed badge text wrong: "${badge.text}"`,
+    );
+    // and the siege front advanced to t_smithyward
     const smithy = s.territories.find((t) => t.id === "t_smithyward");
     assert(
-      gate.status === "reclaimed",
-      `gatehouse status=${gate.status}, expected reclaimed`,
+      smithy.status === "sieging",
+      `siege did not advance to t_smithyward (status=${smithy.status})`,
     );
-    assert(
-      smithy.isNext && smithy.status === "available",
-      `board did not advance to t_smithyward (isNext=${smithy.isNext}, status=${smithy.status})`,
+    console.log(
+      "    [render] gatehouse card flipped to Reclaimed; front -> Smithy Ward",
     );
-    console.log("    [wired] clock fast-forward + game.tick resolve");
   },
 );
 
 // ============================================================================
-// STEP 7 — drive to victory (reclaim all 6 in order); Victory overlay renders
+// STEP 7 — drive to VICTORY through real ticks (no hero/expedition): muster a
+//          knight army the way the real player would (the victory drive may
+//          fast-fund research/upgrades like the old probe did, but must reach
+//          meta.won through real siege ticks). Victory overlay renders epilogue.
 // ============================================================================
 step(
   7,
-  "Drive remaining territories to victory; Victory overlay renders epilogue + free-play",
+  "Drive to victory via the siege loop (real ticks); territories fall in order; Victory overlay renders",
   () => {
-    game.getState().currencies.renown = 1_000_000;
-    delete game.getState()._solved;
-    const heroId = game.getState().heroes[0].id;
+    const ORDER = Object.values(content.territories)
+      .sort((a, b) => a.order - b.order)
+      .map((t) => t.id);
 
-    function nextTerr() {
-      const st = game.getState();
-      return Object.values(content.territories)
-        .filter((t) => !st.territories.reclaimed.includes(t.id))
-        .sort((a, b) => a.order - b.order)[0];
-    }
-
-    let guard = 0;
-    while (!game.getState().meta.won && guard++ < 50) {
-      const terr = nextTerr();
-      if (!terr) break;
-      // equip best unlocked tiers via HeroPanel selects
-      const st = game.getState();
-      const best = {};
-      for (const g of st.unlocks.gearTiersUnlocked)
-        best[g.itemId] = Math.max(best[g.itemId] || 0, g.tier);
-      for (const [slot, itemId] of [
-        ["weapon", "sword"],
-        ["armor", "armor"],
-        ["accessory", "shield"],
-      ]) {
-        const dispatch = recordingDispatch(game);
-        const host = renderPanel(HeroPanel(snap(game), dispatch));
-        const idx = ["weapon", "armor", "accessory"].indexOf(slot);
-        const sel = host.querySelectorAll(".hp-equip")[idx];
-        const tier = best[itemId] || 1;
-        // only fire if the select offers that tier option
-        const hasOpt = sel
-          .querySelectorAll("wa-option")
-          .some((o) => o.getAttribute("value") === String(tier));
-        if (hasOpt) sel.onchange({ target: { value: String(tier) } });
-      }
-      // level until power >= required, via the Level Up button
-      let safety = 0;
-      while (
-        heroPower(game.getState(), content, heroId) < terr.requiredPower &&
-        safety++ < 500
-      ) {
-        const dispatch = recordingDispatch(game);
-        const host = renderPanel(HeroPanel(snap(game), dispatch));
-        const btn = host.querySelector(".hp-levelup");
+    // Phase A: militia army alone fells gatehouse..ironreach in order. Tick in
+    // chunks and record each reclaim, asserting canonical order as we go.
+    const fellOrder = game.getState().territories.reclaimed.slice(); // gatehouse already fell in step 6
+    function tickRecord(dt) {
+      const before = game.getState().territories.reclaimed.slice();
+      game.tick(dt);
+      const after = game.getState().territories.reclaimed;
+      for (let i = before.length; i < after.length; i++) {
+        const id = after[i];
         assert(
-          btn && typeof btn.onclick === "function",
-          `no Level Up button for ${terr.id}`,
+          id === ORDER[fellOrder.length],
+          `territory fell out of order: got ${id}, expected ${ORDER[fellOrder.length]}`,
         );
-        btn.onclick();
+        fellOrder.push(id);
       }
-      // launch via ExpeditionBoard button
-      const dispatch = recordingDispatch(game);
-      const host = renderPanel(ExpeditionBoard(snap(game), dispatch));
-      const launch = host.querySelector(".exp-launch.affordable");
-      assert(
-        launch,
-        `no Launch button for ${terr.id} at power ${heroPower(game.getState(), content, heroId)}/${terr.requiredPower}`,
-      );
-      launch.onclick();
-      assert(
-        game.getState().expeditions.active,
-        `expedition ${terr.id} did not start`,
-      );
-      clock.advance(terr.durationMs + 1000);
-      game.tick(0.05);
-      assert(
-        game.getState().territories.reclaimed.includes(terr.id),
-        `${terr.id} not reclaimed`,
-      );
     }
+    let guard = 0;
+    while (
+      !game.getState().territories.reclaimed.includes("t_ironreach") &&
+      guard++ < 5000
+    ) {
+      clock.advance(120_000);
+      tickRecord(120);
+    }
+    assert(
+      game.getState().territories.reclaimed.includes("t_ironreach"),
+      "militia army never felled t_ironreach",
+    );
+    assert(
+      game.getState().unlocks.gathererResources.includes("gemstone"),
+      "gemstone gathering not enabled after t_ironreach",
+    );
 
-    const allReclaimed = Object.keys(content.territories).every((id) =>
+    // Phase B: ironreach is reclaimed -> the master-smithing gate opens. Buy it,
+    // build the hardened/fine/master gear chain, muster KNIGHTS (power 9) to
+    // crack High Wall (4500) + Black Keep (12000). Research/gold are fast-funded
+    // (the old probe seeded currencies the same way) — the WIN still comes only
+    // from real siege ticks below.
+    game.getState().currencies.research = 100000;
+    game.getState().currencies.gold = 1e9;
+    delete game.getState()._solved;
+    assert(
+      game.dispatch({ type: "BuyResearch", nodeId: "res_hardened_steel" }).ok ||
+        game.getState().unlocks.researchOwned.includes("res_hardened_steel"),
+      "res_hardened_steel not buyable",
+    );
+    const ms = game.dispatch({
+      type: "BuyResearch",
+      nodeId: "res_master_smithing",
+    });
+    assert(
+      ms.ok && game.getState().unlocks.recipesUnlocked.includes("r_knight"),
+      `res_master_smithing not buyable after t_ironreach: ${ms.error}`,
+    );
+
+    // raws: gemstone (newly unlocked) + extra coal/iron for hardened steel
+    const gems = [
+      placeWired(game, "gatherer", { resourceId: "gemstone" }),
+      placeWired(game, "gatherer", { resourceId: "gemstone" }),
+    ];
+    const coalRaw = [
+      placeWired(game, "gatherer", { resourceId: "coal_raw" }),
+      placeWired(game, "gatherer", { resourceId: "coal_raw" }),
+    ];
+    const iron = [
+      placeWired(game, "gatherer", { resourceId: "iron_ore" }),
+      placeWired(game, "gatherer", { resourceId: "iron_ore" }),
+    ];
+    const timber = [placeWired(game, "gatherer", { resourceId: "timber" })];
+    const hide = [placeWired(game, "gatherer", { resourceId: "hide" })];
+    for (const id of [...gems, ...coalRaw, ...iron, ...timber, ...hide])
+      levelWired(game, id, 14);
+
+    const ironBar = [
+      placeWired(game, "smelter", { recipeId: "r_iron_bar" }),
+      placeWired(game, "smelter", { recipeId: "r_iron_bar" }),
+    ];
+    const coal = [placeWired(game, "smelter", { recipeId: "r_coal" })];
+    const plank = [placeWired(game, "smelter", { recipeId: "r_plank" })];
+    const leather = [placeWired(game, "smelter", { recipeId: "r_leather" })];
+    const steel = [
+      placeWired(game, "smelter", { recipeId: "r_steel" }),
+      placeWired(game, "smelter", { recipeId: "r_steel" }),
+      placeWired(game, "smelter", { recipeId: "r_steel" }),
+    ];
+    const hardened = [
+      placeWired(game, "smelter", { recipeId: "r_hardened_steel" }),
+      placeWired(game, "smelter", { recipeId: "r_hardened_steel" }),
+    ];
+    for (const id of [
+      ...ironBar,
+      ...coal,
+      ...plank,
+      ...leather,
+      ...steel,
+      ...hardened,
+    ])
+      levelWired(game, id, 16);
+
+    const blade = [placeWired(game, "workshop", { recipeId: "r_blade" })];
+    const plating = [placeWired(game, "workshop", { recipeId: "r_plating" })];
+    const fitting = [placeWired(game, "workshop", { recipeId: "r_fitting" })];
+    const swords = [placeWired(game, "workshop", { recipeId: "r_sword" })];
+    const armors = [placeWired(game, "workshop", { recipeId: "r_armor" })];
+    const shields = [placeWired(game, "workshop", { recipeId: "r_shield" })];
+    const fineSword = [
+      placeWired(game, "workshop", { recipeId: "r_fine_sword" }),
+    ];
+    const fineArmor = [
+      placeWired(game, "workshop", { recipeId: "r_fine_armor" }),
+    ];
+    const fineShield = [
+      placeWired(game, "workshop", { recipeId: "r_fine_shield" }),
+    ];
+    const mSword = [
+      placeWired(game, "workshop", { recipeId: "r_master_sword" }),
+    ];
+    const mArmor = [
+      placeWired(game, "workshop", { recipeId: "r_master_armor" }),
+    ];
+    const mShield = [
+      placeWired(game, "workshop", { recipeId: "r_master_shield" }),
+    ];
+    for (const id of [
+      ...blade,
+      ...plating,
+      ...fitting,
+      ...swords,
+      ...armors,
+      ...shields,
+      ...fineSword,
+      ...fineArmor,
+      ...fineShield,
+      ...mSword,
+      ...mArmor,
+      ...mShield,
+    ])
+      levelWired(game, id, 18);
+
+    for (const m of iron)
+      for (const s of ironBar) connectWired(game, m, s, "iron_ore");
+    for (const m of coalRaw)
+      for (const s of coal) connectWired(game, m, s, "coal_raw");
+    for (const m of timber)
+      for (const s of plank) connectWired(game, m, s, "timber");
+    for (const m of hide)
+      for (const s of leather) connectWired(game, m, s, "hide");
+    for (const s of ironBar)
+      for (const t of steel) connectWired(game, s, t, "iron_bar");
+    for (const c of coal)
+      for (const t of steel) connectWired(game, c, t, "coal");
+    for (const t of steel)
+      for (const h of hardened) connectWired(game, t, h, "steel");
+    for (const c of coalRaw)
+      for (const h of hardened) connectWired(game, c, h, "coal_raw");
+    for (const t of steel)
+      for (const w of blade) connectWired(game, t, w, "steel");
+    for (const p of plank)
+      for (const w of blade) connectWired(game, p, w, "plank");
+    for (const t of steel)
+      for (const w of plating) connectWired(game, t, w, "steel");
+    for (const l of leather)
+      for (const w of plating) connectWired(game, l, w, "leather");
+    for (const s of ironBar)
+      for (const w of fitting) connectWired(game, s, w, "iron_bar");
+    for (const l of leather)
+      for (const w of fitting) connectWired(game, l, w, "leather");
+    for (const b of blade)
+      for (const w of swords) connectWired(game, b, w, "blade");
+    for (const f of fitting)
+      for (const w of swords) connectWired(game, f, w, "fitting");
+    for (const p of plating)
+      for (const w of armors) connectWired(game, p, w, "plating");
+    for (const f of fitting)
+      for (const w of armors) connectWired(game, f, w, "fitting");
+    for (const p of plating)
+      for (const w of shields) connectWired(game, p, w, "plating");
+    for (const p of plank)
+      for (const w of shields) connectWired(game, p, w, "plank");
+    for (const w of swords)
+      for (const f of fineSword) connectWired(game, w, f, "sword");
+    for (const h of hardened)
+      for (const f of fineSword) connectWired(game, h, f, "hardened_steel");
+    for (const w of armors)
+      for (const f of fineArmor) connectWired(game, w, f, "armor");
+    for (const h of hardened)
+      for (const f of fineArmor) connectWired(game, h, f, "hardened_steel");
+    for (const w of shields)
+      for (const f of fineShield) connectWired(game, w, f, "shield");
+    for (const h of hardened)
+      for (const f of fineShield) connectWired(game, h, f, "hardened_steel");
+    for (const f of fineSword)
+      for (const m of mSword) connectWired(game, f, m, "fine_sword");
+    for (const g of gems)
+      for (const m of mSword) connectWired(game, g, m, "gemstone");
+    for (const f of fineArmor)
+      for (const m of mArmor) connectWired(game, f, m, "fine_armor");
+    for (const g of gems)
+      for (const m of mArmor) connectWired(game, g, m, "gemstone");
+    for (const f of fineShield)
+      for (const m of mShield) connectWired(game, f, m, "fine_shield");
+    for (const g of gems)
+      for (const m of mShield) connectWired(game, g, m, "gemstone");
+
+    // Knight barracks (power 9), several & leveled, to crack 4500 + 12000.
+    for (let i = 0; i < 6; i++) {
+      const b = placeWired(game, "barracks", { recipeId: "r_knight" });
+      levelWired(game, b, 12);
+      for (const w of mSword) connectWired(game, w, b, "master_sword");
+      for (const w of mArmor) connectWired(game, w, b, "master_armor");
+      for (const w of mShield) connectWired(game, w, b, "master_shield");
+    }
+    delete game.getState()._solved;
+    assert(snap(game).siege.rate > 0, "knight army produced no siege rate");
+
+    // Phase C: big-dt ticks to VICTORY; every reclaim still asserted in order.
+    guard = 0;
+    while (!game.getState().meta.won && guard++ < 5000) {
+      clock.advance(600_000);
+      tickRecord(600);
+    }
+    assert(
+      game.getState().meta.won === true,
+      "meta.won false after siege drive",
+    );
+    assert(
+      fellOrder.join(",") === ORDER.join(","),
+      `final fall order wrong:\n  got ${fellOrder.join(",")}\n  exp ${ORDER.join(",")}`,
+    );
+    const allReclaimed = ORDER.every((id) =>
       game.getState().territories.reclaimed.includes(id),
     );
     assert(allReclaimed, "not all 6 territories reclaimed");
-    assert(
-      game.getState().meta.won === true,
-      "meta.won false after clearing all",
+    console.log(
+      `    [wired] siege drive to victory; fall order ${fellOrder.join(" -> ")}`,
     );
 
     // Victory overlay renders with epilogue text + free-play line.
@@ -1128,7 +1481,6 @@ step(
       vText.includes("Free-play continues"),
       "Victory missing free-play line",
     );
-    // the Continue button closes the overlay (free-play continues)
     const closeBtn = vHost.querySelector(".victory-close");
     assert(
       closeBtn && typeof closeBtn.onclick === "function",
@@ -1136,14 +1488,11 @@ step(
     );
     closeBtn.onclick();
     assert(closed, "victory close handler did not fire");
-    // snapshot still won:true after closing (free-play; content unlocked)
     assert(
       snap(game).meta.won === true,
       "meta.won flipped false after closing victory",
     );
-    console.log(
-      "    [click] HeroPanel/ExpeditionBoard buttons + Victory close (free-play)",
-    );
+    console.log("    [click] Victory close (free-play continues)");
   },
 );
 
@@ -1159,6 +1508,37 @@ step(
     const og = new Game({ content, clock: oclock });
     og.bootstrap(new MemoryStorageAdapter());
     buildSeedChain(og); // build the producing chain (empty start otherwise banks nothing)
+
+    // Also muster a militia army so the offline window FELLS a territory: the
+    // summary must report `territoriesReclaimed` (OfflineSummary renders each as a
+    // "Reclaimed <name>" tag). Unlock the war spine + a barracks, feed it gear.
+    og.getState().currencies.research = 100000;
+    og.getState().currencies.gold = 1e9;
+    delete og.getState()._solved;
+    for (const id of [
+      "res_scholar",
+      "res_lumber",
+      "res_tannery",
+      "res_coalworks",
+      "res_steelmaking",
+      "res_open_market",
+      "res_smithing",
+      "res_fittings",
+      "res_armory",
+      "res_drill_yard",
+    ]) {
+      const r = og.dispatch({ type: "BuyResearch", nodeId: id });
+      assert(r.ok, `offline-setup BuyResearch ${id}: ${r.error}`);
+    }
+    const ogBarracks = placeWired(og, "barracks", { recipeId: "r_militia" });
+    levelWired(og, ogBarracks, 8);
+    const ogGear = buildMilitiaGearChain(og);
+    for (const w of ogGear.swords) connectWired(og, w, ogBarracks, "sword");
+    for (const w of ogGear.armors) connectWired(og, w, ogBarracks, "armor");
+    for (const w of ogGear.shields) connectWired(og, w, ogBarracks, "shield");
+    delete og.getState()._solved;
+    assert(snap(og).siege.rate > 0, "offline army produced no siege rate");
+
     // simulate the player closing the tab now and returning 2 hours later
     const elapsed = 2 * 3600 * 1000;
     oclock.advance(elapsed);
@@ -1169,6 +1549,14 @@ step(
     assert(
       summary.gained && summary.gained.gold > 0,
       `offline gained no gold: ${JSON.stringify(summary.gained)}`,
+    );
+    // the 2h siege window felled at least t_gatehouse (cost 40).
+    assert(
+      Array.isArray(summary.territoriesReclaimed) &&
+        summary.territoriesReclaimed.some(
+          (t) => t.territoryId === "t_gatehouse",
+        ),
+      `offline summary reported no t_gatehouse reclaim: ${JSON.stringify(summary.territoriesReclaimed)}`,
     );
 
     // Render the real OfflineSummary modal with the summary.
@@ -1199,6 +1587,18 @@ step(
     assert(
       text.replace(/,/g, "").includes(String(goldShown)),
       `OfflineSummary text "${text}" missing gold ${goldShown}`,
+    );
+    // It must list the territory the offline siege reclaimed (real .os-exp tag).
+    const reclaimTags = host.querySelectorAll(".os-exp");
+    assert(
+      reclaimTags.length >= 1,
+      "OfflineSummary rendered no .os-exp reclaimed tag",
+    );
+    assert(
+      reclaimTags.some(
+        (t) => /Reclaimed/.test(t.text) && /Gatehouse/.test(t.text),
+      ),
+      `OfflineSummary reclaimed tag missing The Gatehouse; got ${JSON.stringify(reclaimTags.map((t) => t.text))}`,
     );
     const closeBtn = host.querySelector(".os-close");
     assert(
