@@ -425,8 +425,8 @@ describe("GraphView._toggleSelect — Ctrl+click folds in a prior single selecti
 });
 
 describe("actionBarSpec — single-machine vs multi-selection button list", () => {
-  const labels = (spec) => spec.map((b) => b.label);
-  const ids = (spec) => spec.map((b) => b.id);
+  const labels = (spec) => spec.buttons.map((b) => b.label);
+  const ids = (spec) => spec.buttons.map((b) => b.id);
 
   it("single machine (sets empty, selectedId set): Copy + Delete, NO Group", () => {
     const spec = actionBarSpec({
@@ -438,7 +438,8 @@ describe("actionBarSpec — single-machine vs multi-selection button list", () =
     expect(labels(spec)).toEqual(["Copy", "Delete"]);
     expect(ids(spec).includes("group")).toBe(false);
     // delete reads exactly "Delete" (not the bulk "Delete All")
-    expect(spec.find((b) => b.id === "delete").label).toBe("Delete");
+    expect(spec.buttons.find((b) => b.id === "delete").label).toBe("Delete");
+    expect(spec.single).toBe(true); // sole source of truth for mode
   });
 
   it("single machine with a clipboard adds Paste between Copy and Delete", () => {
@@ -449,6 +450,7 @@ describe("actionBarSpec — single-machine vs multi-selection button list", () =
       clipboardNonEmpty: true,
     });
     expect(labels(spec)).toEqual(["Copy", "Paste", "Delete"]);
+    expect(spec.single).toBe(true);
   });
 
   it("multi loose nodes: Group + Copy + Delete All (unchanged)", () => {
@@ -459,6 +461,7 @@ describe("actionBarSpec — single-machine vs multi-selection button list", () =
       clipboardNonEmpty: false,
     });
     expect(labels(spec)).toEqual(["Group", "Copy", "Delete All"]);
+    expect(spec.single).toBe(false);
   });
 
   it("multi with clipboard: Group + Copy + Paste + Delete All", () => {
@@ -479,6 +482,7 @@ describe("actionBarSpec — single-machine vs multi-selection button list", () =
       clipboardNonEmpty: false,
     });
     expect(labels(spec)).toEqual(["Copy", "Delete All"]);
+    expect(spec.single).toBe(false); // a lone group is multi-mode, not single
   });
 
   it("two selected groups show Group (grouping nests them)", () => {
@@ -499,6 +503,7 @@ describe("actionBarSpec — single-machine vs multi-selection button list", () =
       clipboardNonEmpty: false,
     });
     expect(labels(spec)).toEqual(["Group", "Copy", "Delete All"]);
+    expect(spec.single).toBe(false); // non-empty sets win even with a selectedId
   });
 });
 

@@ -96,7 +96,10 @@ export function segmentIntersectsRect(a, b, vp) {
 //    Group (when grouping nests >=1 thing), Copy, Paste (if clipboard), "Delete All".
 //  - single: one inspected machine (selectedId, sets empty). No Group; the delete
 //    button reads "Delete" (one machine, not a bulk op).
-// Returns [{ id, label }] in render order; id drives the click handler dispatch.
+// Returns { buttons: [{ id, label }] (render order; id drives the click handler),
+// single: bool }. `single` is the sole source of truth for single-vs-multi mode —
+// the caller reuses it for both the sig prefix and the delete-handler routing so
+// the two can't drift.
 export function actionBarSpec({
   selNodesSize,
   selBuildingsSize,
@@ -104,19 +107,19 @@ export function actionBarSpec({
   clipboardNonEmpty,
 }) {
   const single = selNodesSize + selBuildingsSize === 0 && selectedId != null;
-  const out = [];
+  const buttons = [];
   if (single) {
-    out.push({ id: "copy", label: "Copy" });
-    if (clipboardNonEmpty) out.push({ id: "paste", label: "Paste" });
-    out.push({ id: "delete", label: "Delete" });
-    return out;
+    buttons.push({ id: "copy", label: "Copy" });
+    if (clipboardNonEmpty) buttons.push({ id: "paste", label: "Paste" });
+    buttons.push({ id: "delete", label: "Delete" });
+    return { buttons, single };
   }
   const showGroup = selNodesSize > 0 || selBuildingsSize >= 2;
-  if (showGroup) out.push({ id: "group", label: "Group" });
-  out.push({ id: "copy", label: "Copy" });
-  if (clipboardNonEmpty) out.push({ id: "paste", label: "Paste" });
-  out.push({ id: "delete", label: "Delete All" });
-  return out;
+  if (showGroup) buttons.push({ id: "group", label: "Group" });
+  buttons.push({ id: "copy", label: "Copy" });
+  if (clipboardNonEmpty) buttons.push({ id: "paste", label: "Paste" });
+  buttons.push({ id: "delete", label: "Delete All" });
+  return { buttons, single };
 }
 
 // Cached setters: skip the DOM call when the value is unchanged (the common
@@ -1097,6 +1100,8 @@ export class GraphView {
   // building. In single mode (sets empty) it's just the inspected machine, so the
   // bar's Copy seeds the clipboard with that one node.
   _selectionMemberIds() {
+    // CAUTION: a non-empty result no longer implies a multi-selection — this can
+    // return the lone inspected machine (selectedId) when both sets are empty.
     if (this.selNodes.size + this.selBuildings.size === 0)
       return this.selectedId != null ? [this.selectedId] : [];
     const ids = new Set(this.selNodes);
@@ -1315,10 +1320,9 @@ export class GraphView {
     // task 23: only tear down + rebuild the buttons when the SET changes. A plain
     // re-draw (pan/zoom/tick) keeps the same buttons, so reusing them avoids churn
     // and a dropped focus on the bar.
-    const single =
-      this.selNodes.size + this.selBuildings.size === 0 &&
-      this.selectedId != null;
-    const spec = actionBarSpec({
+    // `single` is owned by actionBarSpec (single source of truth) and drives BOTH
+    // the sig prefix and the delete-handler routing below — never re-derived here.
+    const { buttons, single } = actionBarSpec({
       selNodesSize: this.selNodes.size,
       selBuildingsSize: this.selBuildings.size,
       selectedId: this.selectedId,
@@ -1328,7 +1332,7 @@ export class GraphView {
     // selection flips between machines or between single/multi modes.
     const sig =
       (single ? "S" + this.selectedId + ":" : "M:") +
-      spec.map((b) => b.id).join(",");
+      buttons.map((b) => b.id).join(",");
     if (sig !== this._barSig || bar.childNodes.length === 0) {
       // capture which button (by label) had focus so we can restore it post-rebuild
       let focusLabel = null;
@@ -1355,7 +1359,7 @@ export class GraphView {
         };
         bar.appendChild(b);
       };
-      for (const { id, label } of spec) mkBtn(label, handlers[id]);
+      for (const { id, label } of buttons) mkBtn(label, handlers[id]);
       this._barSig = sig;
       if (focusLabel) {
         for (const b of bar.childNodes)
