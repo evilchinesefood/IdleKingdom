@@ -85,6 +85,31 @@ export function segmentIntersectsRect(a, b, vp) {
   );
 }
 
+// Cached setters: skip the DOM call when the value is unchanged (the common
+// case for retained elements — most attrs are stable between draws).
+function setAttr(el, k, v) {
+  const c = el._attrCache || (el._attrCache = {});
+  const s = String(v);
+  if (c[k] === s) return;
+  c[k] = s;
+  el.setAttribute(k, s);
+}
+function setText(el, s) {
+  if (el._textCache === s) return;
+  el._textCache = s;
+  while (el.firstChild) el.removeChild(el.firstChild);
+  el.appendChild(document.createTextNode(s));
+  el.textContent = s; // keep the shim's simple readers working
+}
+function swapChild(parent, fresh, old) {
+  if (typeof parent.replaceChild === "function")
+    parent.replaceChild(fresh, old);
+  else {
+    parent.removeChild(old);
+    parent.appendChild(fresh);
+  }
+}
+
 export class GraphView {
   constructor(host, game, opts = {}) {
     this.host = host;
@@ -119,6 +144,12 @@ export class GraphView {
     this._rafId = null;
     this._wheelTimer = null;
     this._hostRect = null; // task 10: cached host rect, invalidated on resize/gesture-end
+
+    // Retained render: keyed element entries reused across draws. An entry is
+    // rebuilt only when its structural sig changes; everything else is updated
+    // in place (see nodeSig). Culled entries stay in the map (DOM-detached).
+    this._nodeEls = new Map(); // id -> {g, subText, capFill, sig}
+    this._hintEl = null; // empty-canvas hint (present only when 0 nodes)
 
     // Multi-selection set + floating action bar (HTML, anchored to the host).
     this.selNodes = new Set();
@@ -352,6 +383,21 @@ export class GraphView {
   render(snap) {
     this.snap = snap;
     this._draw();
+  }
+
+  // Wired in the culling task; null = render everything (also the headless path).
+  _cullRect() {
+    return null;
+  }
+
+  // Nodes that must render even off-viewport: live interaction targets.
+  _nodeAlwaysVisible(n, focusedId) {
+    return (
+      n.id === this.selectedId ||
+      n.id === focusedId ||
+      (this._dragPos && !!this._dragPos[n.id]) ||
+      (this.armedPort && this.armedPort.nodeId === n.id)
+    );
   }
 
   // id -> node Map, built once per snapshot identity (task 11). Replaces the
@@ -1357,14 +1403,53 @@ export class GraphView {
     }
     this._replace(this.layerLinks, linkEls);
 
-    // nodes
+    // nodes (retained: rebuild only on sig change; in-place updates otherwise)
     this._grpMembers = this._selectedGroupMembers(); // members of any selected group
-    const nodeEls = this.snap.nodes.map((n) => this._drawNode(n, v));
-    if (this.snap.nodes.length === 0) nodeEls.push(this._emptyHint());
-    // The redraw destroys the focused node element — capture its id first so we
-    // can restore keyboard focus to the rebuilt node afterwards.
-    const refocus = this._activeNodeId();
-    this._replace(this.layerNodes, nodeEls);
+    const refocus = this._activeNodeId(); // a sig-rebuild still destroys focus
+    const tier = lodTier(v.scale);
+    const vp = this._cullRect(); // Task 4 wires this; returns null until then
+    const seen = new Set();
+    for (const n of this.snap.nodes) {
+      if (
+        vp &&
+        !this._nodeAlwaysVisible(n, refocus) &&
+        !nodeInRect(this._pos(n), vp)
+      )
+        continue;
+      seen.add(n.id);
+      const armed = !!(this.armedPort && this.armedPort.nodeId === n.id);
+      const nTier = n.id === this.selectedId ? "full" : tier;
+      const icon = this._nodeIcon(n);
+      const sig = nodeSig(n, nTier, armed, icon);
+      let entry = this._nodeEls.get(n.id);
+      if (!entry || entry.sig !== sig) {
+        const fresh = this._buildNodeEl(n, nTier, armed, icon);
+        fresh.sig = sig;
+        if (entry && entry.g.parentNode === this.layerNodes)
+          swapChild(this.layerNodes, fresh.g, entry.g);
+        this._nodeEls.set(n.id, fresh);
+        entry = fresh;
+      }
+      if (entry.g.parentNode !== this.layerNodes)
+        this.layerNodes.appendChild(entry.g);
+      this._updateNodeEl(entry, n, v);
+    }
+    // detach culled nodes (keep entries) and delete departed ones entirely
+    const liveIds = this._nodeMap();
+    for (const [id, entry] of this._nodeEls) {
+      if (seen.has(id)) continue;
+      if (entry.g.parentNode === this.layerNodes)
+        this.layerNodes.removeChild(entry.g);
+      if (!liveIds.has(id)) this._nodeEls.delete(id);
+    }
+    // empty-canvas hint: present exactly when there are no nodes at all
+    if (this.snap.nodes.length === 0) {
+      if (!this._hintEl) this._hintEl = this._emptyHint();
+      if (this._hintEl.parentNode !== this.layerNodes)
+        this.layerNodes.appendChild(this._hintEl);
+    } else if (this._hintEl && this._hintEl.parentNode === this.layerNodes) {
+      this.layerNodes.removeChild(this._hintEl);
+    }
     if (refocus != null) this._restoreFocus(refocus);
 
     // overlay: live select box + copy ghost (on top of everything)
@@ -1613,33 +1698,34 @@ export class GraphView {
     this._draw();
   }
 
-  _drawNode(n, v) {
-    const np = this._pos(n);
-    const p = graphToScreen(v, np.x, np.y);
+  // Build a node element's STRUCTURE only (local unscaled coords). Per-draw
+  // attributes — transform, class, aria-label, sub-rate text, cap-fill width —
+  // are NOT set here; _updateNodeEl applies them every draw. An element is
+  // rebuilt only when its structural sig (nodeSig) changes; `tier`/`armed`/`icon`
+  // are the sig's structural inputs and arrive here straight from the sig site.
+  _buildNodeEl(n, tier, armed, icon) {
+    // The badge derived from the exact precedence nodeSig uses (max > low > off >
+    // none). Its presence/variant is structural (rebuilds on change), so it's
+    // baked in here rather than updated in place.
+    const badge =
+      n.atCapacity && n.working
+        ? "max"
+        : n.starved
+          ? n.working
+            ? "low"
+            : "off"
+          : "none";
     // Render the whole node in ONE scaled group with children in LOCAL unscaled
-    // coords (0..NODE_W, 0..NODE_H). The transform scales box, text, icon,
-    // cap-bar, badge AND ports uniformly with zoom — at scale 1 this is
-    // pixel-identical to the old per-coordinate math, and at any other zoom the
-    // interior no longer spills/desyncs. Ports also line up with the
-    // graph-space hit-test (which uses the same graph units).
-    const stateLabel = n.atCapacity
-      ? ", at max"
-      : n.starved
-        ? ", low on input"
-        : "";
-    let nodeCls = "node-card";
-    if (n.id === this.selectedId) nodeCls += " selected";
-    if (this.selNodes.has(n.id)) nodeCls += " multiselect";
-    else if (this._grpMembers && this._grpMembers.has(n.id))
-      nodeCls += " group-member";
+    // coords (0..NODE_W, 0..NODE_H). The transform (applied in _updateNodeEl)
+    // scales box, text, icon, cap-bar, badge AND ports uniformly with zoom — at
+    // scale 1 this is pixel-identical to the old per-coordinate math. Ports also
+    // line up with the graph-space hit-test (which uses the same graph units).
     const g = svg("g", {
-      class: nodeCls,
-      transform: `translate(${p.x} ${p.y}) scale(${v.scale})`,
       // Keyboard a11y: each node is a focusable button (Enter/arrows/C/Delete).
+      // id is stable for the entry's lifetime, so these are build-time only.
       tabindex: 0,
       role: "button",
       "data-node-id": n.id,
-      "aria-label": `${cap(n.kind)}, level ${n.level}${stateLabel}`,
       onkeydown: (e) => this._onNodeKey(e, n.id),
     });
     g.appendChild(
@@ -1655,21 +1741,26 @@ export class GraphView {
     g.appendChild(
       svg("text", { class: "node-label", x: 30, y: 20 }, [cap(n.kind)]),
     );
-    const fo = svg("foreignObject", {
-      x: 5,
-      y: 4,
-      width: 24,
-      height: 24,
-      class: "node-ico",
-    });
-    const iEl = document.createElement("i");
-    iEl.className = `fa-duotone fa-solid fa-${this._nodeIcon(n)}`;
-    iEl.setAttribute("aria-hidden", "true");
-    fo.appendChild(iEl);
-    g.appendChild(fo);
+    // tier "far": skip the icon foreignObject, the working-gear foreignObject,
+    // and ALL FOUR port circles (out hit/dot + in hit/dot). Hit-testing still
+    // works — it's graph-space math, not DOM (see _hitPort/_hitNode).
+    if (tier !== "far") {
+      const fo = svg("foreignObject", {
+        x: 5,
+        y: 4,
+        width: 24,
+        height: 24,
+        class: "node-ico",
+      });
+      const iEl = document.createElement("i");
+      iEl.className = `fa-duotone fa-solid fa-${icon}`;
+      iEl.setAttribute("aria-hidden", "true");
+      fo.appendChild(iEl);
+      g.appendChild(fo);
+    }
     // Shared "working" animation: a spinning gears cog shown ONLY while the machine
     // is actively producing and fed (n.working). Idle/blocked/full nodes are still.
-    if (n.working) {
+    if (tier !== "far" && n.working) {
       const wfo = svg("foreignObject", {
         x: NODE_W - 27,
         y: NODE_H - 30,
@@ -1680,11 +1771,11 @@ export class GraphView {
       const wi = document.createElement("i");
       wi.className = "fa-duotone fa-solid fa-gears";
       wi.setAttribute("aria-hidden", "true");
-      // The graph fully rebuilds its nodes on every render (e.g. on any click),
-      // which would restart the CSS animation from 0. Anchor each gear to a shared
-      // wall-clock phase via a negative animation-delay so a recreated gear resumes
-      // mid-spin — the animation looks continuous across re-renders. (2.4s = keyframe
-      // duration; guarded for the headless test shim where `performance` is absent.)
+      // The gear is rebuilt only on a sig change now, which would restart the CSS
+      // animation from 0. Anchor each gear to a shared wall-clock phase via a
+      // negative animation-delay so a recreated gear resumes mid-spin — the
+      // animation looks continuous across rebuilds. (2.4s = keyframe duration;
+      // guarded for the headless test shim where `performance` is absent.)
       const nowS =
         typeof performance !== "undefined" && performance.now
           ? performance.now() / 1000
@@ -1693,23 +1784,10 @@ export class GraphView {
       wfo.appendChild(wi);
       g.appendChild(wfo);
     }
-    // Markets/scholars produce currency and barracks produce siege power, not a
-    // routable resource — show that at a glance (their effectiveRate is 0 because
-    // they don't output a graph resource).
-    let subRate;
-    if (n.kind === "market") subRate = `${(n.goldOut ?? 0).toFixed(2)} g/s`;
-    else if (n.kind === "scholar")
-      subRate = `${(n.researchOut ?? 0).toFixed(2)} r/s`;
-    else if (n.kind === "barracks")
-      subRate = `${(n.siegeOut ?? 0).toFixed(2)} pw/s`;
-    else subRate = `${(n.effectiveRate ?? 0).toFixed(2)}/s`;
-    g.appendChild(
-      svg("text", { class: "node-sub", x: 8, y: 38 }, [
-        `L${n.level} · ${subRate}`,
-      ]),
-    );
+    // Sub-rate text: created EMPTY here, content set every draw by _updateNodeEl.
+    const subText = svg("text", { class: "node-sub", x: 8, y: 38 });
+    g.appendChild(subText);
     // capacity bar
-    const pct = Math.max(0, Math.min(1, n.capacityPct ?? 0));
     const barY = NODE_H - 8;
     g.appendChild(
       svg("rect", {
@@ -1720,28 +1798,26 @@ export class GraphView {
         height: 4,
       }),
     );
-    // "MAX" only counts when the node is actually shipping its output (working) —
-    // a fully-fed producer whose output goes nowhere isn't meaningfully at capacity,
-    // and showing MAX next to an idle gear read as contradictory.
-    const atMax = n.atCapacity && n.working;
-    const capCls =
-      "cap-fill" + (atMax ? " at-capacity" : n.starved ? " starved" : "");
-    g.appendChild(
-      svg("rect", {
-        class: capCls,
-        x: 8,
-        y: barY,
-        width: (NODE_W - 16) * pct,
-        height: 4,
-      }),
-    );
+    // cap-fill class is static per build (derived from the sig's badge): "MAX"
+    // only counts when shipping (badge "max" === atCapacity && working) — a
+    // fully-fed producer whose output goes nowhere isn't meaningfully at capacity.
+    // width starts at 0 and is set every draw by _updateNodeEl.
+    const capFill = svg("rect", {
+      class:
+        "cap-fill" +
+        (badge === "max" ? " at-capacity" : n.starved ? " starved" : ""),
+      x: 8,
+      y: barY,
+      width: 0,
+      height: 4,
+    });
+    g.appendChild(capFill);
     // Top-right status badge: MAX (at capacity + shipping), LOW (running but under
-    // capacity), or OFF (connected/idle with ~0 throughput). `working` distinguishes
-    // a running-but-underfed consumer (LOW) from one drawing nothing yet (OFF).
-    const off = n.starved && !n.working;
-    if (atMax || n.starved) {
-      const label = atMax ? "MAX" : off ? "OFF" : "LOW";
-      const variant = atMax ? "max" : off ? "off" : "starved";
+    // capacity), or OFF (connected/idle with ~0 throughput). Structural via sig.
+    if (badge !== "none") {
+      const label = badge === "max" ? "MAX" : badge === "off" ? "OFF" : "LOW";
+      const variant =
+        badge === "max" ? "max" : badge === "off" ? "off" : "starved";
       const bw = 34,
         bh = 14;
       const bx = NODE_W - bw - 4,
@@ -1773,32 +1849,71 @@ export class GraphView {
     // are a terminal sink (gear in -> troops, which are unroutable) so they get
     // NO out port — skip its visible dot + hit halo, mirroring the _hitPort and
     // _inferResource guards.
-    const armedOut = this.armedPort && this.armedPort.nodeId === n.id;
-    if (n.kind !== "barracks") {
+    if (tier !== "far") {
+      if (n.kind !== "barracks") {
+        g.appendChild(
+          svg("circle", {
+            class: "port-hit",
+            cx: NODE_W,
+            cy: NODE_H / 2,
+            r: HIT_R,
+          }),
+        );
+        g.appendChild(
+          svg("circle", {
+            class: armed ? "port armed" : "port",
+            cx: NODE_W,
+            cy: NODE_H / 2,
+            r: PORT_R,
+          }),
+        );
+      }
       g.appendChild(
-        svg("circle", {
-          class: "port-hit",
-          cx: NODE_W,
-          cy: NODE_H / 2,
-          r: HIT_R,
-        }),
+        svg("circle", { class: "port-hit", cx: 0, cy: NODE_H / 2, r: HIT_R }),
       );
       g.appendChild(
-        svg("circle", {
-          class: armedOut ? "port armed" : "port",
-          cx: NODE_W,
-          cy: NODE_H / 2,
-          r: PORT_R,
-        }),
+        svg("circle", { class: "port", cx: 0, cy: NODE_H / 2, r: PORT_R }),
       );
     }
-    g.appendChild(
-      svg("circle", { class: "port-hit", cx: 0, cy: NODE_H / 2, r: HIT_R }),
+    return { g, subText, capFill };
+  }
+
+  // Per-draw, in-place update of a retained node element: transform, selection
+  // class, aria-label, sub-rate text, cap-fill width. Runs every draw for every
+  // rendered node (cached setters skip the DOM call when a value is unchanged).
+  _updateNodeEl(entry, n, v) {
+    const np = this._pos(n);
+    const p = graphToScreen(v, np.x, np.y);
+    setAttr(entry.g, "transform", `translate(${p.x} ${p.y}) scale(${v.scale})`);
+    let cls = "node-card";
+    if (n.id === this.selectedId) cls += " selected";
+    if (this.selNodes.has(n.id)) cls += " multiselect";
+    else if (this._grpMembers && this._grpMembers.has(n.id))
+      cls += " group-member";
+    setAttr(entry.g, "class", cls);
+    const stateLabel = n.atCapacity
+      ? ", at max"
+      : n.starved
+        ? ", low on input"
+        : "";
+    setAttr(
+      entry.g,
+      "aria-label",
+      `${cap(n.kind)}, level ${n.level}${stateLabel}`,
     );
-    g.appendChild(
-      svg("circle", { class: "port", cx: 0, cy: NODE_H / 2, r: PORT_R }),
-    );
-    return g;
+    // Markets/scholars produce currency and barracks produce siege power, not a
+    // routable resource — show that at a glance (their effectiveRate is 0 because
+    // they don't output a graph resource).
+    let subRate;
+    if (n.kind === "market") subRate = `${(n.goldOut ?? 0).toFixed(2)} g/s`;
+    else if (n.kind === "scholar")
+      subRate = `${(n.researchOut ?? 0).toFixed(2)} r/s`;
+    else if (n.kind === "barracks")
+      subRate = `${(n.siegeOut ?? 0).toFixed(2)} pw/s`;
+    else subRate = `${(n.effectiveRate ?? 0).toFixed(2)}/s`;
+    setText(entry.subText, `L${n.level} · ${subRate}`);
+    const pct = Math.max(0, Math.min(1, n.capacityPct ?? 0));
+    setAttr(entry.capFill, "width", (NODE_W - 16) * pct);
   }
 
   _replace(layer, els) {
