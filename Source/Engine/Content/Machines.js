@@ -2,7 +2,7 @@
  *  @property {string} kind        gatherer|smelter|workshop|market|scholar
  *  @property {number} baseOutput  L1 output (units/s); crafters are recipe-driven, baseOutput unused
  *  @property {number} rateGain    added per level above 1
- *  @property {number} upgradeBase Gold base cost for cost(level)=upgradeBase*1.15^level
+ *  @property {number} upgradeBase Gold base cost; piecewise curve: 15%/level up to L40, then 10%/level beyond
  */
 
 /** Keyed map kind -> Machine. The 5 engine kinds. */
