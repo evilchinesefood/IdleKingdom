@@ -101,18 +101,29 @@ export function researchStatus(state, content, id) {
   return prereqsMet && terrMet ? "available" : "locked";
 }
 
-export function canBuyResearch(state, content, id) {
+// Cost in reject messages: whole numbers, US grouping (display-only string).
+const fmtCost = (n) => Math.ceil(n).toLocaleString("en-US");
+
+// Null when buyable; otherwise a user-facing reason. The cost-only failure spells
+// out the price; everything else is the catch-all. canBuyResearch is the boolean view.
+export function buyResearchError(state, content, id) {
   const node = content.researchNodes[id];
-  if (!node) return false;
-  if (state.unlocks.researchOwned.includes(id)) return false;
+  if (!node) return "Cannot buy research";
+  if (state.unlocks.researchOwned.includes(id)) return "Cannot buy research";
   if (!node.prereqs.every((p) => state.unlocks.researchOwned.includes(p)))
-    return false;
+    return "Cannot buy research";
   if (
     node.requiresTerritory &&
     !state.territories.reclaimed.includes(node.requiresTerritory)
   )
-    return false;
-  return state.currencies[node.currency] >= node.cost;
+    return "Cannot buy research";
+  if (state.currencies[node.currency] < node.cost)
+    return `Not enough ${node.currency} — costs ${fmtCost(node.cost)}`;
+  return null;
+}
+
+export function canBuyResearch(state, content, id) {
+  return buyResearchError(state, content, id) === null;
 }
 
 export function buyResearch(state, content, id) {
@@ -144,10 +155,19 @@ export function tuningCost(state, kind) {
   );
 }
 
+// Null when buyable; otherwise a user-facing reason. Tuning is paid in research.
+export function buyTuningError(state, content, kind) {
+  if (!TUNING.kinds.includes(kind)) return "Cannot buy tuning";
+  if (!state.unlocks.machinesUnlocked.includes(kind))
+    return "Cannot buy tuning";
+  const cost = tuningCost(state, kind);
+  if (state.currencies.research < cost)
+    return `Not enough research — costs ${fmtCost(cost)}`;
+  return null;
+}
+
 export function canBuyTuning(state, content, kind) {
-  if (!TUNING.kinds.includes(kind)) return false;
-  if (!state.unlocks.machinesUnlocked.includes(kind)) return false;
-  return state.currencies.research >= tuningCost(state, kind);
+  return buyTuningError(state, content, kind) === null;
 }
 
 export function buyTuning(state, content, kind) {
