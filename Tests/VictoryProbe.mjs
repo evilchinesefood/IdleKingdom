@@ -309,7 +309,7 @@ ok(
 // PHASE 3 — now that t_ironreach is reclaimed, the master-smithing gate opens.
 // Buy res_master_smithing (research 1500), build the upgraded chains
 // (hardened_steel -> fine gear; gemstone + fine -> master gear) and muster
-// KNIGHTS (power 9) to crack the High Wall (4500) and Black Keep (12000).
+// KNIGHTS (power 9) to crack the High Wall (120000) and Black Keep (400000).
 // ---------------------------------------------------------------------------
 game.getState().currencies.research = 100000;
 delete game.getState()._solved;
