@@ -285,6 +285,37 @@ describe("Game facade", () => {
     expect(lvl()).toBe(1); // restored to the captured pre-upgrade structure
   });
 
+  it("dispatching SetNodePos does not force a re-solve (the solve cache survives, ref-identical)", () => {
+    const g = bootSeeded(makeGame(new FakeClock(0)));
+    const solvedBefore = g._ensureSolved(); // warm the cache
+    const r = g.dispatch({
+      type: "SetNodePos",
+      nodeId: "n_smelter_0",
+      pos: { x: 1234, y: 56 },
+    });
+    expect(r.ok).toBe(true);
+    // moved
+    expect(
+      g.getState().graph.nodes.find((n) => n.id === "n_smelter_0").pos,
+    ).toEqual({ x: 1234, y: 56 });
+    // SAME solve object: reduce carried it forward, _ensureSolved did not re-solve
+    expect(g.getState()._solved).toBe(solvedBefore);
+  });
+
+  it("a structural dispatch after SetNodePos re-solves (cache was carried, not stale-locked)", () => {
+    const g = bootSeeded(makeGame(new FakeClock(0)));
+    const solved0 = g._ensureSolved();
+    g.dispatch({
+      type: "SetNodePos",
+      nodeId: "n_smelter_0",
+      pos: { x: 1, y: 1 },
+    });
+    expect(g.getState()._solved).toBe(solved0); // carried
+    // a real structural edit must produce a FRESH solve (different object)
+    g.dispatch({ type: "UpgradeNode", nodeId: "n_miner_0" });
+    expect(g.getState()._solved === solved0).toBe(false);
+  });
+
   it("getState returns the live raw state for autosave (has version, no frozen)", () => {
     const g = makeGame(new FakeClock(0));
     g.bootstrap(new MemoryStorageAdapter());
