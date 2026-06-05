@@ -274,3 +274,63 @@ describe("GraphView retained node layer", () => {
     ).toBe(true);
   });
 });
+
+function lrow(id, from, to, over = {}) {
+  return { id, from, to, resourceId: "iron_ore", flow: 1, fedPct: 1, ...over };
+}
+
+describe("GraphView retained link layer", () => {
+  it("reuses link elements and updates path d in place when an endpoint moves", () => {
+    const gv = mount({
+      nodes: [nrow("a"), nrow("b", { pos: { x: 400, y: 100 } })],
+      links: [lrow("l1", "a", "b")],
+      buildings: [],
+    });
+    const e1 = gv._linkEls.get("l1");
+    const d1 = e1.path.getAttribute("d");
+    gv.render({
+      nodes: [
+        nrow("a", { pos: { x: 150, y: 100 } }),
+        nrow("b", { pos: { x: 400, y: 100 } }),
+      ],
+      links: [lrow("l1", "a", "b")],
+      buildings: [],
+    });
+    expect(gv._linkEls.get("l1") === e1).toBe(true);
+    expect(e1.path.getAttribute("d") === d1).toBe(false);
+    expect(e1.hit.getAttribute("d")).toBe(e1.path.getAttribute("d"));
+  });
+
+  it("starved class toggles in place; reveal rebuilds with label + delete", () => {
+    const snap = {
+      nodes: [nrow("a"), nrow("b", { pos: { x: 400, y: 100 } })],
+      links: [lrow("l1", "a", "b", { fedPct: 0.4 })],
+      buildings: [],
+    };
+    const gv = mount(snap);
+    const e = gv._linkEls.get("l1");
+    expect(e.path.getAttribute("class").includes("starved")).toBe(true);
+    gv.selectedLinkId = "l1"; // reveal -> structural change
+    gv.render(snap);
+    const e2 = gv._linkEls.get("l1");
+    expect(e2 === e).toBe(false);
+    const classes = e2.g.childNodes.map((c) => c.getAttribute("class") || "");
+    expect(classes.some((c) => c.includes("link-label"))).toBe(true);
+    expect(classes.some((c) => c.includes("link-delete-g"))).toBe(true);
+  });
+
+  it("removes departed links", () => {
+    const gv = mount({
+      nodes: [nrow("a"), nrow("b", { pos: { x: 400, y: 100 } })],
+      links: [lrow("l1", "a", "b")],
+      buildings: [],
+    });
+    gv.render({
+      nodes: [nrow("a"), nrow("b", { pos: { x: 400, y: 100 } })],
+      links: [],
+      buildings: [],
+    });
+    expect(gv._linkEls.has("l1")).toBe(false);
+    expect(gv.layerLinks.childNodes.length).toBe(0);
+  });
+});
