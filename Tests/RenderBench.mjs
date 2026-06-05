@@ -189,13 +189,23 @@ let case2ms;
 
 // Case 3: new-snapshot redraw, rates drifted — rebuild rows with different
 // effectiveRate/capacityPct each iteration (the every-dispatch case).
-// Verify zero element creation: count _nodeEls map size before+after.
-let case3ms, case3newEls;
+// Verify zero element creation two ways: (a) the set of node .g element
+// identities must not grow across the timed loop, and (b) the _nodeEls map
+// size must stay constant. Both must agree on "no rebuilds".
+let case3ms, case3newEls, case3mapGrew;
 {
+  // Trip-wire: the identity counter is meaningless if entries no longer expose
+  // `.g`, since every `.g` would read undefined and the diff would collapse to
+  // Set([undefined]) reporting a false "0 new elements".
+  const elIds = (gv) => {
+    const ids = new Set([...gv._nodeEls.values()].map((e) => e.g));
+    if (ids.has(undefined))
+      throw new Error("_nodeEls entry shape changed — .g missing");
+    return ids;
+  };
+
   const gv = mount(snap0);
-  const mapSizeBefore = gv._nodeEls.size;
   let iter = 0;
-  // Check: after warmup do _nodeEls grow?
   for (let i = 0; i < WARMUPS; i++) {
     const drifted = bigSnap();
     drifted.nodes.forEach((n, j) => {
@@ -205,9 +215,9 @@ let case3ms, case3newEls;
     iter++;
     gv.render(drifted);
   }
-  const mapSizeAfterWarmup = gv._nodeEls.size;
-  // Collect element identities before timed runs
-  const elIdsBefore = new Set([...gv._nodeEls.values()].map((e) => e.g));
+  // Baselines captured after warmup, before the timed loop.
+  const elIdsBefore = elIds(gv);
+  const mapSizeBefore = gv._nodeEls.size;
   const times = [];
   for (let i = 0; i < RUNS; i++) {
     const drifted = bigSnap();
@@ -221,11 +231,11 @@ let case3ms, case3newEls;
     times.push(performance.now() - t0);
   }
   case3ms = median(times);
-  // Count any new g elements (elements not present before timed runs)
-  const elIdsAfter = new Set([...gv._nodeEls.values()].map((e) => e.g));
+  // (a) any node .g element not present before the timed runs = a rebuild
+  const elIdsAfter = elIds(gv);
   case3newEls = [...elIdsAfter].filter((e) => !elIdsBefore.has(e)).length;
-  void mapSizeBefore;
-  void mapSizeAfterWarmup;
+  // (b) secondary signal: the keyed map size must not have grown
+  case3mapGrew = gv._nodeEls.size - mapSizeBefore;
 }
 
 // Case 4: drag frame — set _dragPos for one node then call _draw().
@@ -255,10 +265,10 @@ let case5ms, case5count;
 // scale = 1280 / (19840 + 160) = 1280 / 20000 ≈ 0.064. That is well below 0.5
 // (far tier). Set tx/ty so x=0 maps to screen 0 (tx=0, ty=0 puts the top-left at
 // the origin). Then all 500 nodes land in the cull rect.
+const FAR_SCALE = 0.064;
 let case6ms, case6nodeCount, case6foCount;
 {
   const gv = mount(snap0);
-  const FAR_SCALE = 0.064;
   gv.view = { scale: FAR_SCALE, tx: 0, ty: 0 };
   // set hostRect wide/tall enough to contain the full graph at this scale
   // full width at scale: 20000 * 0.064 = 1280; height: 480 * 0.064 = 30.7 — use
@@ -300,7 +310,7 @@ function hr() {
 console.log("");
 console.log("IdleKingdom GraphView Render Benchmark");
 console.log(
-  `Dataset: ${snap0.nodes.length} nodes, ${snap0.links.length} links (${RUNS} runs, median ms)`,
+  `Dataset: ${snap0.nodes.length} nodes, ${snap0.links.length} links (median of ${RUNS} runs after ${WARMUPS} warmups, ms)`,
 );
 console.log(hr());
 console.log(row("Case", "Median ms", "Notes"));
@@ -323,7 +333,7 @@ console.log(
   row(
     "3. new-snap redraw (rates drifted)",
     case3ms.toFixed(3),
-    `new elements created: ${case3newEls} (expect 0)`,
+    `new elements: ${case3newEls}, map growth: ${case3mapGrew} (expect 0/0)`,
   ),
 );
 console.log(
@@ -344,7 +354,7 @@ console.log(
   row(
     "6. far-tier full-map draw",
     case6ms.toFixed(3),
-    `scale=${0.064}; ${case6nodeCount} nodes in DOM; ${case6foCount} foreignObjects (expect 0)`,
+    `scale=${FAR_SCALE}; ${case6nodeCount} nodes in DOM; ${case6foCount} foreignObjects (expect 0)`,
   ),
 );
 console.log(hr());
@@ -366,6 +376,10 @@ if (case4ms > 5)
 if (case3newEls > 0)
   warns.push(
     `WARN case 3 created ${case3newEls} new elements — rate-drift should NOT rebuild nodes`,
+  );
+if (case3mapGrew !== 0)
+  warns.push(
+    `WARN case 3 _nodeEls map grew by ${case3mapGrew} — rate-drift should NOT add entries`,
   );
 if (case6foCount > 0)
   warns.push(
