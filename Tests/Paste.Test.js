@@ -7,6 +7,7 @@ import { INTENT } from "../Source/Engine/Intents.js";
 import { reduce } from "../Source/Engine/Reducer.js";
 import { pasteCost } from "../Source/Engine/Systems/EconomySystem.js";
 import { upgradeCost } from "../Source/Engine/Systems/EconomySystem.js";
+import { fmtCost } from "../Source/Engine/Systems/EconomySystem.js";
 
 function newGame(gold = 1e6) {
   const game = new Game({ content, clock: new FakeClock(0) });
@@ -111,7 +112,6 @@ describe("Reducer PasteNodes", () => {
     const s = game.getState();
     const c = clip();
     const cost = pasteCost(c.nodes, content);
-    const fmtCost = (n) => Math.ceil(n).toLocaleString("en-US");
     const out = reduce(
       s,
       {

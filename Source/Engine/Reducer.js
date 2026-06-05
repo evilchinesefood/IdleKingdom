@@ -23,8 +23,9 @@ function reject(state, error) {
   return { state, error };
 }
 
-// Costs in reject messages: whole numbers, US grouping (display-only strings).
-const fmtCost = (n) => Math.ceil(n).toLocaleString("en-US");
+// Cost display in reject messages must match the UI's button — reuse the one shared
+// formatter (Source/Engine/Systems/EconomySystem.js, kept in sync with the UI).
+const fmtCost = Economy.fmtCost;
 
 function nodeById(state, id) {
   return state.graph.nodes.find((n) => n.id === id);

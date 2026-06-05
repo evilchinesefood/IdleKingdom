@@ -50,7 +50,7 @@ describe("ResearchSystem", () => {
     // one short -> the cost-only message, naming the price in the node's currency
     s.currencies.research = 8;
     expect(buyResearchError(s, content, "res_scholar")).toBe(
-      "Not enough research — costs 9",
+      "Not enough research — unlock costs 9",
     );
     expect(canBuyResearch(s, content, "res_scholar")).toBe(false);
     // prereq failure is the catch-all even with currency to spare
@@ -64,7 +64,7 @@ describe("ResearchSystem", () => {
     const s = NewGame(new FakeClock(0));
     s.currencies.research = 9; // gatherer tuning rank 0 costs 50
     expect(buyTuningError(s, content, "gatherer")).toBe(
-      "Not enough research — costs 50",
+      "Not enough research — tuning costs 50",
     );
     expect(buyTuningError(s, content, "storage")).toBe("Cannot buy tuning"); // not tunable
     expect(buyTuningError(s, content, "scholar")).toBe("Cannot buy tuning"); // locked machine
@@ -342,7 +342,7 @@ describe("Machine Tuning — endless research sink", () => {
     expect(canBuyTuning(s, content, "storage")).toBe(false); // not a tunable kind
     expect(canBuyTuning(s, content, "gatherer")).toBe(false); // broke
     const out = reduce(s, { type: "BuyTuning", kind: "gatherer" }, fullContent);
-    expect(out.error).toBe("Not enough research — costs 50"); // gatherer rank-0 tuning cost
+    expect(out.error).toBe("Not enough research — tuning costs 50"); // gatherer rank-0 tuning cost
     expect(out.state).toBe(s); // original untouched on reject
   });
 

@@ -21,6 +21,8 @@ export function fmtRate(n) {
   return r + "/s";
 }
 
+// keep in sync with fmtCost in Source/Engine/Systems/EconomySystem.js (reject toasts
+// must show the same number as the panel button for any given cost)
 export function fmtCost(amount /*, currency */) {
   return fmtNum(amount);
 }

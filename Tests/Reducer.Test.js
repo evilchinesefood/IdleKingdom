@@ -8,9 +8,10 @@ import { seededState } from "./Fixtures/Seeded.js";
 import { FakeClock } from "../Source/Engine/Clock.js";
 import { reduce } from "../Source/Engine/Reducer.js";
 import { solve } from "../Source/Engine/Simulation/RateSolver.js";
-import { upgradeCost } from "../Source/Engine/Systems/EconomySystem.js";
-
-const fmtCost = (n) => Math.ceil(n).toLocaleString("en-US");
+import {
+  upgradeCost,
+  fmtCost,
+} from "../Source/Engine/Systems/EconomySystem.js";
 
 const content = {
   resources: RESOURCES,
