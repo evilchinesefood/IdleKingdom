@@ -222,6 +222,45 @@ describe("Reducer", () => {
     });
   });
 
+  it("SetNodePos carries the prior _solved cache forward reference-identical (no forced re-solve)", () => {
+    const s = seededState(new FakeClock(0));
+    // attach a solve cache as the live game would have before dispatching
+    s._solved = solve(s, content);
+    const cached = s._solved;
+    const out = reduce(
+      s,
+      { type: "SetNodePos", nodeId: "n_smelter_0", pos: { x: 7, y: 7 } },
+      content,
+    );
+    expect(out.error).toBe(undefined);
+    // SAME object reference: pos is render-only, so the solve is provably unchanged
+    expect(out.state._solved).toBe(cached);
+    // the carried solve still describes the same economy after the move
+    const fresh = solve(out.state, content);
+    expect(out.state._solved.goldRate).toBeCloseTo(fresh.goldRate, 1e-9);
+    expect(out.state._solved.researchRate).toBeCloseTo(
+      fresh.researchRate,
+      1e-9,
+    );
+  });
+
+  it("a structural intent drops the _solved cache even when the input had one", () => {
+    const s = seededState(new FakeClock(0));
+    s._solved = solve(s, content);
+    const out = reduce(
+      s,
+      {
+        type: "PlaceNode",
+        kind: "gatherer",
+        resourceId: "iron_ore",
+        pos: { x: 5, y: 5 },
+      },
+      content,
+    );
+    expect(out.error).toBe(undefined);
+    expect(out.state._solved).toBe(undefined); // structural -> cache invalidated
+  });
+
   it("SetNodePos rejects an unknown node", () => {
     const s = seededState(new FakeClock(0));
     const out = reduce(

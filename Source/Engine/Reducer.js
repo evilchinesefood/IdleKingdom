@@ -81,6 +81,14 @@ export function reduce(state, intent, content) {
   const nowMs =
     typeof intent._nowMs === "number" ? intent._nowMs : state.lastSeen;
   let structural = false;
+  // Render-only intents that provably can't change solver output: the previous
+  // solve stays valid, so carry it forward and skip the cold re-solve _ensureSolved
+  // would otherwise force on the next dispatch. SetNodePos qualifies — solve()/
+  // Topology never read node.pos (it's pure layout); the node set, links, levels,
+  // recipes and unlocks are all untouched, so every solved-keyed structure still
+  // maps the exact same ids. (clone() always strips _solved, hence the explicit
+  // re-attach rather than "don't delete".)
+  let preserveSolved = false;
 
   switch (intent.type) {
     case "UpgradeNode": {
@@ -571,6 +579,7 @@ export function reduce(state, intent, content) {
       const node = nodeById(next, intent.nodeId);
       if (!node) return reject(state, "no such node");
       node.pos = { x: intent.pos.x, y: intent.pos.y };
+      preserveSolved = true; // pos is render-only; the solve is unchanged
       break;
     }
     case "AckVictory": {
@@ -586,5 +595,9 @@ export function reduce(state, intent, content) {
   }
 
   if (structural) delete next._solved;
+  // Re-attach the prior solve (by reference — it's an immutable computed cache, read
+  // by Snapshot/Tick, never mutated) so _ensureSolved skips the cold re-solve. Never
+  // combine with `structural`: a structural edit invalidates the cache.
+  else if (preserveSolved && state._solved) next._solved = state._solved;
   return { state: next };
 }
