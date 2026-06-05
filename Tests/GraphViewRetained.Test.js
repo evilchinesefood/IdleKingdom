@@ -1,5 +1,6 @@
 import { describe, it, expect } from "./Runner.js";
 import {
+  GraphView,
   lodTier,
   nodeSig,
   cullRectFor,
@@ -90,5 +91,178 @@ describe("GraphView retained-render pure helpers", () => {
     expect(
       segmentIntersectsRect({ x: 100, y: 100 }, { x: 200, y: 200 }, vp),
     ).toBe(true); // inside
+  });
+});
+
+// ---- minimal DOM shim for mounting GraphView headlessly -------------------
+function makeEl(tag) {
+  const el = {
+    tagName: tag,
+    childNodes: [],
+    attrs: {},
+    style: {},
+    parentNode: null,
+    textContent: "",
+    setAttribute(k, v) {
+      this.attrs[k] = String(v);
+    },
+    getAttribute(k) {
+      return this.attrs[k] != null ? this.attrs[k] : null;
+    },
+    removeAttribute(k) {
+      delete this.attrs[k];
+    },
+    appendChild(c) {
+      if (c.parentNode) c.parentNode.removeChild(c);
+      c.parentNode = this;
+      this.childNodes.push(c);
+      return c;
+    },
+    removeChild(c) {
+      const i = this.childNodes.indexOf(c);
+      if (i >= 0) this.childNodes.splice(i, 1);
+      c.parentNode = null;
+      return c;
+    },
+    replaceChild(fresh, old) {
+      const i = this.childNodes.indexOf(old);
+      if (i < 0) throw new Error("replaceChild: old not found");
+      if (fresh.parentNode) fresh.parentNode.removeChild(fresh);
+      this.childNodes[i] = fresh;
+      old.parentNode = null;
+      fresh.parentNode = this;
+      return old;
+    },
+    contains() {
+      return false;
+    },
+    get firstChild() {
+      return this.childNodes[0] || null;
+    },
+    addEventListener() {},
+    querySelector() {
+      return null;
+    },
+  };
+  return el;
+}
+function installDom() {
+  const doc = {
+    createElement: (t) => makeEl(t),
+    createElementNS: (_ns, t) => makeEl(t),
+    createTextNode: (s) => ({ nodeType: 3, textContent: s, parentNode: null }),
+    activeElement: null,
+  };
+  globalThis.document = doc;
+  return doc;
+}
+// A snapshot-shaped node row with sane defaults (mirror Snapshot.js node rows).
+function nrow(id, over = {}) {
+  return {
+    id,
+    kind: "gatherer",
+    level: 1,
+    pos: { x: 100, y: 100 },
+    effectiveRate: 1,
+    capacityPct: 0.5,
+    atCapacity: false,
+    starved: false,
+    working: true,
+    resourceId: "iron_ore",
+    recipeId: null,
+    goldOut: 0,
+    researchOut: 0,
+    siegeOut: 0,
+    ...over,
+  };
+}
+function mount(snap) {
+  installDom();
+  const host = makeEl("div");
+  const game = { content: { recipes: {} }, dispatch: () => ({ ok: true }) };
+  // GraphView imports GraphInput which wires pointer handlers onto the svg el —
+  // the shim's addEventListener is a no-op, so construction is safe headless.
+  const gv = new GraphView(host, game);
+  gv.render(snap);
+  return gv;
+}
+
+describe("GraphView retained node layer", () => {
+  it("reuses the same element object across draws when nothing structural changed", () => {
+    const gv = mount({ nodes: [nrow("a")], links: [], buildings: [] });
+    const el1 = gv._nodeEls.get("a").g;
+    gv.render({
+      nodes: [nrow("a", { level: 5, capacityPct: 0.9 })],
+      links: [],
+      buildings: [],
+    });
+    const el2 = gv._nodeEls.get("a").g;
+    expect(el1 === el2).toBe(true); // identity preserved
+    expect(gv.layerNodes.childNodes.length).toBe(1);
+  });
+
+  it("updates transform / cap width / sub text in place", () => {
+    const gv = mount({ nodes: [nrow("a")], links: [], buildings: [] });
+    const e = gv._nodeEls.get("a");
+    gv.render({
+      nodes: [nrow("a", { pos: { x: 200, y: 300 }, level: 7, capacityPct: 1 })],
+      links: [],
+      buildings: [],
+    });
+    expect(e.g.getAttribute("transform")).toBe("translate(200 300) scale(1)");
+    expect(e.capFill.getAttribute("width")).toBe(String(120 - 16));
+    expect(e.subText.textContent.includes("L7")).toBe(true);
+  });
+
+  it("rebuilds only the node whose sig changed (badge flip)", () => {
+    const gv = mount({
+      nodes: [nrow("a"), nrow("b", { pos: { x: 400, y: 100 } })],
+      links: [],
+      buildings: [],
+    });
+    const a1 = gv._nodeEls.get("a").g;
+    const b1 = gv._nodeEls.get("b").g;
+    gv.render({
+      nodes: [
+        nrow("a", { atCapacity: true }),
+        nrow("b", { pos: { x: 400, y: 100 } }),
+      ],
+      links: [],
+      buildings: [],
+    });
+    expect(gv._nodeEls.get("a").g === a1).toBe(false); // rebuilt (badge appeared)
+    expect(gv._nodeEls.get("b").g === b1).toBe(true); // untouched
+    expect(gv.layerNodes.childNodes.length).toBe(2);
+  });
+
+  it("removes departed nodes from DOM and map", () => {
+    const gv = mount({
+      nodes: [nrow("a"), nrow("b")],
+      links: [],
+      buildings: [],
+    });
+    gv.render({ nodes: [nrow("b")], links: [], buildings: [] });
+    expect(gv._nodeEls.has("a")).toBe(false);
+    expect(gv.layerNodes.childNodes.length).toBe(1);
+  });
+
+  it("selection class is applied in place without rebuild", () => {
+    const gv = mount({ nodes: [nrow("a")], links: [], buildings: [] });
+    const el = gv._nodeEls.get("a").g;
+    gv.selectedId = "a";
+    gv.render({ nodes: [nrow("a")], links: [], buildings: [] });
+    expect(gv._nodeEls.get("a").g === el).toBe(true);
+    expect(el.getAttribute("class").includes("selected")).toBe(true);
+  });
+
+  it("empty canvas shows the hint; nodes replace it", () => {
+    const gv = mount({ nodes: [], links: [], buildings: [] });
+    expect(gv.layerNodes.childNodes.length).toBe(1); // the hint text
+    gv.render({ nodes: [nrow("a")], links: [], buildings: [] });
+    const tags = gv.layerNodes.childNodes.map(
+      (c) => c.getAttribute("class") || "",
+    );
+    expect(tags.some((c) => c.includes("graph-empty"))).toBe(false);
+    expect(gv.layerNodes.childNodes.length).toBe(1);
   });
 });
