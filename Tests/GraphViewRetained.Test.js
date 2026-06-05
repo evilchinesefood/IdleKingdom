@@ -333,4 +333,24 @@ describe("GraphView retained link layer", () => {
     expect(gv._linkEls.has("l1")).toBe(false);
     expect(gv.layerLinks.childNodes.length).toBe(0);
   });
+
+  it("unreveal rebuilds back to a plain dot; sheds label + delete", () => {
+    const snap = {
+      nodes: [nrow("a"), nrow("b", { pos: { x: 400, y: 100 } })],
+      links: [lrow("l1", "a", "b")],
+      buildings: [],
+    };
+    const gv = mount(snap);
+    gv.selectedLinkId = "l1"; // reveal -> rebuilt with label + delete
+    gv.render(snap);
+    const e = gv._linkEls.get("l1");
+    gv.selectedLinkId = null; // unreveal -> structural change back to plain
+    gv.render(snap);
+    const e2 = gv._linkEls.get("l1");
+    expect(e2 === e).toBe(false); // rebuilt
+    const classes = e2.g.childNodes.map((c) => c.getAttribute("class") || "");
+    expect(classes.some((c) => c.includes("link-dot"))).toBe(true);
+    expect(classes.some((c) => c.includes("link-label"))).toBe(false);
+    expect(classes.some((c) => c.includes("link-delete-g"))).toBe(false);
+  });
 });
