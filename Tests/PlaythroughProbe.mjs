@@ -1247,13 +1247,16 @@ step(
         fellOrder.push(id);
       }
     }
+    // Big-dt steps (applyTick integrates linearly -> exact); the retuned
+    // siegeCosts make small steps need thousands of iterations, so siege in 1h
+    // chunks to keep the loop in the low dozens with ample guard headroom.
     let guard = 0;
     while (
       !game.getState().territories.reclaimed.includes("t_ironreach") &&
       guard++ < 5000
     ) {
-      clock.advance(120_000);
-      tickRecord(120);
+      clock.advance(3_600_000);
+      tickRecord(3600);
     }
     assert(
       game.getState().territories.reclaimed.includes("t_ironreach"),
@@ -1449,8 +1452,8 @@ step(
     // Phase C: big-dt ticks to VICTORY; every reclaim still asserted in order.
     guard = 0;
     while (!game.getState().meta.won && guard++ < 5000) {
-      clock.advance(600_000);
-      tickRecord(600);
+      clock.advance(3_600_000);
+      tickRecord(3600);
     }
     assert(
       game.getState().meta.won === true,

@@ -281,10 +281,13 @@ function tickAndRecord(dt) {
   }
 }
 
+// Big-dt steps (applyTick integrates linearly, so a large dt is exact); the
+// retuned siegeCosts make 60s steps need ~2600 iterations — 1h steps keep the
+// loop in the low dozens with ample guard headroom.
 let guard = 0;
 while (!reclaimed().includes("t_ironreach") && guard++ < 5000) {
-  clock.advance(60_000);
-  tickAndRecord(60); // 60s of siege per step
+  clock.advance(3_600_000);
+  tickAndRecord(3600); // 1h of siege per step
 }
 expect(
   reclaimed().includes("t_ironreach"),
@@ -534,8 +537,8 @@ ok(
 // ---------------------------------------------------------------------------
 guard = 0;
 while (!game.getState().meta.won && guard++ < 5000) {
-  clock.advance(600_000);
-  tickAndRecord(600); // 10 game-min of siege per step
+  clock.advance(3_600_000);
+  tickAndRecord(3600); // 1h of siege per step (retuned costs -> big-dt loop)
 }
 expect(game.getState().meta.won, `meta.won false after ${guard} siege steps`);
 

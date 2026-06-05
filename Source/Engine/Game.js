@@ -190,6 +190,8 @@ export class Game {
     applyTick(this.state, solved, dtSeconds);
     const fell = tryAdvanceSiege(this.state, this.content);
     if (fell.length) {
+      // reclaim mutated unlocks outside the intent system — stale history would desync on undo
+      this.clearHistory();
       delete this.state._solved; // reclaim unlocks change rates
       this._ensureSolved();
       this._emit(); // discrete event (reward/reclaim/victory) — render it now
