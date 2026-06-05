@@ -123,7 +123,7 @@ export class GraphView {
       onResizeDrop: () => this._dropResize(),
       onSelectBoxMove: (rect) => {
         this._selectBox = rect;
-        this._draw();
+        this._requestDraw(); // per-pointermove: coalesce to one redraw per frame
       },
       onSelectBox: (rect) => this._onSelectBox(rect),
       onCopyMove: (gx, gy) => this._copyMove(gx, gy),
@@ -158,7 +158,7 @@ export class GraphView {
 
   _connectMove(fromId, gx, gy) {
     this._pendingLink = { fromId, gx, gy };
-    this._draw();
+    this._requestDraw(); // per-pointermove: coalesce to one redraw per frame
   }
 
   _connectEnd() {
@@ -367,7 +367,7 @@ export class GraphView {
     const off = this._grabOffset || { x: NODE_W / 2, y: NODE_H / 2 };
     this._dragPos = this._dragPos || {};
     this._dragPos[id] = { x: gx - off.x, y: gy - off.y };
-    this._draw();
+    this._requestDraw(); // per-pointermove: coalesce to one redraw per frame
   }
 
   // On drag pointer-up: persist the new pos via SetNodePos (snapped to grid when
@@ -706,7 +706,7 @@ export class GraphView {
     if (h.includes("n")) top = Math.min(gy, bottom - MIN);
     if (h.includes("s")) bottom = Math.max(gy, top + MIN);
     this._resize.rect = { x: left, y: top, w: right - left, h: bottom - top };
-    this._draw();
+    this._requestDraw(); // per-pointermove: coalesce to one redraw per frame
   }
 
   _dropResize() {
@@ -791,7 +791,7 @@ export class GraphView {
     if (!this._buildingDrag || !this._bGrab) return;
     this._buildingDrag.dx = gx - this._bGrab.gx;
     this._buildingDrag.dy = gy - this._bGrab.gy;
-    this._draw();
+    this._requestDraw(); // per-pointermove: coalesce to one redraw per frame
   }
 
   _dropBuilding(id, gx, gy) {
@@ -874,7 +874,7 @@ export class GraphView {
     if (!this._copy) return;
     this._copy.gx = gx;
     this._copy.gy = gy;
-    this._draw();
+    this._requestDraw(); // per-pointermove: coalesce to one redraw per frame
   }
 
   _copyPlace(gx, gy) {
@@ -1067,7 +1067,7 @@ export class GraphView {
     if (!this._paste) return;
     this._paste.gx = gx;
     this._paste.gy = gy;
-    this._draw();
+    this._requestDraw(); // per-pointermove: coalesce to one redraw per frame
   }
 
   _pastePlace(gx, gy) {
