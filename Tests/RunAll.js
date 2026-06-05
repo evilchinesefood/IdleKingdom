@@ -36,6 +36,7 @@ import "./RenderCadence.Test.js";
 import "./BuildMenu.Test.js";
 import "./Format.Test.js";
 import "./Dom.Test.js";
+import "./GraphViewRetained.Test.js";
 import "./Svg.Test.js";
 import "./FormatHelpers.Test.js";
 import "./Selectors.Test.js";
