@@ -514,3 +514,48 @@ describe("GraphView viewport culling", () => {
     expect(gv._nodeEls.get("out").g.parentNode).toBe(null);
   });
 });
+
+describe("GraphView single-machine action bar (headless mount)", () => {
+  it("a single selected machine renders the bar with Copy + Delete (no Group), no throw", () => {
+    const gv = mount({ nodes: [nrow("a")], links: [], buildings: [] });
+    gv.selectedId = "a"; // a plain-clicked machine; multi sets stay empty
+    gv.render({ nodes: [nrow("a")], links: [], buildings: [] });
+    const labels = gv.actionBarEl.childNodes.map((b) => b.textContent);
+    expect(labels).toEqual(["Copy", "Delete"]);
+    expect(labels.includes("Group")).toBe(false);
+  });
+
+  it("deselecting (selectedId=null) hides the bar and drops its sig", () => {
+    const gv = mount({ nodes: [nrow("a")], links: [], buildings: [] });
+    gv.selectedId = "a";
+    gv.render({ nodes: [nrow("a")], links: [], buildings: [] });
+    expect(gv.actionBarEl.childNodes.length).toBe(2);
+    expect(gv.actionBarEl.style.display).toBe("flex");
+    gv.selectedId = null;
+    gv.render({ nodes: [nrow("a")], links: [], buildings: [] });
+    expect(gv.actionBarEl.style.display).toBe("none");
+    expect(gv._barSig).toBe(null);
+  });
+
+  it("sig flips between machines so the retained bar rebuilds on selection change", () => {
+    const gv = mount({
+      nodes: [nrow("a"), nrow("b", { pos: { x: 400, y: 100 } })],
+      links: [],
+      buildings: [],
+    });
+    gv.selectedId = "a";
+    gv.render({
+      nodes: [nrow("a"), nrow("b", { pos: { x: 400, y: 100 } })],
+      links: [],
+      buildings: [],
+    });
+    const sigA = gv._barSig;
+    gv.selectedId = "b";
+    gv.render({
+      nodes: [nrow("a"), nrow("b", { pos: { x: 400, y: 100 } })],
+      links: [],
+      buildings: [],
+    });
+    expect(gv._barSig === sigA).toBe(false); // id is part of the sig
+  });
+});
