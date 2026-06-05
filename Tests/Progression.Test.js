@@ -4,8 +4,6 @@ import { MACHINES } from "../Source/Engine/Content/Machines.js";
 import { RECIPES } from "../Source/Engine/Content/Recipes.js";
 import { RESEARCH_NODES } from "../Source/Engine/Content/ResearchNodes.js";
 import { TERRITORIES } from "../Source/Engine/Content/Territories.js";
-import { EQUIPMENT } from "../Source/Engine/Content/Equipment.js";
-import { HEROES } from "../Source/Engine/Content/Heroes.js";
 import { NewGame } from "../Source/Engine/GameState.js";
 import { FakeClock } from "../Source/Engine/Clock.js";
 import { reclaim } from "../Source/Engine/Systems/ProgressionSystem.js";
@@ -16,8 +14,6 @@ const content = {
   recipes: RECIPES,
   researchNodes: RESEARCH_NODES,
   territories: TERRITORIES,
-  equipment: EQUIPMENT,
-  heroes: HEROES,
 };
 
 const ORDER = [
@@ -40,24 +36,11 @@ describe("ProgressionSystem", () => {
     expect(s.unlocks.productionBonuses.gatherer).toBeCloseTo(1.1, 1e-9);
   });
 
-  it("t_gatehouse grants hero_warden only if not already present (seed already has it)", () => {
-    const s = NewGame(new FakeClock(0));
-    const count0 = s.heroes.length; // 1 (seed warden)
-    reclaim(s, content, "t_gatehouse");
-    expect(s.heroes.length).toBe(count0); // not duplicated
-  });
-
-  it("t_smithyward unlocks T2 sword/shield gear tier", () => {
+  it("t_smithyward applies its smelter production bonus", () => {
     const s = NewGame(new FakeClock(0));
     reclaim(s, content, "t_smithyward");
-    const swordT2 = s.unlocks.gearTiersUnlocked.some(
-      (g) => g.itemId === "sword" && g.tier === 2,
-    );
-    const shieldT2 = s.unlocks.gearTiersUnlocked.some(
-      (g) => g.itemId === "shield" && g.tier === 2,
-    );
-    expect(swordT2).toBe(true);
-    expect(shieldT2).toBe(true);
+    // t_smithyward unlock: smelter bonus 1.10
+    expect(s.unlocks.productionBonuses.smelter).toBeCloseTo(1.1, 1e-9);
   });
 
   it("meta.won is set only after the victory territory is reclaimed", () => {

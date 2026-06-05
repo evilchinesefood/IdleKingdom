@@ -2,7 +2,6 @@ import { describe, it, expect } from "./Runner.js";
 import {
   fmtNum,
   fmtRate,
-  fmtCountdown,
   fmtCost,
   affordClass,
   cap,
@@ -36,27 +35,10 @@ describe("Format.fmtRate", () => {
   });
 });
 
-describe("Format.fmtCountdown", () => {
-  it("formats ms as M:SS under an hour", () => {
-    expect(fmtCountdown(0)).toBe("0:00");
-    expect(fmtCountdown(1000)).toBe("0:01");
-    expect(fmtCountdown(120000)).toBe("2:00");
-    expect(fmtCountdown(65000)).toBe("1:05");
-  });
-  it("formats H:MM:SS at or above an hour", () => {
-    expect(fmtCountdown(3600000)).toBe("1:00:00");
-    expect(fmtCountdown(3661000)).toBe("1:01:01");
-  });
-  it("clamps negatives to zero", () => {
-    expect(fmtCountdown(-500)).toBe("0:00");
-  });
-});
-
 describe("Format.fmtCost — no embedded emoji (B2)", () => {
   const EMOJI = /\p{Extended_Pictographic}/u;
   it("returns a text-only cost with no currency emoji glyph", () => {
     expect(EMOJI.test(fmtCost(9, "research"))).toBe(false);
-    expect(EMOJI.test(fmtCost(30, "renown"))).toBe(false);
     expect(fmtCost(15, "gold")).toBe("15");
   });
 });

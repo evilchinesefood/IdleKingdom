@@ -67,45 +67,38 @@ describe("Offline.applyOffline clamps to cap", () => {
   });
 });
 
-describe("Offline expedition fast-forward", () => {
-  it("resolves an in-flight expedition mid-gap: renown awarded, territory reclaimed, active cleared", () => {
+describe("Offline siege fast-forward", () => {
+  it("fells a territory mid-gap when prefilled siege progress crosses its cost: reward credited, reclaimed, surplus rolls forward", () => {
     const clock = new FakeClock(0);
     const state = seededState(clock);
     state.lastSeen = 0;
-    // an expedition launched at t=0 against t_gatehouse (duration 120000)
-    state.expeditions.active = {
-      territoryId: "t_gatehouse",
-      startedAt: 0,
-      durationMs: TERRITORIES.t_gatehouse.durationMs, // 120000
-      heroId: "h_0",
-    };
-    const now = 2 * HOUR; // gap clamps to the 1h cap, but the 2-min expedition resolves inside it
-    const beforeRenown = state.currencies.renown;
+    // prefill siege progress just past t_gatehouse's cost (40) -> it falls during catch-up
+    state.siege.progress = TERRITORIES.t_gatehouse.siegeCost + 5; // 45
+    const now = 2 * HOUR; // gap clamps to the 1h cap; the siege resolves regardless
+
     const summary = applyOffline(state, content, now);
 
-    expect(state.expeditions.active).toBe(null);
     expect(state.territories.reclaimed.includes("t_gatehouse")).toBe(true);
-    expect(state.currencies.renown).toBeCloseTo(beforeRenown + 10, 1e-6); // t_gatehouse renown reward
-    expect(summary.gained.renown).toBeCloseTo(10, 1e-6);
-    expect(summary.expeditionsResolved.length).toBe(1);
-    expect(summary.expeditionsResolved[0].territoryId).toBe("t_gatehouse");
+    // surplus progress rolls forward (45 - 40 = 5); next territory still locked,
+    // and the seeded chain has no barracks so no fresh siege progress accrued.
+    expect(state.siege.progress).toBeCloseTo(5, 1e-9);
+    expect(summary.territoriesReclaimed.length).toBe(1);
+    expect(summary.territoriesReclaimed[0].territoryId).toBe("t_gatehouse");
+    expect(summary.territoriesReclaimed[0].rewards).toEqual({
+      gold: 50,
+      research: 20,
+    });
   });
 
-  it("leaves an unfinished expedition active when it would not complete within the clamped window", () => {
+  it("leaves the next territory locked when accumulated siege progress never reaches its cost", () => {
     const clock = new FakeClock(0);
     const state = seededState(clock);
     state.lastSeen = 0;
-    state.expeditions.active = {
-      territoryId: "t_gatehouse",
-      startedAt: 0,
-      durationMs: TERRITORIES.t_gatehouse.durationMs, // 120000 = 2min
-      heroId: "h_0",
-    };
-    const now = 60 * 1000; // 60s in, expedition not done (needs 120s)
+    state.siege.progress = TERRITORIES.t_gatehouse.siegeCost - 5; // 35 < 40
+    const now = 1000; // 1s: the tiny chain can't add ~5 siege progress
     const summary = applyOffline(state, content, now);
-    expect(state.expeditions.active === null).toBe(false);
     expect(state.territories.reclaimed.length).toBe(0);
-    expect(summary.expeditionsResolved.length).toBe(0);
+    expect(summary.territoriesReclaimed.length).toBe(0);
   });
 });
 

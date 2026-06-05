@@ -28,7 +28,6 @@ const content = {
 // Buy a chain of research nodes by directly granting currency, ignoring prereq order helper.
 function own(s, id) {
   s.currencies.research += content.researchNodes[id].cost + 1;
-  s.currencies.renown += content.researchNodes[id].cost + 1;
   buyResearch(s, content, id);
 }
 
@@ -55,7 +54,7 @@ describe("ResearchSystem", () => {
     expect(s._solved).toBe(undefined);
   });
 
-  it("BLOCKER #1: res_smithing + res_armory buyable with NO territory reclaimed", () => {
+  it("res_smithing + res_armory buyable with NO territory reclaimed", () => {
     const s = NewGame(new FakeClock(0));
     s.currencies.research = 100000;
     // climb the research-only spine
@@ -166,10 +165,29 @@ describe("ResearchSystem", () => {
     expect(solved.researchRate > 0).toBeTruthy();
   });
 
-  it("territory-gated nodes blocked until reclaim: res_war_college needs t_smithyward", () => {
+  it("territory-gated nodes blocked until reclaim: res_master_smithing needs t_ironreach", () => {
     const s = NewGame(new FakeClock(0));
     s.currencies.research = 100000;
-    s.currencies.renown = 100000;
+    own(s, "res_scholar");
+    own(s, "res_lumber");
+    own(s, "res_tannery");
+    own(s, "res_coalworks");
+    own(s, "res_steelmaking");
+    own(s, "res_hardened_steel"); // prereq of res_master_smithing
+    // prereq owned + research plenty, but t_ironreach not reclaimed:
+    expect(canBuyResearch(s, content, "res_master_smithing")).toBe(false);
+    s.territories.reclaimed.push(
+      "t_gatehouse",
+      "t_smithyward",
+      "t_oldmarket",
+      "t_ironreach",
+    );
+    expect(canBuyResearch(s, content, "res_master_smithing")).toBe(true);
+  });
+
+  it("res_drill_yard unlocks the barracks machine (and the militia recipe)", () => {
+    const s = NewGame(new FakeClock(0));
+    s.currencies.research = 100000;
     own(s, "res_scholar");
     own(s, "res_lumber");
     own(s, "res_tannery");
@@ -177,11 +195,41 @@ describe("ResearchSystem", () => {
     own(s, "res_steelmaking");
     own(s, "res_smithing");
     own(s, "res_fittings");
-    own(s, "res_armory");
-    // prereq (res_armory) owned + renown plenty, but t_smithyward not reclaimed:
-    expect(canBuyResearch(s, content, "res_war_college")).toBe(false);
-    s.territories.reclaimed.push("t_gatehouse", "t_smithyward");
-    expect(canBuyResearch(s, content, "res_war_college")).toBe(true);
+    own(s, "res_armory"); // prereq of res_drill_yard
+    expect(s.unlocks.machinesUnlocked.includes("barracks")).toBe(false);
+    own(s, "res_drill_yard");
+    expect(s.unlocks.machinesUnlocked.includes("barracks")).toBe(true);
+    expect(s.unlocks.recipesUnlocked.includes("r_militia")).toBe(true);
+  });
+
+  it("private EFFECTS and ResearchNodes.effects are in lockstep for the three war-rework nodes", () => {
+    // buyResearch applies the module-private EFFECTS table; applyEffects(node.effects)
+    // applies the DECLARED content effects. If the two ever drift, the resulting
+    // unlock subtrees differ. Deep-equal them per node.
+    for (const id of [
+      "res_drill_yard",
+      "res_hardened_steel",
+      "res_master_smithing",
+    ]) {
+      // A: buy the node (runs private EFFECTS[id])
+      const a = NewGame(new FakeClock(0));
+      a.unlocks.researchOwned.push(...content.researchNodes[id].prereqs);
+      a.territories.reclaimed.push("t_ironreach"); // satisfies any territory gate
+      a.currencies.research = content.researchNodes[id].cost;
+      buyResearch(a, content, id);
+
+      // B: apply the DECLARED node.effects to a clean unlocks tree
+      const b = NewGame(new FakeClock(0));
+      applyEffects(b, content, content.researchNodes[id].effects);
+
+      // the unlock fields each effect touches must match between A and B
+      expect(b.unlocks.machinesUnlocked).toEqual(a.unlocks.machinesUnlocked);
+      expect(b.unlocks.marketListings).toEqual(a.unlocks.marketListings);
+      // A already has r_iron_bar seeded; compare the newly-unlocked recipes only
+      const newRecipes = (u) =>
+        u.recipesUnlocked.filter((r) => r !== "r_iron_bar");
+      expect(newRecipes(b.unlocks)).toEqual(newRecipes(a.unlocks));
+    }
   });
 
   it("applyEffects: titheRate, offlineCapHours, productionBonus, globalRateBonus", () => {
@@ -208,24 +256,18 @@ describe("ResearchSystem", () => {
     const s = NewGame(new FakeClock(0));
     s.unlocks.researchOwned.push(
       "res_scholar",
-      "res_lumber",
-      "res_tannery",
-      "res_coalworks",
+      "res_open_market",
       "res_steelmaking",
-      "res_smithing",
-      "res_fittings",
-      "res_armory",
-      "res_war_college",
       "res_trade_routes",
     );
     s.territories.reclaimed.push("t_ironreach");
-    s.currencies.renown = 1000;
+    s.currencies.research = 1000;
     expect(canBuyResearch(s, content, "res_quartermaster")).toBe(true);
     buyResearch(s, content, "res_quartermaster");
     expect(s.unlocks.autoSell).toBe(true);
   });
 
-  it("applyEffects: marketCapacityBonus, enableGathererResource, heroSlot, autoSell, unlockGearTier", () => {
+  it("applyEffects: marketCapacityBonus, enableGathererResource, autoSell", () => {
     const s = NewGame(new FakeClock(0));
     applyEffects(s, content, [{ type: "marketCapacityBonus", mult: 1.3 }]);
     expect(s.unlocks.productionBonuses.market).toBeCloseTo(1.3, 1e-9);
@@ -233,18 +275,8 @@ describe("ResearchSystem", () => {
       { type: "enableGathererResource", resourceId: "coal_raw" },
     ]);
     expect(s.unlocks.gathererResources.includes("coal_raw")).toBe(true);
-    const slots0 = s.unlocks.heroSlots;
-    applyEffects(s, content, [{ type: "heroSlot", count: 1 }]);
-    expect(s.unlocks.heroSlots).toBe(slots0 + 1);
     applyEffects(s, content, [{ type: "autoSell", enabled: true }]);
     expect(s.unlocks.autoSell).toBe(true);
-    applyEffects(s, content, [
-      { type: "unlockGearTier", itemIds: ["sword", "shield"], tier: 2 },
-    ]);
-    const hasSwordT2 = s.unlocks.gearTiersUnlocked.some(
-      (g) => g.itemId === "sword" && g.tier === 2,
-    );
-    expect(hasSwordT2).toBe(true);
   });
 });
 

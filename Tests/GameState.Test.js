@@ -17,10 +17,10 @@ describe("GameState.NewGame", () => {
     expect(g.meta.createdAt).toBe(1000);
   });
 
-  it("MAJOR #4/#5: only r_iron_bar unlocked, warden seed hero, t_gatehouse first", () => {
+  it("MAJOR #4/#5: only r_iron_bar unlocked, no heroes key, t_gatehouse first", () => {
     const g = NewGame(new FakeClock(0));
     expect(g.unlocks.recipesUnlocked).toEqual(["r_iron_bar"]);
-    expect(g.heroes[0].templateId).toBe("hero_warden");
+    expect("heroes" in g).toBe(false);
     expect(g.territories.available).toEqual(["t_gatehouse"]);
     expect(g.territories.reclaimed).toEqual([]);
   });
@@ -33,16 +33,18 @@ describe("GameState.NewGame", () => {
     expect(g.graph.nextLinkSeq).toBe(0);
   });
 
-  it("brand-new game has no active expedition", () => {
+  it("brand-new game seeds siege.progress === 0 and no heroes/expeditions keys", () => {
     const g = NewGame(new FakeClock(0));
-    expect(g.expeditions.active).toBe(null);
+    expect(g.siege.progress).toBe(0);
+    expect("heroes" in g).toBe(false);
+    expect("expeditions" in g).toBe(false);
   });
 
-  it("starts with 25 gold and zero research/renown", () => {
+  it("starts with 25 gold and zero research (no renown)", () => {
     const g = NewGame(new FakeClock(0));
     expect(g.currencies.gold).toBe(25.0);
     expect(g.currencies.research).toBe(0.0);
-    expect(g.currencies.renown).toBe(0.0);
+    expect("renown" in g.currencies).toBe(false);
   });
 
   it("defaults unlocks.gathererResources to [] (task 8)", () => {
@@ -229,15 +231,17 @@ describe("GameState.validate — content-aware bounds (task 3)", () => {
     expect(validate(g, content)).toBe(false);
   });
 
-  it("rejects an active expedition to an unknown territory", async () => {
+  it("rejects a save with a missing siege block", async () => {
     const { content } = await import("../Source/Engine/Content/Content.js");
     const g = NewGame(new FakeClock(0));
-    g.expeditions.active = {
-      territoryId: "nope",
-      startedAt: 0,
-      durationMs: 1,
-      heroId: "h_0",
-    };
+    delete g.siege;
+    expect(validate(g, content)).toBe(false);
+  });
+
+  it("rejects a save with a NaN siege.progress", async () => {
+    const { content } = await import("../Source/Engine/Content/Content.js");
+    const g = NewGame(new FakeClock(0));
+    g.siege.progress = NaN;
     expect(validate(g, content)).toBe(false);
   });
 

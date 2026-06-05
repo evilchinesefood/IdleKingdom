@@ -4,8 +4,6 @@ import { MACHINES } from "../Source/Engine/Content/Machines.js";
 import { RECIPES } from "../Source/Engine/Content/Recipes.js";
 import { RESEARCH_NODES } from "../Source/Engine/Content/ResearchNodes.js";
 import { TERRITORIES } from "../Source/Engine/Content/Territories.js";
-import { EQUIPMENT } from "../Source/Engine/Content/Equipment.js";
-import { HEROES } from "../Source/Engine/Content/Heroes.js";
 import { START_STATE } from "../Source/Engine/Content/StartState.js";
 import { FakeClock } from "../Source/Engine/Clock.js";
 import { MemoryStorageAdapter } from "../Source/Engine/Persistence/MemoryStorageAdapter.js";
@@ -18,8 +16,6 @@ const content = {
   recipes: RECIPES,
   researchNodes: RESEARCH_NODES,
   territories: TERRITORIES,
-  equipment: EQUIPMENT,
-  heroes: HEROES,
   startState: START_STATE,
 };
 
@@ -32,10 +28,10 @@ function bootSeeded(clock) {
   return g;
 }
 
-// These lock the 60fps-churn fix: rendering is driven by intents + expedition
+// These lock the 60fps-churn fix: rendering is driven by intents + siege
 // resolution, NOT by every tick.
 describe("RenderCadence — tick does not churn the renderer", () => {
-  it("tick does NOT notify onSnapshot listeners when no expedition resolves", () => {
+  it("tick does NOT notify onSnapshot listeners when no siege resolves", () => {
     const clock = new FakeClock(0);
     const g = bootSeeded(clock);
     let notifications = 0;
@@ -47,22 +43,20 @@ describe("RenderCadence — tick does not churn the renderer", () => {
     expect(notifications).toBe(0);
   });
 
-  it("tick DOES notify once when an in-flight expedition resolves", () => {
+  it("tick DOES notify once when accumulated siege progress fells a territory", () => {
     const clock = new FakeClock(0);
     const g = bootSeeded(clock);
-    // place an active expedition whose end time is already in the past
-    g.getState().expeditions.active = {
-      territoryId: "t_gatehouse",
-      startedAt: 0,
-      durationMs: TERRITORIES.t_gatehouse.durationMs,
-      heroId: "h_0",
-    };
+    // prefill siege progress just past t_gatehouse's cost (40); the seeded chain
+    // has no barracks so this is the only siege source.
+    g.getState().siege.progress = TERRITORIES.t_gatehouse.siegeCost + 1;
+    delete g.getState()._solved;
     let notifications = 0;
     g.onSnapshot(() => notifications++);
-    clock.advance(TERRITORIES.t_gatehouse.durationMs + 1000);
-    g.tick(1.0);
+    g.tick(0.05);
     expect(notifications).toBe(1);
-    expect(g.getState().expeditions.active).toBe(null);
+    expect(g.getState().territories.reclaimed.includes("t_gatehouse")).toBe(
+      true,
+    );
   });
 
   it("getSnapshot returns a built snapshot WITHOUT notifying listeners", () => {

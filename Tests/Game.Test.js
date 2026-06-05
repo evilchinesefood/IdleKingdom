@@ -4,8 +4,6 @@ import { MACHINES } from "../Source/Engine/Content/Machines.js";
 import { RECIPES } from "../Source/Engine/Content/Recipes.js";
 import { RESEARCH_NODES } from "../Source/Engine/Content/ResearchNodes.js";
 import { TERRITORIES } from "../Source/Engine/Content/Territories.js";
-import { EQUIPMENT } from "../Source/Engine/Content/Equipment.js";
-import { HEROES } from "../Source/Engine/Content/Heroes.js";
 import { START_STATE } from "../Source/Engine/Content/StartState.js";
 import { FakeClock } from "../Source/Engine/Clock.js";
 import { MemoryStorageAdapter } from "../Source/Engine/Persistence/MemoryStorageAdapter.js";
@@ -23,8 +21,6 @@ const content = {
   recipes: RECIPES,
   researchNodes: RESEARCH_NODES,
   territories: TERRITORIES,
-  equipment: EQUIPMENT,
-  heroes: HEROES,
   startState: START_STATE,
 };
 
@@ -112,45 +108,22 @@ describe("Game facade", () => {
     expect(emits).toBe(1);
   });
 
-  it("tick resolves an in-flight expedition when its duration elapses", () => {
+  it("tick resolves a siege when accumulated progress crosses the next cost: emits + reclaims + re-solves", () => {
     const clock = new FakeClock(0);
     const g = makeGame(clock);
-    g.bootstrap(new MemoryStorageAdapter());
-    // equip + start via dispatch
-    g.dispatch({
-      type: "EquipItem",
-      heroId: "h_0",
-      slot: "weapon",
-      itemId: "sword",
-      tier: 1,
-    });
-    g.dispatch({
-      type: "EquipItem",
-      heroId: "h_0",
-      slot: "armor",
-      itemId: "armor",
-      tier: 1,
-    });
-    g.dispatch({
-      type: "EquipItem",
-      heroId: "h_0",
-      slot: "accessory",
-      itemId: "shield",
-      tier: 1,
-    });
-    g.dispatch({
-      type: "StartExpedition",
-      territoryId: "t_gatehouse",
-      heroId: "h_0",
-    });
-    expect(g.getState().expeditions.active.territoryId).toBe("t_gatehouse");
-    // advance clock past 120s and tick
-    clock.advance(125000);
-    g.tick(125); // dt seconds; facade reads clock.now() for resolution timestamp
-    expect(g.getState().expeditions.active).toBe(null);
+    g.bootstrap(new MemoryStorageAdapter()); // empty graph -> no siege accrual on its own
+    // prefill siege progress just past t_gatehouse's cost (40)
+    g.getState().siege.progress = TERRITORIES.t_gatehouse.siegeCost + 1;
+    delete g.getState()._solved;
+    let emits = 0;
+    g.onSnapshot(() => emits++);
+    g.tick(0.1); // a single tick: tryAdvanceSiege fells t_gatehouse
     expect(g.getState().territories.reclaimed.includes("t_gatehouse")).toBe(
       true,
     );
+    expect(emits).toBe(1); // discrete reclaim event emits exactly once
+    // _solved was cleared before tick; non-undefined proves tick re-solved
+    expect(g.getState()._solved !== undefined).toBe(true);
   });
 
   it("bootstrap recovers from a poisoned cyclic save instead of throwing (task 2/3)", () => {

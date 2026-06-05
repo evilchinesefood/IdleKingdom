@@ -43,9 +43,7 @@ function baseUnlocks(over = {}) {
       market: 1.0,
       scholar: 1.0,
     },
-    gearTiersUnlocked: [],
     autoSell: false,
-    heroSlots: 1,
     ...over,
   };
 }
@@ -53,7 +51,7 @@ function baseUnlocks(over = {}) {
 /** Minimal state wrapper around a graph + unlocks (no heroes/territories needed for solver). */
 function stateOf(graph, unlocks) {
   return {
-    currencies: { gold: 0, research: 0, renown: 0 },
+    currencies: { gold: 0, research: 0 },
     graph,
     unlocks: unlocks || baseUnlocks(),
   };
