@@ -355,6 +355,52 @@ describe("GraphView retained link layer", () => {
   });
 });
 
+describe("GraphView LOD far tier", () => {
+  function classesOf(g) {
+    return g.childNodes.map((c) => c.getAttribute("class") || "");
+  }
+  it("far tier drops icon FO, gear FO, and ports; keeps box/label/cap/badge", () => {
+    const gv = mount({
+      nodes: [nrow("a", { atCapacity: true })],
+      links: [],
+      buildings: [],
+    });
+    gv.view = { scale: 0.4, tx: 0, ty: 0 };
+    gv.render({
+      nodes: [nrow("a", { atCapacity: true })],
+      links: [],
+      buildings: [],
+    });
+    const cls = classesOf(gv._nodeEls.get("a").g);
+    expect(cls.some((c) => c.includes("node-ico"))).toBe(false);
+    expect(cls.some((c) => c.includes("node-working"))).toBe(false);
+    expect(cls.some((c) => c.includes("port"))).toBe(false);
+    expect(cls.some((c) => c.includes("node-box"))).toBe(true);
+    expect(cls.some((c) => c.includes("node-label"))).toBe(true);
+    expect(cls.some((c) => c.includes("cap-fill"))).toBe(true);
+    expect(cls.some((c) => c.includes("node-badge-box"))).toBe(true);
+  });
+
+  it("crossing the threshold rebuilds (tier is in the sig); selected node stays full", () => {
+    const gv = mount({
+      nodes: [nrow("a"), nrow("b", { pos: { x: 400, y: 100 } })],
+      links: [],
+      buildings: [],
+    });
+    const a1 = gv._nodeEls.get("a").g;
+    gv.selectedId = "b";
+    gv.view = { scale: 0.3, tx: 0, ty: 0 };
+    gv.render({
+      nodes: [nrow("a"), nrow("b", { pos: { x: 400, y: 100 } })],
+      links: [],
+      buildings: [],
+    });
+    expect(gv._nodeEls.get("a").g === a1).toBe(false); // rebuilt as far
+    const bCls = classesOf(gv._nodeEls.get("b").g);
+    expect(bCls.some((c) => c.includes("node-ico"))).toBe(true); // selected stays full
+  });
+});
+
 describe("GraphView viewport culling", () => {
   it("renders only nodes inside the padded viewport; map keeps culled entries", () => {
     const gv = mount({
