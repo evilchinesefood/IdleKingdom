@@ -91,6 +91,20 @@ function detailForKind(kind, bm, dispatch, ui) {
   return detail;
 }
 
+// Returns true if a pointerdown event should close the open popover.
+// A click is "inside" if any node in the composed path carries .bm-cell
+// (covers the owning cell, its button, and the popover itself).
+// Pass e.composedPath() as the second argument; pass [] when testing with
+// the headless shim (no open popover → always false anyway).
+export function shouldCloseBmPopover(openKind, composedPath) {
+  if (!openKind) return false;
+  for (const node of composedPath) {
+    if (node && node.classList && node.classList.contains("bm-cell"))
+      return false;
+  }
+  return true;
+}
+
 export function BuildMenu(snap, dispatch, ui) {
   const bm = snap.buildMenu || {
     placeableMachines: [],

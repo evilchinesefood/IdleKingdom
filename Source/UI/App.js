@@ -3,7 +3,7 @@ import { Hud } from "./Hud.js";
 import { GraphView } from "./GraphView.js";
 import { patch, h } from "./Render/Dom.js";
 import { icon } from "./Icons.js";
-import { BuildMenu } from "./BuildMenu.js";
+import { BuildMenu, shouldCloseBmPopover } from "./BuildMenu.js";
 import { NodeInspector } from "./NodeInspector.js";
 import { BuildingInspector } from "./BuildingInspector.js";
 import { BulkInspector } from "./BulkInspector.js";
@@ -102,6 +102,24 @@ class AppInstance {
     this.router.onChange(() => this._mountScreen());
     this.game.onSnapshot((snap) => this._onSnapshot(snap));
     document.addEventListener("keydown", (e) => this._handleGlobalKey(e));
+    if (typeof document !== "undefined") {
+      document.addEventListener(
+        "pointerdown",
+        (e) => {
+          if (
+            this.buildUi.selectedPaletteKind &&
+            shouldCloseBmPopover(
+              this.buildUi.selectedPaletteKind,
+              e.composedPath ? e.composedPath() : [],
+            )
+          ) {
+            this.buildUi.selectedPaletteKind = null;
+            this.renderNow();
+          }
+        },
+        true, // capture phase: fires before SVG pointer-capture / stopPropagation
+      );
+    }
     this.router.start();
     this._mountScreen();
   }
@@ -159,7 +177,9 @@ class AppInstance {
     if (typing || e.defaultPrevented) return;
 
     if (k === "escape") {
-      if (this.graphView && this.graphView.getMode()) {
+      if (this.buildUi.selectedPaletteKind) {
+        this.buildUi.selectedPaletteKind = null;
+      } else if (this.graphView && this.graphView.getMode()) {
         this.graphView.cancelMode();
       } else {
         this.selectedNodeId = null;
