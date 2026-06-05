@@ -114,10 +114,14 @@ export class Game {
     // the action caused, so undoing refunds cost without rewinding accrual).
     this._redo.length = 0;
     if (intent && UNDOABLE.has(intent.type)) {
+      // prev is detached after this dispatch: reduce cloned it into out.state, ticks
+      // mutate the clone (this.state) — safe to hold prev.graph/prev.unlocks by
+      // reference (zero-clone dispatch); undo() clones at restore time. (redo entries
+      // CAN'T do this — they snapshot the LIVE this.state, which keeps mutating.)
       this._undo.push({
         type: intent.type,
-        graph: clonePart(prev.graph),
-        unlocks: clonePart(prev.unlocks),
+        graph: prev.graph,
+        unlocks: prev.unlocks,
         currencyDelta: {
           gold: out.state.currencies.gold - prev.currencies.gold,
           research: out.state.currencies.research - prev.currencies.research,

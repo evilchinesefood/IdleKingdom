@@ -229,6 +229,62 @@ describe("Game facade", () => {
     expect(g.getState().graph.nodes.length).toBe(0); // recovered to NewGame
   });
 
+  it("zero-clone undo: the by-reference prev entry is not corrupted by post-dispatch ticks", () => {
+    // The dispatch-time undo entry now holds prev.graph/prev.unlocks BY REFERENCE
+    // (prev is detached: reduce cloned it into the new live state, ticks mutate the
+    // clone). This pins that invariant: ticks running between dispatches — which
+    // mutate the LIVE graph at 20Hz — must never reach back into a stored undo entry.
+    const g = makeGame(new FakeClock(0));
+    g.bootstrap(new MemoryStorageAdapter()); // empty graph
+    const place = (x) => ({
+      type: "PlaceNode",
+      kind: "gatherer",
+      resourceId: "iron_ore",
+      pos: { x, y: 0 },
+    });
+
+    expect(g.dispatch(place(0)).ok).toBe(true); // node A
+    const idsAfterA = g.getState().graph.nodes.map((n) => n.id);
+    expect(idsAfterA.length).toBe(1);
+    g.tick(5); // live graph mutates (stockpiles/currencies) — entry must be immune
+
+    expect(g.dispatch(place(120)).ok).toBe(true); // node B
+    expect(g.getState().graph.nodes.length).toBe(2);
+    g.tick(5);
+
+    // undo B: the by-reference entry held the A-only structure; ticks since then
+    // mutated only the live (post-B) graph, so the entry is uncorrupted.
+    expect(g.undo().ok).toBe(true);
+    expect(g.getState().graph.nodes.map((n) => n.id)).toEqual(idsAfterA);
+    expect(g.getState().graph.nodes.length).toBe(1); // B removed, A remains
+
+    // undo A: back to a structurally empty graph (the very first entry held {})
+    expect(g.undo().ok).toBe(true);
+    expect(g.getState().graph.nodes.length).toBe(0);
+
+    // redo replays forward cleanly (redo entries clone the live graph at undo time)
+    expect(g.redo().ok).toBe(true);
+    expect(g.getState().graph.nodes.length).toBe(1);
+    expect(g.redo().ok).toBe(true);
+    expect(g.getState().graph.nodes.length).toBe(2);
+  });
+
+  it("zero-clone undo: an UpgradeNode entry holds the pre-upgrade level by reference, immune to ticks", () => {
+    // A non-PlaceNode UNDOABLE intent: the entry must capture the PRE-action level
+    // and survive ticks mutating the live state.
+    const g = bootSeeded(makeGame(new FakeClock(0)));
+    const lvl = () =>
+      g.getState().graph.nodes.find((n) => n.id === "n_miner_0").level;
+    expect(lvl()).toBe(1);
+    expect(g.dispatch({ type: "UpgradeNode", nodeId: "n_miner_0" }).ok).toBe(
+      true,
+    );
+    expect(lvl()).toBe(2);
+    g.tick(10); // live graph mutates; the undo entry (pre-upgrade) is by-reference
+    expect(g.undo().ok).toBe(true);
+    expect(lvl()).toBe(1); // restored to the captured pre-upgrade structure
+  });
+
   it("getState returns the live raw state for autosave (has version, no frozen)", () => {
     const g = makeGame(new FakeClock(0));
     g.bootstrap(new MemoryStorageAdapter());
