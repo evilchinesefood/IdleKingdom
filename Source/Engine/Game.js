@@ -33,7 +33,11 @@ const UNDOABLE = new Set([
   "AddToBuilding",
   "RenameBuilding",
 ]);
-const clonePart = (o) => JSON.parse(JSON.stringify(o));
+// structuredClone (Node >=17 + every modern browser): ~2x faster than the JSON
+// round-trip on the undo/redo + mergeLiveStockpiles hot paths. The cloned parts
+// (graph/unlocks/stockpile) hold only finite numbers and concrete keys, so JSON's
+// undefined-drop / Infinity->null coercions never applied. serialize() keeps JSON.
+const clonePart = (o) => structuredClone(o);
 
 // Re-merge LIVE stockpiles (by node id) over a graph restored from an undo/redo
 // snapshot. Stockpiles keep accruing at 20 Hz after an intent is recorded, so the
