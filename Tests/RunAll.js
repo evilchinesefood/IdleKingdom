@@ -33,6 +33,7 @@ import "./Game.Test.js";
 import "./RenderCadence.Test.js";
 
 // UI pure-helper suites
+import "./BuildMenu.Test.js";
 import "./Format.Test.js";
 import "./Dom.Test.js";
 import "./Svg.Test.js";
