@@ -33,11 +33,11 @@ const UNDOABLE = new Set([
   "AddToBuilding",
   "RenameBuilding",
 ]);
-// structuredClone (Node >=17 + every modern browser): ~2x faster than the JSON
-// round-trip on the undo/redo + mergeLiveStockpiles hot paths. The cloned parts
-// (graph/unlocks/stockpile) hold only finite numbers and concrete keys, so JSON's
-// undefined-drop / Infinity->null coercions never applied. serialize() keeps JSON.
-const clonePart = (o) => structuredClone(o);
+// Kept on JSON: for these plain-object parts (graph/unlocks/stockpile — finite
+// numbers + short strings) V8's JSON fast path is at-or-faster than structuredClone
+// on Node 22 (measured ~1.04x slower), so switching was a no-win. The hot-path win
+// came instead from holding the dispatch-time undo entry by reference (see dispatch).
+const clonePart = (o) => JSON.parse(JSON.stringify(o));
 
 // Re-merge LIVE stockpiles (by node id) over a graph restored from an undo/redo
 // snapshot. Stockpiles keep accruing at 20 Hz after an intent is recorded, so the

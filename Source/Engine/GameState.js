@@ -5,13 +5,13 @@ import { topoSort } from "./Simulation/Topology.js";
 export const SAVE_VERSION = 11;
 
 /** Structured deep clone with no shared refs; drops the non-persisted _solved cache.
- *  structuredClone is ~2x faster than the JSON round-trip on the hot reduce() path
- *  (Node >=17 + every modern browser; this game already requires modern). Live game
- *  state holds only finite numbers and concrete keys, so JSON's undefined-drop /
- *  Infinity->null coercions never applied here anyway; serialize() keeps JSON. */
+ *  Kept on JSON.parse(JSON.stringify()): for this plain-object game state (finite
+ *  numbers + short strings) V8's JSON fast path is at-or-faster than structuredClone
+ *  on Node 22 (measured: structuredClone ran ~1.04x SLOWER), so the switch was a
+ *  no-win and reverted. */
 export function clone(state) {
   const { _solved, ...rest } = state;
-  return structuredClone(rest);
+  return JSON.parse(JSON.stringify(rest));
 }
 
 /** Fresh seeded GameState: deep copy of START_STATE, version stamped, timestamps from clock. */
