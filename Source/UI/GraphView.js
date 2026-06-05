@@ -155,6 +155,8 @@ export class GraphView {
     // in place (see nodeSig). Culled entries stay in the map (DOM-detached).
     this._nodeEls = new Map(); // id -> {g, subText, capFill, sig}
     this._hintEl = null; // empty-canvas hint (present only when 0 nodes)
+    this._linkEls = new Map(); // id -> {g, path, hit, dot|label+del, sig}
+    this._pendingEl = null; // single transient drag-connect preview path
 
     // Multi-selection set + floating action bar (HTML, anchored to the host).
     this.selNodes = new Set();
@@ -1311,108 +1313,78 @@ export class GraphView {
       this.layerBuildings,
       (this.snap.buildings || []).map((b) => this._drawBuilding(b, v)),
     );
-    // links
-    const linkEls = this.snap.links
-      .map((l) => {
-        const from = this._nodeAt(l.from),
-          to = this._nodeAt(l.to);
-        if (!from || !to) return null;
-        const fp = this._pos(from),
-          tp = this._pos(to);
-        const a = graphToScreen(v, fp.x + NODE_W, fp.y + NODE_H / 2);
-        const b = graphToScreen(v, tp.x, tp.y + NODE_H / 2);
-        const starved = l.fedPct != null && l.fedPct < 0.999;
-        const g = svg("g", { class: "link-g" });
-        g.appendChild(
-          svg("path", {
-            class: starved ? "link-path starved" : "link-path",
-            d: linkPath(a, b),
-          }),
-        );
-        // wide transparent hit path so the thin link is the visual tap target
-        // (reveal now routes through GraphInput -> onSelectLink on a tap).
-        g.appendChild(
-          svg("path", {
-            class: "link-hit",
-            d: linkPath(a, b),
-          }),
-        );
-        const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 - 6 };
-        // Label + delete affordance only render when this link is revealed.
-        if (l.id === this.selectedLinkId) {
-          const resName =
-            (RESOURCES[l.resourceId] && RESOURCES[l.resourceId].display) ||
-            l.resourceId;
-          g.appendChild(
-            svg(
-              "text",
-              {
-                class: "link-label show",
-                x: mid.x,
-                y: mid.y,
-                "text-anchor": "middle",
-              },
-              [`${resName} · ${(l.flow ?? 0).toFixed(2)}/s`],
-            ),
-          );
-          // link-delete affordance: a small × at the midpoint (its own hit target
-          // so it doesn't interfere with the port drag-connect gesture).
-          // Delete routes through GraphInput.hitLinkDelete -> onDeleteLink: the
-          // SVG is pointer-captured, so an onclick here would never fire (task 22).
-          const del = svg("g", { class: "link-delete-g" });
-          del.appendChild(
-            svg("circle", {
-              class: "link-delete-hit",
-              cx: mid.x,
-              cy: mid.y + 12,
-              r: 13,
-            }),
-          );
-          del.appendChild(
-            svg(
-              "text",
-              {
-                class: "link-delete",
-                x: mid.x,
-                y: mid.y + 16,
-                "text-anchor": "middle",
-              },
-              ["×"],
-            ),
-          );
-          g.appendChild(del);
-        } else {
-          // subtle, always-on affordance that the link is interactive (touch)
-          g.appendChild(
-            svg("circle", {
-              class: "link-dot",
-              cx: mid.x,
-              cy: mid.y + 6,
-              r: 3,
-            }),
-          );
-        }
-        return g;
-      })
-      .filter(Boolean);
-
-    // pending drag-connect preview: source output port -> live pointer
+    // Shared by the links + nodes loops below; declared here now that links run
+    // first. null = render everything (Task 4 wires this; also the headless path).
+    const vp = this._cullRect();
+    // links (retained; culling: render when either endpoint node renders OR the
+    // segment crosses the viewport; the revealed link always renders)
+    const linkSeen = new Set();
+    for (const l of this.snap.links) {
+      const from = this._nodeAt(l.from),
+        to = this._nodeAt(l.to);
+      if (!from || !to) continue;
+      const fp = this._pos(from),
+        tp = this._pos(to);
+      if (
+        vp &&
+        l.id !== this.selectedLinkId &&
+        !nodeInRect(fp, vp) &&
+        !nodeInRect(tp, vp) &&
+        !segmentIntersectsRect(
+          { x: fp.x + NODE_W, y: fp.y + NODE_H / 2 },
+          { x: tp.x, y: tp.y + NODE_H / 2 },
+          vp,
+        )
+      )
+        continue;
+      linkSeen.add(l.id);
+      const revealed = l.id === this.selectedLinkId;
+      const sig = revealed ? "r" : "p";
+      let entry = this._linkEls.get(l.id);
+      if (!entry || entry.sig !== sig) {
+        const fresh = this._buildLinkEl(l, revealed);
+        fresh.sig = sig;
+        if (entry && entry.g.parentNode === this.layerLinks)
+          swapChild(this.layerLinks, fresh.g, entry.g);
+        this._linkEls.set(l.id, fresh);
+        entry = fresh;
+      }
+      if (entry.g.parentNode !== this.layerLinks)
+        this.layerLinks.appendChild(entry.g);
+      const a = graphToScreen(v, fp.x + NODE_W, fp.y + NODE_H / 2);
+      const b = graphToScreen(v, tp.x, tp.y + NODE_H / 2);
+      this._updateLinkEl(entry, l, a, b);
+    }
+    // detach culled links (keep entries) and delete departed ones entirely
+    const liveLinks = new Set(this.snap.links.map((l) => l.id));
+    for (const [id, entry] of this._linkEls) {
+      if (linkSeen.has(id)) continue;
+      if (entry.g.parentNode === this.layerLinks)
+        this.layerLinks.removeChild(entry.g);
+      if (!liveLinks.has(id)) this._linkEls.delete(id);
+    }
+    // drag-connect preview: a single transient path, rebuilt cheap each draw
+    if (this._pendingEl && this._pendingEl.parentNode === this.layerLinks)
+      this.layerLinks.removeChild(this._pendingEl);
+    this._pendingEl = null;
     if (this._pendingLink) {
       const from = this._nodeAt(this._pendingLink.fromId);
       if (from) {
         const fp = this._pos(from);
         const a = graphToScreen(v, fp.x + NODE_W, fp.y + NODE_H / 2);
         const b = graphToScreen(v, this._pendingLink.gx, this._pendingLink.gy);
-        linkEls.push(svg("path", { class: "link-pending", d: linkPath(a, b) }));
+        this._pendingEl = svg("path", {
+          class: "link-pending",
+          d: linkPath(a, b),
+        });
+        this.layerLinks.appendChild(this._pendingEl);
       }
     }
-    this._replace(this.layerLinks, linkEls);
 
     // nodes (retained: rebuild only on sig change; in-place updates otherwise)
     this._grpMembers = this._selectedGroupMembers(); // members of any selected group
     const refocus = this._activeNodeId(); // a sig-rebuild still destroys focus
     const tier = lodTier(v.scale);
-    const vp = this._cullRect(); // Task 4 wires this; returns null until then
     const seen = new Set();
     for (const n of this.snap.nodes) {
       if (
@@ -1471,6 +1443,69 @@ export class GraphView {
 
     // floating action bar follows the selection bbox
     this._renderActionBar();
+  }
+
+  // Retained link element. Structure: base path + wide transparent hit path
+  // (the visual tap target; reveal/delete route through GraphInput hit-tests),
+  // then (revealed ? label + delete-× : a subtle always-on dot). Rebuilt only
+  // when `revealed` flips (sig "r"/"p"); geometry/text update in place.
+  _buildLinkEl(l, revealed) {
+    const g = svg("g", { class: "link-g" });
+    const path = svg("path", { class: "link-path" });
+    const hit = svg("path", { class: "link-hit" });
+    g.appendChild(path);
+    g.appendChild(hit);
+    const entry = { g, path, hit };
+    if (revealed) {
+      // label created EMPTY — text set in _updateLinkEl (flow drifts per snapshot)
+      entry.label = svg("text", {
+        class: "link-label show",
+        "text-anchor": "middle",
+      });
+      g.appendChild(entry.label);
+      // link-delete affordance: a small × at the midpoint (its own hit target so
+      // it doesn't interfere with the port drag-connect gesture). Delete routes
+      // through GraphInput.hitLinkDelete -> onDeleteLink (pointer-captured SVG).
+      const del = svg("g", { class: "link-delete-g" });
+      entry.delHit = svg("circle", { class: "link-delete-hit", r: 13 });
+      entry.delX = svg(
+        "text",
+        { class: "link-delete", "text-anchor": "middle" },
+        ["×"],
+      );
+      del.appendChild(entry.delHit);
+      del.appendChild(entry.delX);
+      g.appendChild(del);
+    } else {
+      entry.dot = svg("circle", { class: "link-dot", r: 3 });
+      g.appendChild(entry.dot);
+    }
+    return entry;
+  }
+
+  _updateLinkEl(entry, l, a, b) {
+    const d = linkPath(a, b);
+    setAttr(entry.path, "d", d);
+    setAttr(entry.hit, "d", d);
+    const starved = l.fedPct != null && l.fedPct < 0.999;
+    setAttr(entry.path, "class", starved ? "link-path starved" : "link-path");
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 - 6 };
+    if (entry.dot) {
+      setAttr(entry.dot, "cx", mid.x);
+      setAttr(entry.dot, "cy", mid.y + 6);
+    }
+    if (entry.label) {
+      const resName =
+        (RESOURCES[l.resourceId] && RESOURCES[l.resourceId].display) ||
+        l.resourceId;
+      setText(entry.label, `${resName} · ${(l.flow ?? 0).toFixed(2)}/s`);
+      setAttr(entry.label, "x", mid.x);
+      setAttr(entry.label, "y", mid.y);
+      setAttr(entry.delHit, "cx", mid.x);
+      setAttr(entry.delHit, "cy", mid.y + 12);
+      setAttr(entry.delX, "x", mid.x);
+      setAttr(entry.delX, "y", mid.y + 16);
+    }
   }
 
   _drawBuilding(b, v) {
