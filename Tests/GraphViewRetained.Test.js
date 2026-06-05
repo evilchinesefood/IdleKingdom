@@ -437,4 +437,34 @@ describe("GraphView viewport culling", () => {
     expect(gv._nodeEls.get("a").g === detached).toBe(true);
     expect(detached.parentNode === gv.layerNodes).toBe(true);
   });
+
+  it("measures + caches the host rect; a zero rect is NOT cached (render-all)", () => {
+    const snap = {
+      nodes: [nrow("in"), nrow("out", { pos: { x: 5000, y: 5000 } })],
+      links: [],
+      buildings: [],
+    };
+    const gv = mount(snap);
+    // zero rect: unmeasurable -> not cached, culling stays off (render-all)
+    gv.host.getBoundingClientRect = () => ({
+      width: 0,
+      height: 0,
+      left: 0,
+      top: 0,
+    });
+    gv.render(snap);
+    expect(gv._hostRect).toBe(null);
+    expect(gv.layerNodes.childNodes.length).toBe(2);
+    // a real rect: measured, cached, and culling goes live
+    gv.host.getBoundingClientRect = () => ({
+      width: 800,
+      height: 600,
+      left: 0,
+      top: 0,
+    });
+    gv.render(snap);
+    expect(gv._hostRect.width).toBe(800);
+    expect(gv.layerNodes.childNodes.length).toBe(1);
+    expect(gv._nodeEls.get("out").g.parentNode).toBe(null);
+  });
 });
