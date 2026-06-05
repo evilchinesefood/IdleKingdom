@@ -1,3 +1,7 @@
+// Shared cost formatter so reject toasts match the UI button (see EconomySystem.js,
+// kept in sync with Source/UI/Format/Format.js).
+import { fmtCost } from "./EconomySystem.js";
+
 // Authoritative effect mapping per node (Interface Contract §2.4).
 const EFFECTS = {
   res_scholar: [
@@ -101,9 +105,6 @@ export function researchStatus(state, content, id) {
   return prereqsMet && terrMet ? "available" : "locked";
 }
 
-// Cost in reject messages: whole numbers, US grouping (display-only string).
-const fmtCost = (n) => Math.ceil(n).toLocaleString("en-US");
-
 // Null when buyable; otherwise a user-facing reason. The cost-only failure spells
 // out the price; everything else is the catch-all. canBuyResearch is the boolean view.
 export function buyResearchError(state, content, id) {
@@ -118,7 +119,7 @@ export function buyResearchError(state, content, id) {
   )
     return "Cannot buy research";
   if (state.currencies[node.currency] < node.cost)
-    return `Not enough ${node.currency} — costs ${fmtCost(node.cost)}`;
+    return `Not enough ${node.currency} — unlock costs ${fmtCost(node.cost)}`;
   return null;
 }
 
@@ -162,7 +163,7 @@ export function buyTuningError(state, content, kind) {
     return "Cannot buy tuning";
   const cost = tuningCost(state, kind);
   if (state.currencies.research < cost)
-    return `Not enough research — costs ${fmtCost(cost)}`;
+    return `Not enough research — tuning costs ${fmtCost(cost)}`;
   return null;
 }
 

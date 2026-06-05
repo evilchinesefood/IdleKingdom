@@ -1,3 +1,16 @@
+// Display formatter for gold/research costs in engine-side strings (reject toasts).
+// MUST stay byte-identical to the UI's fmtCost/fmtNum in Source/UI/Format/Format.js so
+// a reject toast and the panel button never show different numbers for the same cost:
+// >=1000 rounds to a whole number with thousands separators; below that, one decimal.
+// (keep in sync with Source/UI/Format/Format.js)
+export function fmtCost(n) {
+  if (!isFinite(n)) return "0";
+  const abs = Math.abs(n);
+  if (abs >= 1000)
+    return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return String(Math.round(n * 10) / 10);
+}
+
 // Machine upgrade cost: 15%/level compounding up to the knee, then a gentler
 // 10%/level beyond it so late-game (L50+) prices stay reachable.
 const GROWTH = 1.15;
@@ -13,6 +26,9 @@ export function upgradeCost(kind, level, content) {
   );
 }
 
+// Reducer inlines this check (node lookup + gold >= upgradeCost) to name the cost in
+// its reject message — keep the conditions identical. Still used by tests and the
+// Snapshot affordability flags.
 export function canUpgrade(state, content, nodeId) {
   const node = state.graph.nodes.find((n) => n.id === nodeId);
   if (!node) return false;
