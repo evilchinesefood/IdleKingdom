@@ -32,6 +32,59 @@ export function deltaTransform(d, v) {
   return { k, bx, by, str: `translate(${bx} ${by}) scale(${k})` };
 }
 
+const LOD_SCALE = 0.5; // below this zoom: no icon FO, no gear FO, no port circles
+const CULL_MARGIN = 150; // screen px of off-viewport slack kept rendered
+
+// Level-of-detail tier for the current zoom. "far" nodes skip the expensive
+// foreignObject icon, the animated gear, and the port circles. DOM-free.
+export function lodTier(scale) {
+  return scale < LOD_SCALE ? "far" : "full";
+}
+
+// Structure-affecting render signature for a node. A node element is rebuilt
+// ONLY when this changes; everything else (transform, class, aria, sub-rate
+// text, cap-fill width) is updated in place each draw. DOM-free.
+export function nodeSig(n, tier, armed, icon) {
+  const badge =
+    n.atCapacity && n.working
+      ? "max"
+      : n.starved
+        ? n.working
+          ? "low"
+          : "off"
+        : "none";
+  return `${tier}|${n.kind}|${icon}|${n.working ? 1 : 0}|${badge}|${armed ? 1 : 0}`;
+}
+
+// The screen viewport (+marginPx slack on every side) mapped into graph space.
+// Returns {x0,y0,x1,y1} in graph units. DOM-free.
+export function cullRectFor(view, hostW, hostH, marginPx) {
+  const a = screenToGraph(view, -marginPx, -marginPx);
+  const b = screenToGraph(view, hostW + marginPx, hostH + marginPx);
+  return { x0: a.x, y0: a.y, x1: b.x, y1: b.y };
+}
+
+// AABB overlap of a node (NODE_W x NODE_H at pos) with a cull rect. DOM-free.
+export function nodeInRect(pos, vp) {
+  return (
+    pos.x + NODE_W >= vp.x0 &&
+    pos.x <= vp.x1 &&
+    pos.y + NODE_H >= vp.y0 &&
+    pos.y <= vp.y1
+  );
+}
+
+// Conservative segment-vs-rect test (segment AABB vs rect) for links whose
+// endpoints are both off-screen but whose span crosses the view. DOM-free.
+export function segmentIntersectsRect(a, b, vp) {
+  return (
+    Math.max(a.x, b.x) >= vp.x0 &&
+    Math.min(a.x, b.x) <= vp.x1 &&
+    Math.max(a.y, b.y) >= vp.y0 &&
+    Math.min(a.y, b.y) <= vp.y1
+  );
+}
+
 export class GraphView {
   constructor(host, game, opts = {}) {
     this.host = host;
