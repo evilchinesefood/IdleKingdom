@@ -41,18 +41,23 @@ export function lodTier(scale) {
   return scale < LOD_SCALE ? "far" : "full";
 }
 
+// Badge precedence (max > low > off > none) shared by nodeSig (the rebuild key)
+// and _buildNodeEl (the renderer) so the two can never drift. DOM-free.
+function nodeBadge(n) {
+  return n.atCapacity && n.working
+    ? "max"
+    : n.starved
+      ? n.working
+        ? "low"
+        : "off"
+      : "none";
+}
+
 // Structure-affecting render signature for a node. A node element is rebuilt
 // ONLY when this changes; everything else (transform, class, aria, sub-rate
 // text, cap-fill width) is updated in place each draw. DOM-free.
 export function nodeSig(n, tier, armed, icon) {
-  const badge =
-    n.atCapacity && n.working
-      ? "max"
-      : n.starved
-        ? n.working
-          ? "low"
-          : "off"
-        : "none";
+  const badge = nodeBadge(n);
   return `${tier}|${n.kind}|${icon}|${n.working ? 1 : 0}|${badge}|${armed ? 1 : 0}`;
 }
 
@@ -1704,29 +1709,24 @@ export class GraphView {
   // rebuilt only when its structural sig (nodeSig) changes; `tier`/`armed`/`icon`
   // are the sig's structural inputs and arrive here straight from the sig site.
   _buildNodeEl(n, tier, armed, icon) {
-    // The badge derived from the exact precedence nodeSig uses (max > low > off >
-    // none). Its presence/variant is structural (rebuilds on change), so it's
-    // baked in here rather than updated in place.
-    const badge =
-      n.atCapacity && n.working
-        ? "max"
-        : n.starved
-          ? n.working
-            ? "low"
-            : "off"
-          : "none";
+    // Badge presence/variant is structural (rebuilds on change via nodeSig), so
+    // it's baked in here rather than updated in place — same ladder as the sig.
+    const badge = nodeBadge(n);
     // Render the whole node in ONE scaled group with children in LOCAL unscaled
     // coords (0..NODE_W, 0..NODE_H). The transform (applied in _updateNodeEl)
     // scales box, text, icon, cap-bar, badge AND ports uniformly with zoom — at
     // scale 1 this is pixel-identical to the old per-coordinate math. Ports also
     // line up with the graph-space hit-test (which uses the same graph units).
+    // Capture just the id string for the keydown closure — a retained-but-culled
+    // entry would otherwise pin the whole (stale) snapshot node alive.
+    const id = n.id;
     const g = svg("g", {
       // Keyboard a11y: each node is a focusable button (Enter/arrows/C/Delete).
       // id is stable for the entry's lifetime, so these are build-time only.
       tabindex: 0,
       role: "button",
-      "data-node-id": n.id,
-      onkeydown: (e) => this._onNodeKey(e, n.id),
+      "data-node-id": id,
+      onkeydown: (e) => this._onNodeKey(e, id),
     });
     g.appendChild(
       svg("rect", {

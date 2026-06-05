@@ -255,7 +255,7 @@ describe("GraphView retained node layer", () => {
     expect(el.getAttribute("class").includes("selected")).toBe(true);
   });
 
-  it("empty canvas shows the hint; nodes replace it", () => {
+  it("empty canvas shows the hint; nodes replace it; emptying re-shows it", () => {
     const gv = mount({ nodes: [], links: [], buildings: [] });
     expect(gv.layerNodes.childNodes.length).toBe(1); // the hint text
     gv.render({ nodes: [nrow("a")], links: [], buildings: [] });
@@ -264,5 +264,13 @@ describe("GraphView retained node layer", () => {
     );
     expect(tags.some((c) => c.includes("graph-empty"))).toBe(false);
     expect(gv.layerNodes.childNodes.length).toBe(1);
+    // N -> 0: the cached hint re-shows (pins the _hintEl re-attach branch)
+    gv.render({ nodes: [], links: [], buildings: [] });
+    expect(gv.layerNodes.childNodes.length).toBe(1);
+    expect(
+      (gv.layerNodes.firstChild.getAttribute("class") || "").includes(
+        "graph-empty",
+      ),
+    ).toBe(true);
   });
 });
