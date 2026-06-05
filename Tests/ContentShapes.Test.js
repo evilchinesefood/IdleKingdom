@@ -5,8 +5,6 @@ import {
   GATHERER_VARIANTS,
 } from "../Source/Engine/Content/Machines.js";
 import { RECIPES } from "../Source/Engine/Content/Recipes.js";
-import { EQUIPMENT, itemStat } from "../Source/Engine/Content/Equipment.js";
-import { HEROES } from "../Source/Engine/Content/Heroes.js";
 
 describe("Resources content", () => {
   it("has 27 resources", () => {
@@ -80,30 +78,24 @@ describe("Recipes content", () => {
   });
 });
 
-describe("Equipment content", () => {
-  it("has 3 items keyed by itemId with correct slots", () => {
-    expect(Object.keys(EQUIPMENT).length).toBe(3);
-    expect(EQUIPMENT.sword.slot).toBe("weapon");
-    expect(EQUIPMENT.armor.slot).toBe("armor");
-    expect(EQUIPMENT.shield.slot).toBe("accessory");
+describe("Troop content (siege power)", () => {
+  it("the three troops are tier-5, never-listed, with canonical power", () => {
+    const troops = ["militia", "soldier", "knight"];
+    for (const id of troops) {
+      expect(RESOURCES[id].tier).toBe(5);
+      expect(RESOURCES[id].basePrice).toBe(null);
+      expect(typeof RESOURCES[id].power).toBe("number");
+    }
+    expect(RESOURCES.militia.power).toBe(1);
+    expect(RESOURCES.soldier.power).toBe(3);
+    expect(RESOURCES.knight.power).toBe(9);
   });
-  it("itemStat scales linearly by tier", () => {
-    expect(itemStat("sword", 1)).toBe(10);
-    expect(itemStat("sword", 3)).toBe(30);
-    expect(itemStat("armor", 2)).toBe(24);
-    expect(itemStat("shield", 3)).toBe(24);
-  });
-});
-
-describe("Heroes content", () => {
-  it("has 3 templates keyed by id", () => {
-    expect(Object.keys(HEROES).length).toBe(3);
-    for (const [k, h] of Object.entries(HEROES)) expect(h.id).toBe(k);
-  });
-  it("warden is the territory-granted starter, others are renown-unlocked", () => {
-    expect(HEROES.hero_warden.unlockKind).toBe("territory");
-    expect(HEROES.hero_warden.unlockRenownCost).toBe(0);
-    expect(HEROES.hero_ranger.unlockRenownCost).toBe(40);
-    expect(HEROES.hero_smith.unlockRenownCost).toBe(80);
+  it("the three troop recipes are barracks-crafted", () => {
+    for (const id of ["r_militia", "r_soldier", "r_knight"]) {
+      expect(RECIPES[id].crafterKind).toBe("barracks");
+    }
+    expect(RECIPES.r_militia.output).toBe("militia");
+    expect(RECIPES.r_soldier.output).toBe("soldier");
+    expect(RECIPES.r_knight.output).toBe("knight");
   });
 });

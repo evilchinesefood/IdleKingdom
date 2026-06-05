@@ -4,8 +4,6 @@ import { MACHINES } from "../Source/Engine/Content/Machines.js";
 import { RECIPES } from "../Source/Engine/Content/Recipes.js";
 import { RESEARCH_NODES } from "../Source/Engine/Content/ResearchNodes.js";
 import { TERRITORIES } from "../Source/Engine/Content/Territories.js";
-import { EQUIPMENT } from "../Source/Engine/Content/Equipment.js";
-import { HEROES } from "../Source/Engine/Content/Heroes.js";
 import { seededState } from "./Fixtures/Seeded.js";
 import { FakeClock } from "../Source/Engine/Clock.js";
 import { reduce } from "../Source/Engine/Reducer.js";
@@ -17,8 +15,6 @@ const content = {
   recipes: RECIPES,
   researchNodes: RESEARCH_NODES,
   territories: TERRITORIES,
-  equipment: EQUIPMENT,
-  heroes: HEROES,
 };
 
 describe("Reducer", () => {
@@ -79,78 +75,17 @@ describe("Reducer", () => {
     expect(acc.state.unlocks.researchOwned.includes("res_scholar")).toBe(true);
   });
 
-  it("routes StartExpedition; rejects under-power; accepts when power >= req", () => {
+  it("routes BuyTuning; rejects unaffordable, accepts when research covers the cost", () => {
     const s = seededState(new FakeClock(0));
-    const rej = reduce(
-      s,
-      { type: "StartExpedition", territoryId: "t_gatehouse", heroId: "h_0" },
-      content,
-    );
-    expect(rej.error !== undefined).toBe(true); // hero power 5 < 30
-    // equip + dispatch equip through the reducer
-    let cur = s;
-    cur = reduce(
-      cur,
-      {
-        type: "EquipItem",
-        heroId: "h_0",
-        slot: "weapon",
-        itemId: "sword",
-        tier: 1,
-      },
-      content,
-    ).state;
-    cur = reduce(
-      cur,
-      {
-        type: "EquipItem",
-        heroId: "h_0",
-        slot: "armor",
-        itemId: "armor",
-        tier: 1,
-      },
-      content,
-    ).state;
-    cur = reduce(
-      cur,
-      {
-        type: "EquipItem",
-        heroId: "h_0",
-        slot: "accessory",
-        itemId: "shield",
-        tier: 1,
-      },
-      content,
-    ).state;
-    const acc = reduce(
-      cur,
-      {
-        type: "StartExpedition",
-        territoryId: "t_gatehouse",
-        heroId: "h_0",
-        _nowMs: 5000,
-      },
-      content,
-    );
+    s.currencies.research = 0;
+    const rej = reduce(s, { type: "BuyTuning", kind: "gatherer" }, content);
+    expect(rej.error !== undefined).toBe(true); // broke
+    expect(rej.state).toBe(s);
+    s.currencies.research = 100;
+    const acc = reduce(s, { type: "BuyTuning", kind: "gatherer" }, content);
     expect(acc.error).toBe(undefined);
-    expect(acc.state.expeditions.active.territoryId).toBe("t_gatehouse");
-  });
-
-  it("rejects EquipItem with a locked tier (T2 sword before any reclaim)", () => {
-    const s = seededState(new FakeClock(0));
-    const out = reduce(
-      s,
-      {
-        type: "EquipItem",
-        heroId: "h_0",
-        slot: "weapon",
-        itemId: "sword",
-        tier: 2,
-      },
-      content,
-    );
-    expect(out.error !== undefined).toBe(true);
-    expect(out.state).toBe(s);
+    expect(acc.state.unlocks.tuningRanks.gatherer).toBe(1);
+    expect(acc.state.unlocks.productionBonuses.gatherer).toBeCloseTo(1.1, 1e-9);
   });
 
   it("rejects a cycle-creating ConnectLink", () => {

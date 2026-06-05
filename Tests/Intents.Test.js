@@ -6,19 +6,23 @@ describe("Intents", () => {
     expect(INTENT.PlaceNode).toBe("PlaceNode");
     expect(INTENT.ConnectLink).toBe("ConnectLink");
     expect(INTENT.UpgradeNode).toBe("UpgradeNode");
+    expect(INTENT.BulkUpgrade).toBe("BulkUpgrade");
     expect(INTENT.SetRecipe).toBe("SetRecipe");
     expect(INTENT.BuyResearch).toBe("BuyResearch");
-    expect(INTENT.EquipItem).toBe("EquipItem");
-    expect(INTENT.StartExpedition).toBe("StartExpedition");
+    expect(INTENT.BuyTuning).toBe("BuyTuning");
     expect(INTENT.SellFromStockpile).toBe("SellFromStockpile");
-    expect(INTENT.LevelUpHero).toBe("LevelUpHero");
-    expect(INTENT.RecruitHero).toBe("RecruitHero");
     expect(INTENT.SetGathererResource).toBe("SetGathererResource");
+    expect(INTENT.SetStorageRule).toBe("SetStorageRule");
     expect(INTENT.RemoveNode).toBe("RemoveNode");
     expect(INTENT.RemoveLink).toBe("RemoveLink");
     expect(INTENT.SetNodePos).toBe("SetNodePos");
     expect(INTENT.AckVictory).toBe("AckVictory");
     expect(INTENT.DismissTutorial).toBe("DismissTutorial");
+    // war-rework: no hero/expedition intents survive
+    expect(INTENT.EquipItem).toBe(undefined);
+    expect(INTENT.StartExpedition).toBe(undefined);
+    expect(INTENT.LevelUpHero).toBe(undefined);
+    expect(INTENT.RecruitHero).toBe(undefined);
   });
 
   it("validate accepts well-formed intents", () => {
@@ -39,22 +43,7 @@ describe("Intents", () => {
     expect(validate({ type: "BuyResearch", nodeId: "res_scholar" }).ok).toBe(
       true,
     );
-    expect(
-      validate({
-        type: "EquipItem",
-        heroId: "h_0",
-        slot: "weapon",
-        itemId: "sword",
-        tier: 1,
-      }).ok,
-    ).toBe(true);
-    expect(
-      validate({
-        type: "StartExpedition",
-        territoryId: "t_gatehouse",
-        heroId: "h_0",
-      }).ok,
-    ).toBe(true);
+    expect(validate({ type: "BuyTuning", kind: "gatherer" }).ok).toBe(true);
     expect(
       validate({ type: "PlaceNode", kind: "smelter", pos: { x: 10, y: 20 } })
         .ok,
@@ -72,10 +61,6 @@ describe("Intents", () => {
         nodeId: "n_smelter_0",
         resId: "iron_bar",
       }).ok,
-    ).toBe(true);
-    expect(validate({ type: "LevelUpHero", heroId: "h_0" }).ok).toBe(true);
-    expect(
-      validate({ type: "RecruitHero", templateId: "hero_ranger" }).ok,
     ).toBe(true);
     expect(
       validate({
@@ -99,14 +84,7 @@ describe("Intents", () => {
     expect(validate({ type: "ConnectLink", from: "a", to: "b" }).ok).toBe(
       false,
     ); // no resourceId
-    expect(
-      validate({
-        type: "EquipItem",
-        heroId: "h_0",
-        slot: "weapon",
-        itemId: "sword",
-      }).ok,
-    ).toBe(false); // no tier
+    expect(validate({ type: "BuyTuning" }).ok).toBe(false); // no kind
     expect(validate({ type: "PlaceNode", kind: "smelter" }).ok).toBe(false); // no pos
     expect(
       validate({ type: "PlaceNode", kind: "smelter", pos: { x: 1 } }).ok,

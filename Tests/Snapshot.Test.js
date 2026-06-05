@@ -4,8 +4,6 @@ import { MACHINES } from "../Source/Engine/Content/Machines.js";
 import { RECIPES } from "../Source/Engine/Content/Recipes.js";
 import { RESEARCH_NODES } from "../Source/Engine/Content/ResearchNodes.js";
 import { TERRITORIES } from "../Source/Engine/Content/Territories.js";
-import { EQUIPMENT } from "../Source/Engine/Content/Equipment.js";
-import { HEROES } from "../Source/Engine/Content/Heroes.js";
 import { seededState } from "./Fixtures/Seeded.js";
 import { FakeClock } from "../Source/Engine/Clock.js";
 import { solve } from "../Source/Engine/Simulation/RateSolver.js";
@@ -18,8 +16,6 @@ const content = {
   recipes: RECIPES,
   researchNodes: RESEARCH_NODES,
   territories: TERRITORIES,
-  equipment: EQUIPMENT,
-  heroes: HEROES,
 };
 
 describe("Snapshot", () => {

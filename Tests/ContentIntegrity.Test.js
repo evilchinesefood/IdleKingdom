@@ -4,8 +4,6 @@ import { MACHINES } from "../Source/Engine/Content/Machines.js";
 import { RECIPES } from "../Source/Engine/Content/Recipes.js";
 import { RESEARCH_NODES } from "../Source/Engine/Content/ResearchNodes.js";
 import { TERRITORIES } from "../Source/Engine/Content/Territories.js";
-import { EQUIPMENT } from "../Source/Engine/Content/Equipment.js";
-import { HEROES } from "../Source/Engine/Content/Heroes.js";
 import { START_STATE } from "../Source/Engine/Content/StartState.js";
 
 describe("Recipe id integrity", () => {
@@ -58,11 +56,6 @@ describe("Research/Territory cross-references", () => {
         expect(TERRITORIES[n.requiresTerritory]).toBeTruthy();
     }
   });
-  it("every territory grantsHero is a real hero template", () => {
-    for (const t of Object.values(TERRITORIES)) {
-      if (t.grantsHero != null) expect(HEROES[t.grantsHero]).toBeTruthy();
-    }
-  });
 });
 
 describe("StartState seed integrity", () => {
@@ -93,9 +86,5 @@ describe("StartState seed integrity", () => {
   it("every seed marketListing is a real resource", () => {
     for (const id of START_STATE.unlocks.marketListings)
       expect(RESOURCES[id]).toBeTruthy();
-  });
-  it("seed gearTiersUnlocked items are real equipment", () => {
-    for (const g of START_STATE.unlocks.gearTiersUnlocked)
-      expect(EQUIPMENT[g.itemId]).toBeTruthy();
   });
 });
