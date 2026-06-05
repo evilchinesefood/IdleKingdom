@@ -95,6 +95,41 @@ describe("EconomySystem", () => {
     }
   });
 
+  it("upgradeCost piecewise: identical to 1.15^level at/below knee (L40), softer beyond", () => {
+    const base = 15; // gatherer
+    // Below knee — unchanged
+    expect(upgradeCost("gatherer", 0, content)).toBeCloseTo(
+      base * Math.pow(1.15, 0),
+      1e-9,
+    );
+    expect(upgradeCost("gatherer", 10, content)).toBeCloseTo(
+      base * Math.pow(1.15, 10),
+      1e-9,
+    );
+    // At knee — unchanged
+    expect(upgradeCost("gatherer", 40, content)).toBeCloseTo(
+      base * Math.pow(1.15, 40),
+      1e-9,
+    );
+    // First soft step: base * 1.15^40 * 1.1^1
+    expect(upgradeCost("gatherer", 41, content)).toBeCloseTo(
+      base * Math.pow(1.15, 40) * Math.pow(1.1, 1),
+      1e-9,
+    );
+    // L50 must be cheaper than old pure-1.15 curve
+    expect(
+      upgradeCost("gatherer", 50, content) < base * Math.pow(1.15, 50),
+    ).toBe(true);
+    // Monotonic across the knee: 39 < 40 < 41 < 42
+    const c39 = upgradeCost("gatherer", 39, content);
+    const c40 = upgradeCost("gatherer", 40, content);
+    const c41 = upgradeCost("gatherer", 41, content);
+    const c42 = upgradeCost("gatherer", 42, content);
+    expect(c40 > c39).toBe(true);
+    expect(c41 > c40).toBe(true);
+    expect(c42 > c41).toBe(true);
+  });
+
   it("buildingCopyCosts returns the same two values as separate buildingCopyCost calls (task 14)", () => {
     const s = seededState(new FakeClock(0));
     // upgrade the smelter twice so the withUpgrades variant differs from structure-only

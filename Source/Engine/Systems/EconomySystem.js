@@ -1,5 +1,16 @@
+// Machine upgrade cost: 15%/level compounding up to the knee, then a gentler
+// 10%/level beyond it so late-game (L50+) prices stay reachable.
+const GROWTH = 1.15;
+const SOFT_KNEE = 40;
+const SOFT_GROWTH = 1.1;
 export function upgradeCost(kind, level, content) {
-  return content.machines[kind].upgradeBase * Math.pow(1.15, level);
+  const hard = Math.min(level, SOFT_KNEE);
+  const soft = Math.max(0, level - SOFT_KNEE);
+  return (
+    content.machines[kind].upgradeBase *
+    Math.pow(GROWTH, hard) *
+    Math.pow(SOFT_GROWTH, soft)
+  );
 }
 
 export function canUpgrade(state, content, nodeId) {
