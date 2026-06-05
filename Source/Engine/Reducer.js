@@ -23,6 +23,9 @@ function reject(state, error) {
   return { state, error };
 }
 
+// Costs in reject messages: whole numbers, US grouping (display-only strings).
+const fmtCost = (n) => Math.ceil(n).toLocaleString("en-US");
+
 function nodeById(state, id) {
   return state.graph.nodes.find((n) => n.id === id);
 }
@@ -92,8 +95,16 @@ export function reduce(state, intent, content) {
 
   switch (intent.type) {
     case "UpgradeNode": {
-      if (!Economy.canUpgrade(next, content, intent.nodeId))
-        return reject(state, "cannot upgrade");
+      // Split what canUpgrade conflates so the reject can name the cost: a missing
+      // machine vs. an affordable one. (Accept/reject decision is identical.)
+      const node = nodeById(next, intent.nodeId);
+      if (!node) return reject(state, "No such machine");
+      const cost = Economy.upgradeCost(node.kind, node.level, content);
+      if (next.currencies.gold < cost)
+        return reject(
+          state,
+          `Not enough gold — upgrade costs ${fmtCost(cost)}`,
+        );
       Economy.applyUpgrade(next, content, intent.nodeId);
       structural = true;
       break;
@@ -102,14 +113,17 @@ export function reduce(state, intent, content) {
       const nodes = intent.nodeIds
         .map((id) => nodeById(next, id))
         .filter(Boolean);
-      if (nodes.length === 0) return reject(state, "no nodes to upgrade");
+      if (nodes.length === 0) return reject(state, "No machines to upgrade");
       // All-or-nothing: upgrade every selected machine by 1 only if the combined
       // gold cost is affordable; otherwise reject (the UI flashes "not enough gold").
       let total = 0;
       for (const n of nodes)
         total += Economy.upgradeCost(n.kind, n.level, content);
       if (next.currencies.gold < total)
-        return reject(state, "not enough gold to upgrade all");
+        return reject(
+          state,
+          `Not enough gold — upgrading all costs ${fmtCost(total)}`,
+        );
       next.currencies.gold -= total;
       for (const n of nodes) n.level += 1;
       structural = true;
@@ -117,24 +131,24 @@ export function reduce(state, intent, content) {
     }
     case "SellFromStockpile": {
       const node = nodeById(next, intent.nodeId);
-      if (!node) return reject(state, "no such node");
+      if (!node) return reject(state, "No such machine");
       if (!Economy.isListed(next, content, intent.resId))
-        return reject(state, "resource not listed");
+        return reject(state, "Resource not listed");
       if ((node.stockpile[intent.resId] || 0) <= 0)
-        return reject(state, "empty stockpile");
+        return reject(state, "Empty stockpile");
       Economy.sellFromStockpile(next, content, intent.nodeId, intent.resId);
       break;
     }
     case "BuyResearch": {
-      if (!Research.canBuyResearch(next, content, intent.nodeId))
-        return reject(state, "cannot buy research");
+      const err = Research.buyResearchError(next, content, intent.nodeId);
+      if (err) return reject(state, err);
       Research.buyResearch(next, content, intent.nodeId);
       structural = true;
       break;
     }
     case "BuyTuning": {
-      if (!Research.canBuyTuning(next, content, intent.kind))
-        return reject(state, "cannot buy tuning");
+      const err = Research.buyTuningError(next, content, intent.kind);
+      if (err) return reject(state, err);
       Research.buyTuning(next, content, intent.kind);
       structural = true;
       break;
@@ -144,14 +158,14 @@ export function reduce(state, intent, content) {
         !content.machines[intent.kind] ||
         !next.unlocks.machinesUnlocked.includes(intent.kind)
       )
-        return reject(state, "machine not placeable");
+        return reject(state, "Machine not placeable");
       // Defensive: a gatherer placed with an explicit raw must use an enabled/startable raw.
       if (
         intent.kind === "gatherer" &&
         intent.resourceId &&
         !gathererResourceAllowed(next, intent.resourceId)
       )
-        return reject(state, "resource not enabled");
+        return reject(state, "Resource not enabled");
       const seq = next.graph.nextNodeSeq;
       const id = "n_" + intent.kind + "_" + seq;
       next.graph.nodes.push({
@@ -173,7 +187,7 @@ export function reduce(state, intent, content) {
       if (
         !isValidLink(next, content, intent.from, intent.to, intent.resourceId)
       ) {
-        return reject(state, "invalid link");
+        return reject(state, "Invalid link");
       }
       const seq = next.graph.nextLinkSeq;
       next.graph.links.push({
@@ -188,14 +202,14 @@ export function reduce(state, intent, content) {
     }
     case "SetRecipe": {
       const node = nodeById(next, intent.nodeId);
-      if (!node) return reject(state, "no such node");
+      if (!node) return reject(state, "No such machine");
       if (node.kind !== "smelter" && node.kind !== "workshop")
-        return reject(state, "not a crafter");
+        return reject(state, "Not a crafter");
       if (!next.unlocks.recipesUnlocked.includes(intent.recipeId))
-        return reject(state, "recipe locked");
+        return reject(state, "Recipe locked");
       const recipe = content.recipes[intent.recipeId];
       if (!recipe || recipe.crafterKind !== node.kind)
-        return reject(state, "recipe/crafter mismatch");
+        return reject(state, "Recipe/crafter mismatch");
       node.recipeId = intent.recipeId;
       // Re-point this crafter's outbound connections at its NEW output resource so a
       // copied+retyped chain isn't stuck carrying the old one (links auto-follow output).
@@ -207,9 +221,9 @@ export function reduce(state, intent, content) {
     case "SetGathererResource": {
       const node = nodeById(next, intent.nodeId);
       if (!node || node.kind !== "gatherer")
-        return reject(state, "not a gatherer");
+        return reject(state, "Not a gatherer");
       if (!gathererResourceAllowed(next, intent.resourceId))
-        return reject(state, "resource not enabled");
+        return reject(state, "Resource not enabled");
       node.resourceId = intent.resourceId;
       // outbound connections follow the gatherer's new resource
       for (const l of next.graph.links)
@@ -220,7 +234,7 @@ export function reduce(state, intent, content) {
     case "SetStorageRule": {
       const node = nodeById(next, intent.nodeId);
       if (!node || node.kind !== "storage")
-        return reject(state, "not a storage room");
+        return reject(state, "Not a storage room");
       // A storage room holds up to `level` distinct resource types (upgrading raises
       // the limit). Keep only known resources, capped at the level.
       const ids = (
@@ -261,12 +275,12 @@ export function reduce(state, intent, content) {
     }
     case "AddToBuilding": {
       const node = nodeById(next, intent.nodeId);
-      if (!node) return reject(state, "no such node");
+      if (!node) return reject(state, "No such machine");
       const b = next.graph.buildings.find((x) => x.id === intent.buildingId);
-      if (!b) return reject(state, "no such building");
+      if (!b) return reject(state, "No such building");
       const grouped = new Set(next.graph.buildings.flatMap((x) => x.nodeIds));
       if (grouped.has(intent.nodeId))
-        return reject(state, "already in a building");
+        return reject(state, "Already in a building");
       b.nodeIds.push(intent.nodeId);
       // grow the box to enclose the added machine (NODE_W/H mirror the UI)
       const NW = 120,
@@ -281,7 +295,7 @@ export function reduce(state, intent, content) {
     }
     case "RemoveNode": {
       const node = nodeById(next, intent.nodeId);
-      if (!node) return reject(state, "no such node");
+      if (!node) return reject(state, "No such machine");
       next.graph.nodes = next.graph.nodes.filter((n) => n.id !== intent.nodeId);
       next.graph.links = next.graph.links.filter(
         (l) => l.from !== intent.nodeId && l.to !== intent.nodeId,
@@ -318,7 +332,7 @@ export function reduce(state, intent, content) {
         children.push(cid);
       }
       if (free.length + children.length === 0)
-        return reject(state, "nothing to group");
+        return reject(state, "Nothing to group");
       const name =
         typeof intent.name === "string" && intent.name.trim()
           ? intent.name.trim()
@@ -340,7 +354,7 @@ export function reduce(state, intent, content) {
     }
     case "MoveBuilding": {
       const b = next.graph.buildings.find((x) => x.id === intent.buildingId);
-      if (!b) return reject(state, "no such building");
+      if (!b) return reject(state, "No such building");
       const { dx, dy } = intent.delta;
       // move the whole subtree: this building's rect + every descendant's rect,
       // and all member node positions (own + nested).
@@ -361,7 +375,7 @@ export function reduce(state, intent, content) {
     }
     case "ResizeBuilding": {
       const b = next.graph.buildings.find((x) => x.id === intent.buildingId);
-      if (!b) return reject(state, "no such building");
+      if (!b) return reject(state, "No such building");
       b.rect = {
         x: intent.rect.x,
         y: intent.rect.y,
@@ -382,11 +396,11 @@ export function reduce(state, intent, content) {
     }
     case "CopyBuilding": {
       const b = next.graph.buildings.find((x) => x.id === intent.buildingId);
-      if (!b) return reject(state, "no such building");
+      if (!b) return reject(state, "No such building");
       const withUpgrades = intent.withUpgrades !== false; // default: copy at current levels
       const cost = Economy.buildingCopyCost(b, next, content, withUpgrades);
       if (next.currencies.gold < cost)
-        return reject(state, "cannot afford copy");
+        return reject(state, `Not enough gold — copy costs ${fmtCost(cost)}`);
       next.currencies.gold -= cost;
       const { dx, dy } = intent.offset;
       const idMap = {};
@@ -452,22 +466,23 @@ export function reduce(state, intent, content) {
           !content.machines[n.kind] ||
           !next.unlocks.machinesUnlocked.includes(n.kind)
         )
-          return reject(state, "machine not placeable");
+          return reject(state, "Machine not placeable");
         if (
           (n.kind === "smelter" || n.kind === "workshop") &&
           n.recipeId &&
           !next.unlocks.recipesUnlocked.includes(n.recipeId)
         )
-          return reject(state, "recipe locked");
+          return reject(state, "Recipe locked");
         if (
           n.kind === "gatherer" &&
           n.resourceId &&
           !gathererResourceAllowed(next, n.resourceId)
         )
-          return reject(state, "resource not enabled");
+          return reject(state, "Resource not enabled");
       }
       const cost = Economy.pasteCost(intent.nodes, content);
-      if (next.currencies.gold < cost) return reject(state, "cannot afford");
+      if (next.currencies.gold < cost)
+        return reject(state, `Not enough gold — paste costs ${fmtCost(cost)}`);
       next.currencies.gold -= cost;
       const { x: ax, y: ay } = intent.at;
       const idMap = []; // index -> new node id
@@ -511,7 +526,7 @@ export function reduce(state, intent, content) {
       const idx = next.graph.buildings.findIndex(
         (x) => x.id === intent.buildingId,
       );
-      if (idx < 0) return reject(state, "no such building");
+      if (idx < 0) return reject(state, "No such building");
       // remove ONLY this building: its direct nodes become loose, its children
       // become top-level (they survive as independent groups). No recursion.
       next.graph.buildings.splice(idx, 1);
@@ -522,7 +537,7 @@ export function reduce(state, intent, content) {
       // Remove the building, every nested descendant building, AND every machine
       // in any of them (plus any link touching those machines).
       const b = next.graph.buildings.find((x) => x.id === intent.buildingId);
-      if (!b) return reject(state, "no such building");
+      if (!b) return reject(state, "No such building");
       const members = new Set(
         buildingMemberNodeIds(next.graph.buildings, b.id),
       );
@@ -544,13 +559,13 @@ export function reduce(state, intent, content) {
     case "RemoveFromBuilding": {
       // Drop a SINGLE machine from its building (the rest of the group stays).
       const node = nodeById(next, intent.nodeId);
-      if (!node) return reject(state, "no such node");
+      if (!node) return reject(state, "No such machine");
       let found = false;
       for (const b of next.graph.buildings) {
         if (b.nodeIds.includes(intent.nodeId)) found = true;
         b.nodeIds = b.nodeIds.filter((id) => id !== intent.nodeId);
       }
-      if (!found) return reject(state, "node not in a building");
+      if (!found) return reject(state, "Machine not in a building");
       // a building emptied by the removal is dropped (unless it still has children)
       next.graph.buildings = next.graph.buildings.filter(
         (b) => b.nodeIds.length > 0 || (b.children && b.children.length > 0),
@@ -560,24 +575,24 @@ export function reduce(state, intent, content) {
     }
     case "RenameBuilding": {
       const b = next.graph.buildings.find((x) => x.id === intent.buildingId);
-      if (!b) return reject(state, "no such building");
+      if (!b) return reject(state, "No such building");
       const nm = intent.name.trim();
       // reject empty/whitespace and no-op renames so an accepted UNDOABLE intent
       // never pushes a phantom undo entry for a name that didn't actually change.
-      if (!nm || nm === b.name) return reject(state, "no name change");
+      if (!nm || nm === b.name) return reject(state, "No name change");
       b.name = nm;
       break;
     }
     case "RemoveLink": {
       const link = next.graph.links.find((l) => l.id === intent.linkId);
-      if (!link) return reject(state, "no such link");
+      if (!link) return reject(state, "No such link");
       next.graph.links = next.graph.links.filter((l) => l.id !== intent.linkId);
       structural = true;
       break;
     }
     case "SetNodePos": {
       const node = nodeById(next, intent.nodeId);
-      if (!node) return reject(state, "no such node");
+      if (!node) return reject(state, "No such machine");
       node.pos = { x: intent.pos.x, y: intent.pos.y };
       preserveSolved = true; // pos is render-only; the solve is unchanged
       break;
@@ -591,7 +606,7 @@ export function reduce(state, intent, content) {
       break;
     }
     default:
-      return reject(state, "unhandled intent: " + intent.type);
+      return reject(state, "Unhandled intent: " + intent.type);
   }
 
   if (structural) delete next._solved;

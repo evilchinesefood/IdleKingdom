@@ -106,6 +106,25 @@ describe("Reducer PasteNodes", () => {
     expect(JSON.stringify(s)).toBe(before);
   });
 
+  it("rejects when gold < cost: error names the exact paste cost", () => {
+    const game = newGame(0);
+    const s = game.getState();
+    const c = clip();
+    const cost = pasteCost(c.nodes, content);
+    const fmtCost = (n) => Math.ceil(n).toLocaleString("en-US");
+    const out = reduce(
+      s,
+      {
+        type: INTENT.PasteNodes,
+        nodes: c.nodes,
+        links: c.links,
+        at: { x: 0, y: 0 },
+      },
+      content,
+    );
+    expect(out.error).toBe(`Not enough gold — paste costs ${fmtCost(cost)}`);
+  });
+
   it("rejects a paste containing a locked machine kind (task 6)", () => {
     const game = newGame(1e6);
     const s = game.getState();

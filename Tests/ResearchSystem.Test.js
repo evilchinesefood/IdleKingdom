@@ -7,11 +7,13 @@ import { NewGame } from "../Source/Engine/GameState.js";
 import { FakeClock } from "../Source/Engine/Clock.js";
 import {
   canBuyResearch,
+  buyResearchError,
   buyResearch,
   applyEffects,
   researchStatus,
   tuningCost,
   canBuyTuning,
+  buyTuningError,
   buyTuning,
 } from "../Source/Engine/Systems/ResearchSystem.js";
 import { reduce } from "../Source/Engine/Reducer.js";
@@ -38,6 +40,36 @@ describe("ResearchSystem", () => {
     expect(canBuyResearch(s, content, "res_lumber")).toBe(false); // prereq res_scholar unowned
     expect(researchStatus(s, content, "res_lumber")).toBe("locked");
     expect(researchStatus(s, content, "res_scholar")).toBe("available");
+  });
+
+  it("buyResearchError: null when buyable, cost-named when ONLY cost blocks, catch-all on prereq", () => {
+    const s = NewGame(new FakeClock(0));
+    // res_scholar costs 9 research and has no prereqs.
+    s.currencies.research = 9;
+    expect(buyResearchError(s, content, "res_scholar")).toBe(null);
+    // one short -> the cost-only message, naming the price in the node's currency
+    s.currencies.research = 8;
+    expect(buyResearchError(s, content, "res_scholar")).toBe(
+      "Not enough research — costs 9",
+    );
+    expect(canBuyResearch(s, content, "res_scholar")).toBe(false);
+    // prereq failure is the catch-all even with currency to spare
+    s.currencies.research = 1000;
+    expect(buyResearchError(s, content, "res_lumber")).toBe(
+      "Cannot buy research",
+    );
+  });
+
+  it("buyTuningError: cost-named when ONLY cost blocks, catch-all otherwise", () => {
+    const s = NewGame(new FakeClock(0));
+    s.currencies.research = 9; // gatherer tuning rank 0 costs 50
+    expect(buyTuningError(s, content, "gatherer")).toBe(
+      "Not enough research — costs 50",
+    );
+    expect(buyTuningError(s, content, "storage")).toBe("Cannot buy tuning"); // not tunable
+    expect(buyTuningError(s, content, "scholar")).toBe("Cannot buy tuning"); // locked machine
+    s.currencies.research = 50;
+    expect(buyTuningError(s, content, "gatherer")).toBe(null);
   });
 
   it("buying spends currency, records ownership, applies effects", () => {
@@ -310,7 +342,7 @@ describe("Machine Tuning — endless research sink", () => {
     expect(canBuyTuning(s, content, "storage")).toBe(false); // not a tunable kind
     expect(canBuyTuning(s, content, "gatherer")).toBe(false); // broke
     const out = reduce(s, { type: "BuyTuning", kind: "gatherer" }, fullContent);
-    expect(out.error).toBe("cannot buy tuning");
+    expect(out.error).toBe("Not enough research — costs 50"); // gatherer rank-0 tuning cost
     expect(out.state).toBe(s); // original untouched on reject
   });
 

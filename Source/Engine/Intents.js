@@ -79,11 +79,11 @@ const SHAPES = {
 
 export function validate(intent) {
   if (!intent || typeof intent !== "object")
-    return { ok: false, error: "intent must be an object" };
+    return { ok: false, error: "Intent must be an object" };
   const shape = SHAPES[intent.type];
   if (!shape)
-    return { ok: false, error: "unknown intent type: " + intent.type };
+    return { ok: false, error: "Unknown intent type: " + intent.type };
   if (!shape(intent))
-    return { ok: false, error: "malformed " + intent.type + " intent" };
+    return { ok: false, error: "Malformed " + intent.type + " intent" };
   return { ok: true };
 }

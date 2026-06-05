@@ -8,6 +8,9 @@ import { seededState } from "./Fixtures/Seeded.js";
 import { FakeClock } from "../Source/Engine/Clock.js";
 import { reduce } from "../Source/Engine/Reducer.js";
 import { solve } from "../Source/Engine/Simulation/RateSolver.js";
+import { upgradeCost } from "../Source/Engine/Systems/EconomySystem.js";
+
+const fmtCost = (n) => Math.ceil(n).toLocaleString("en-US");
 
 const content = {
   resources: RESOURCES,
@@ -46,6 +49,59 @@ describe("Reducer", () => {
     const origMiner = s.graph.nodes.find((n) => n.id === "n_miner_0");
     expect(origMiner.level).toBe(1); // original not mutated
     expect(out.state._solved).toBe(undefined); // structural change -> solver dirty
+  });
+
+  it("UpgradeNode unaffordable: error names the exact upgrade cost", () => {
+    const s = seededState(new FakeClock(0));
+    s.currencies.gold = 0;
+    const miner = s.graph.nodes.find((n) => n.id === "n_miner_0");
+    const cost = upgradeCost(miner.kind, miner.level, content);
+    const out = reduce(
+      s,
+      { type: "UpgradeNode", nodeId: "n_miner_0" },
+      content,
+    );
+    expect(out.error).toBe(`Not enough gold — upgrade costs ${fmtCost(cost)}`);
+    expect(out.state).toBe(s);
+  });
+
+  it("UpgradeNode on a missing id rejects with 'No such machine'", () => {
+    const s = seededState(new FakeClock(0));
+    const out = reduce(s, { type: "UpgradeNode", nodeId: "n_nope" }, content);
+    expect(out.error).toBe("No such machine");
+    expect(out.state).toBe(s);
+  });
+
+  it("BulkUpgrade unaffordable: error names the exact combined total", () => {
+    const s = seededState(new FakeClock(0));
+    s.currencies.gold = 0;
+    const ids = ["n_miner_0", "n_smelter_0"];
+    let total = 0;
+    for (const id of ids) {
+      const n = s.graph.nodes.find((x) => x.id === id);
+      total += upgradeCost(n.kind, n.level, content);
+    }
+    const out = reduce(s, { type: "BulkUpgrade", nodeIds: ids }, content);
+    expect(out.error).toBe(
+      `Not enough gold — upgrading all costs ${fmtCost(total)}`,
+    );
+    expect(out.state).toBe(s);
+  });
+
+  it("ConnectLink invalid link is rejected with a proper-cased message", () => {
+    const s = seededState(new FakeClock(0));
+    const out = reduce(
+      s,
+      {
+        type: "ConnectLink",
+        from: "n_market_0",
+        to: "n_miner_0",
+        resourceId: "iron_bar",
+      },
+      content,
+    );
+    expect(out.error).toBe("Invalid link");
+    expect(out.state).toBe(s);
   });
 
   it("rejects malformed intents via Intents.validate", () => {
