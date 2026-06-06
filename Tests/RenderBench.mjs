@@ -103,8 +103,8 @@ function mount(snap) {
   return gv;
 }
 
-// ---- 500-node benchmark dataset ---------------------------------------------
-// 125 columns x 4 rows = 500 nodes: gatherer -> smelter -> workshop -> market,
+// ---- benchmark dataset builder ----------------------------------------------
+// cols × 4 rows = cols*4 nodes: gatherer -> smelter -> workshop -> market,
 // linked down each column.
 function bigSnap(cols = 125) {
   const kinds = ["gatherer", "smelter", "workshop", "market"];
@@ -259,24 +259,13 @@ let case5ms, case5count;
   case5ms = bench(() => gv.render(snap0));
 }
 
-// Case 6: far-tier full-map draw — scale so all 500 nodes fit in the viewport
-// AND the LOD threshold (< 0.5) is satisfied. Graph is 124*160 = 19840 px wide
-// (col 0..124), 3*120 = 360 px tall. To fit 19840 graph-units in 1280 px:
-// scale = 1280 / (19840 + 160) = 1280 / 20000 ≈ 0.064. That is well below 0.5
-// (far tier). Set tx/ty so x=0 maps to screen 0 (tx=0, ty=0 puts the top-left at
-// the origin). Then all 500 nodes land in the cull rect.
-const FAR_SCALE = 0.064;
-let case6ms, case6nodeCount, case6foCount;
+// Case 6: map-tier batch draw — scale so all 500 nodes are in the map tier
+// (< MAP_SCALE = 0.15). Scale 0.064 puts the 20000-unit-wide graph in 1280px.
+// At map tier: per-element nodes are detached, batch paths populate layerMap.
+// This case measures the batch rebuild cost + simulated pan (transform-only).
+const MAP_TIER_SCALE = 0.064;
+let case6ms, case6nodeCount, case6mapBatchCount, case6foCount;
 {
-  const gv = mount(snap0);
-  gv.view = { scale: FAR_SCALE, tx: 0, ty: 0 };
-  // set hostRect wide/tall enough to contain the full graph at this scale
-  // full width at scale: 20000 * 0.064 = 1280; height: 480 * 0.064 = 30.7 — use
-  // a generous rect so culling passes all nodes
-  gv._hostRect = { width: 1280, height: 800 };
-  gv.render(snap0);
-  case6nodeCount = gv.layerNodes.childNodes.length;
-  // Count foreignObjects: in far tier there should be none (no node-ico, no node-working)
   function countFO(layer) {
     let n = 0;
     function walk(el) {
@@ -289,12 +278,66 @@ let case6ms, case6nodeCount, case6foCount;
     walk(layer);
     return n;
   }
+  const gv = mount(snap0);
+  gv.view = { scale: MAP_TIER_SCALE, tx: 0, ty: 0 };
+  gv._hostRect = { width: 1280, height: 800 };
+  gv.render(snap0);
+  case6nodeCount = gv.layerNodes.childNodes.length; // should be 0 (all batched)
+  case6mapBatchCount = gv.layerMap.childNodes.length; // link path + kind paths
   case6foCount = countFO(gv.layerNodes);
-  case6ms = bench(() => gv.render(snap0));
+  case6ms = bench(() => gv.render(snap0)); // same snap: batch NOT rebuilt, just re-appended
+}
+
+// ---- 1500-node cases --------------------------------------------------------
+const snap1500 = bigSnap(375); // 375 cols x 4 rows = 1500 nodes, 1125 links
+let case7ms, case7mapMs;
+{
+  // Case 7a: map-tier cold batch build at 1500 nodes
+  const gv = mount(snap1500);
+  gv.view = { scale: 0.02, tx: 0, ty: 0 }; // deep zoom = map tier
+  gv._hostRect = { width: 1280, height: 800 };
+  // First render (cold build)
+  gv.render(snap1500);
+  // Timed: same-snap re-render (batch stable, no rebuild)
+  case7ms = bench(() => gv.render(snap1500));
+
+  // Case 7b: batch rebuild cost (new snapshot each iteration)
+  let iter = 0;
+  case7mapMs = bench(() => {
+    const s = bigSnap(375);
+    s.nodes.forEach((n, j) => {
+      n.effectiveRate = 1 + ((j + iter) % 10) * 0.1;
+    });
+    iter++;
+    gv.render(s);
+  });
+}
+
+// ---- 3000-node cases --------------------------------------------------------
+const snap3000 = bigSnap(750); // 750 cols x 4 rows = 3000 nodes, 2250 links
+let case8ms, case8mapMs;
+{
+  // Case 8a: map-tier stable re-render at 3000 nodes
+  const gv = mount(snap3000);
+  gv.view = { scale: 0.01, tx: 0, ty: 0 }; // deep zoom = map tier
+  gv._hostRect = { width: 1280, height: 800 };
+  gv.render(snap3000);
+  case8ms = bench(() => gv.render(snap3000));
+
+  // Case 8b: batch rebuild cost (new snapshot each iteration)
+  let iter = 0;
+  case8mapMs = bench(() => {
+    const s = bigSnap(750);
+    s.nodes.forEach((n, j) => {
+      n.effectiveRate = 1 + ((j + iter) % 10) * 0.1;
+    });
+    iter++;
+    gv.render(s);
+  });
 }
 
 // ---- print table -----------------------------------------------------------
-const W = [34, 12, 40];
+const W = [42, 12, 38];
 function row(a, b, c) {
   return (
     a.padEnd(W[0]) +
@@ -309,61 +352,85 @@ function hr() {
 
 console.log("");
 console.log("IdleKingdom GraphView Render Benchmark");
-console.log(
-  `Dataset: ${snap0.nodes.length} nodes, ${snap0.links.length} links (median of ${RUNS} runs after ${WARMUPS} warmups, ms)`,
-);
+console.log(`(median of ${RUNS} runs after ${WARMUPS} warmups, ms)`);
 console.log(hr());
 console.log(row("Case", "Median ms", "Notes"));
 console.log(hr());
 console.log(
   row(
-    "1. first full draw (cold)",
+    "1. first full draw (cold, 500n)",
     case1ms.toFixed(3),
     "fresh element map each run",
   ),
 );
 console.log(
   row(
-    "2. unchanged-snapshot redraw",
+    "2. unchanged-snapshot redraw (500n)",
     case2ms.toFixed(3),
-    "pure update path; no-cull (all 500 traversed)",
+    "pure update; no-cull (all 500 traversed)",
   ),
 );
 console.log(
   row(
-    "3. new-snap redraw (rates drifted)",
+    "3. new-snap redraw rates-drift (500n)",
     case3ms.toFixed(3),
-    `new elements: ${case3newEls}, map growth: ${case3mapGrew} (expect 0/0)`,
+    `new els: ${case3newEls}, map growth: ${case3mapGrew} (expect 0/0)`,
   ),
 );
 console.log(
   row(
-    "4. drag frame",
+    "4. drag frame (500n)",
     case4ms.toFixed(3),
-    `_dragPos set for 1 node; no-cull (all 500 traversed)`,
+    "_dragPos 1 node; no-cull (all 500 traversed)",
   ),
 );
 console.log(
   row(
-    "5. culled draw (1280x800 viewport)",
+    "5. culled draw 1280x800 (500n)",
     case5ms.toFixed(3),
     `${case5count} nodes in DOM (out of ${snap0.nodes.length})`,
   ),
 );
 console.log(
   row(
-    "6. far-tier full-map draw",
+    "6. MAP-tier stable re-render (500n)",
     case6ms.toFixed(3),
-    `scale=${FAR_SCALE}; ${case6nodeCount} nodes in DOM; ${case6foCount} foreignObjects (expect 0)`,
+    `scale=${MAP_TIER_SCALE}; ${case6nodeCount} indiv nodes; ${case6mapBatchCount} batch els; ${case6foCount} FOs`,
+  ),
+);
+console.log(hr());
+console.log(
+  row(
+    "7a. MAP-tier stable re-render (1500n)",
+    case7ms.toFixed(3),
+    "same snap — no batch rebuild",
+  ),
+);
+console.log(
+  row(
+    "7b. MAP-tier batch rebuild (1500n)",
+    case7mapMs.toFixed(3),
+    "new snap each call — full batch rebuild",
+  ),
+);
+console.log(
+  row(
+    "8a. MAP-tier stable re-render (3000n)",
+    case8ms.toFixed(3),
+    "same snap — no batch rebuild",
+  ),
+);
+console.log(
+  row(
+    "8b. MAP-tier batch rebuild (3000n)",
+    case8mapMs.toFixed(3),
+    "new snap each call — full batch rebuild",
   ),
 );
 console.log(hr());
 console.log("");
 
 // ---- sanity checks (report, don't gate) ------------------------------------
-// Cases 2/4 have no viewport culling (null _hostRect = headless) so all 500
-// nodes + 375 links are traversed every call. The threshold is 5 ms; the real
-// "well under 1 ms" win is visible in case 5 (culled: ~0.4 ms, 36 DOM nodes).
 const warns = [];
 if (case2ms > 5)
   warns.push(
@@ -383,11 +450,15 @@ if (case3mapGrew !== 0)
   );
 if (case6foCount > 0)
   warns.push(
-    `WARN case 6 has ${case6foCount} foreignObjects — far tier should build zero`,
+    `WARN case 6 has ${case6foCount} foreignObjects — map tier should build zero`,
   );
-if (case6nodeCount < snap0.nodes.length)
+if (case6nodeCount > 0)
   warns.push(
-    `WARN case 6: only ${case6nodeCount}/${snap0.nodes.length} nodes in DOM — far-tier full-map should include all (check scale/viewport)`,
+    `WARN case 6: ${case6nodeCount} individual nodes in DOM at map tier — expect 0 (no selection)`,
+  );
+if (case6mapBatchCount === 0)
+  warns.push(
+    `WARN case 6: layerMap is empty at map tier — batch layer should be populated`,
   );
 
 if (warns.length) {

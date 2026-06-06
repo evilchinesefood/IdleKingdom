@@ -35,14 +35,30 @@ export function deltaTransform(d, v) {
   return { k, bx, by, str: `translate(${bx} ${by}) scale(${k})` };
 }
 
-const LOD_SCALE = 0.5; // below this zoom: no icon FO, no gear FO, no port circles
+export const LOD_SCALE = 0.5; // below this zoom: no icon FO, no gear FO, no port circles
+export const MAP_SCALE = 0.15; // below this zoom: batched map layer (flat rects + straight lines)
 const CULL_MARGIN = 150; // screen px of off-viewport slack kept rendered
 
-// Level-of-detail tier for the current zoom. "far" nodes skip the expensive
-// foreignObject icon, the animated gear, and the port circles. DOM-free.
+// Level-of-detail tier for the current zoom.
+// "full" — all elements; "far" — no icon/gear FO, no ports; "map" — batched flat rects+lines.
+// DOM-free + testable.
 export function lodTier(scale) {
-  return scale < LOD_SCALE ? "far" : "full";
+  if (scale < MAP_SCALE) return "map";
+  if (scale < LOD_SCALE) return "far";
+  return "full";
 }
+
+// Per-kind flat fill colors for the map batch layer (iron-palette so it reads
+// legibly at any zoom without relying on icon identity).
+const MAP_KIND_COLORS = {
+  gatherer: "#7a9e7e",
+  smelter: "#b8911f",
+  workshop: "#7a6e5f",
+  storage: "#5b8ab8",
+  market: "#b85c5c",
+  scholar: "#8a6ab8",
+  barracks: "#6a8a4a",
+};
 
 // Badge precedence (max > low > off > none) shared by nodeSig (the rebuild key)
 // and _buildNodeEl (the renderer) so the two can never drift. DOM-free.
@@ -171,10 +187,12 @@ export class GraphView {
     this.layerRoot = svg("g", {});
     this.layerBuildings = svg("g", {}); // building outlines/labels, behind all
     this.layerLinks = svg("g", {});
+    this.layerMap = svg("g", { class: "layer-map" }); // map-tier batch (between links+nodes)
     this.layerNodes = svg("g", {});
     this.layerOverlay = svg("g", {}); // select box + copy ghost, on top
     this.layerRoot.appendChild(this.layerBuildings);
     this.layerRoot.appendChild(this.layerLinks);
+    this.layerRoot.appendChild(this.layerMap);
     this.layerRoot.appendChild(this.layerNodes);
     this.layerRoot.appendChild(this.layerOverlay);
     this.svgEl.appendChild(this.layerRoot);
@@ -194,6 +212,14 @@ export class GraphView {
     this._hintEl = null; // empty-canvas hint (present only when 0 nodes)
     this._linkEls = new Map(); // id -> {g, path, hit, dot|label+del, sig}
     this._pendingEl = null; // single transient drag-connect preview path
+
+    // Map-tier batch: one <path> per kind for nodes, one <path> for all links.
+    // Rebuilt on snapshot identity change or tier entry; only the layer transform
+    // moves during pan/zoom so these strings stay stable across gesture frames.
+    this._mapBatchSnap = null; // snapshot identity at last batch build
+    this._mapIndivKey = null; // individually-rendered id set at last batch build
+    this._mapLinkEl = null; // single <path> for all straight link segments
+    this._mapNodeEls = {}; // kind -> <path> element (rect subpaths)
 
     // Multi-selection set + floating action bar (HTML, anchored to the host).
     this.selNodes = new Set();
@@ -1631,12 +1657,14 @@ export class GraphView {
     const buildingsById = new Map(
       (this.snap.buildings || []).map((b) => [b.id, b]),
     );
-    // buildings (behind links + nodes; cull off-screen ones like nodes)
+    const tier = lodTier(v.scale);
+    const isMap = tier === "map";
+
+    // buildings (behind links + nodes; cull off-screen ones like nodes).
+    // At map tier: render rect outlines but drop name labels.
     const bldgList = this.snap.buildings || [];
     const bldgEls = [];
     for (const b of bldgList) {
-      // task 23: cull buildings that are fully outside the viewport, keeping
-      // selected/dragged buildings always visible (mirrors node treatment).
       if (vp) {
         const r = this._buildingRect(b);
         const inView =
@@ -1650,118 +1678,174 @@ export class GraphView {
           (this._buildingDrag && this._buildingDrag.id === b.id);
         if (!inView && !alwaysShow) continue;
       }
-      bldgEls.push(this._drawBuilding(b, v));
+      bldgEls.push(this._drawBuilding(b, v, isMap));
     }
     this._replace(this.layerBuildings, bldgEls);
-    // links (retained; culling: render when either endpoint node renders OR the
-    // segment crosses the viewport; the revealed link always renders)
-    const linkSeen = new Set();
-    for (const l of this.snap.links) {
-      const from = this._nodeAt(l.from),
-        to = this._nodeAt(l.to);
-      if (!from || !to) continue;
-      const fp = this._pos(from),
-        tp = this._pos(to);
-      if (
-        vp &&
-        l.id !== this.selectedLinkId &&
-        !nodeInRect(fp, vp) &&
-        !nodeInRect(tp, vp) &&
-        !segmentIntersectsRect(
-          { x: fp.x + NODE_W, y: fp.y + NODE_H / 2 },
-          { x: tp.x, y: tp.y + NODE_H / 2 },
-          vp,
+
+    if (isMap) {
+      // ---- MAP TIER: detach per-element layers; render batch paths instead ----
+      // Detach all per-element link entries from layerLinks (keep entries for zoom-back).
+      for (const [, entry] of this._linkEls)
+        if (entry.g.parentNode === this.layerLinks)
+          this.layerLinks.removeChild(entry.g);
+      // Remove pending connect preview if any
+      if (this._pendingEl && this._pendingEl.parentNode === this.layerLinks)
+        this.layerLinks.removeChild(this._pendingEl);
+      this._pendingEl = null;
+
+      // nodes: detach per-element retained nodes; only always-visible nodes render individually.
+      this._grpMembers = this._selectedGroupMembers(buildingsById);
+      const refocus = this._activeNodeId();
+      const indivSeen = new Set();
+      for (const n of this.snap.nodes) {
+        if (!this._nodeAlwaysVisible(n, refocus)) continue;
+        indivSeen.add(n.id);
+        const armed = !!(this.armedPort && this.armedPort.nodeId === n.id);
+        const icon = this._nodeIcon(n);
+        const sig = nodeSig(n, "full", armed, icon); // always full tier for individual
+        let entry = this._nodeEls.get(n.id);
+        if (!entry || entry.sig !== sig) {
+          const fresh = this._buildNodeEl(n, "full", armed, icon, nowMs);
+          fresh.sig = sig;
+          if (entry && entry.g.parentNode === this.layerNodes)
+            swapChild(this.layerNodes, fresh.g, entry.g);
+          this._nodeEls.set(n.id, fresh);
+          entry = fresh;
+        }
+        if (entry.g.parentNode !== this.layerNodes)
+          this.layerNodes.appendChild(entry.g);
+        this._updateNodeEl(entry, n, v);
+      }
+      // Detach all non-individual retained nodes
+      for (const [id, entry] of this._nodeEls) {
+        if (indivSeen.has(id)) continue;
+        if (entry.g.parentNode === this.layerNodes)
+          this.layerNodes.removeChild(entry.g);
+      }
+
+      // Build/update the batch map layer (rebuild only on snapshot identity change).
+      this._updateMapBatch(indivSeen);
+
+      if (refocus != null) this._restoreFocus(refocus);
+    } else {
+      // ---- FULL / FAR TIER: clear batch layer; run normal per-element render ----
+      this._replace(this.layerMap, []);
+      this._mapBatchSnap = null; // force rebuild next time map tier is entered
+
+      // links (retained; culling)
+      const linkSeen = new Set();
+      for (const l of this.snap.links) {
+        const from = this._nodeAt(l.from),
+          to = this._nodeAt(l.to);
+        if (!from || !to) continue;
+        const fp = this._pos(from),
+          tp = this._pos(to);
+        if (
+          vp &&
+          l.id !== this.selectedLinkId &&
+          !nodeInRect(fp, vp) &&
+          !nodeInRect(tp, vp) &&
+          !segmentIntersectsRect(
+            { x: fp.x + NODE_W, y: fp.y + NODE_H / 2 },
+            { x: tp.x, y: tp.y + NODE_H / 2 },
+            vp,
+          )
         )
-      )
-        continue;
-      linkSeen.add(l.id);
-      const revealed = l.id === this.selectedLinkId;
-      const sig = revealed ? "r" : "p";
-      let entry = this._linkEls.get(l.id);
-      if (!entry || entry.sig !== sig) {
-        const fresh = this._buildLinkEl(l, revealed);
-        fresh.sig = sig;
-        if (entry && entry.g.parentNode === this.layerLinks)
-          swapChild(this.layerLinks, fresh.g, entry.g);
-        this._linkEls.set(l.id, fresh);
-        entry = fresh;
-      }
-      if (entry.g.parentNode !== this.layerLinks)
-        this.layerLinks.appendChild(entry.g);
-      const a = graphToScreen(v, fp.x + NODE_W, fp.y + NODE_H / 2);
-      const b = graphToScreen(v, tp.x, tp.y + NODE_H / 2);
-      this._updateLinkEl(entry, l, a, b);
-    }
-    // detach culled links (keep entries) and delete departed ones entirely
-    // task 13: cache liveLinks keyed on snapshot identity (same pattern as _nodeMap).
-    if (this._liveLinksSnap !== this.snap) {
-      this._liveLinksCache = new Set(this.snap.links.map((l) => l.id));
-      this._liveLinksSnap = this.snap;
-    }
-    const liveLinks = this._liveLinksCache;
-    for (const [id, entry] of this._linkEls) {
-      if (linkSeen.has(id)) continue;
-      if (entry.g.parentNode === this.layerLinks)
-        this.layerLinks.removeChild(entry.g);
-      if (!liveLinks.has(id)) this._linkEls.delete(id);
-    }
-    // drag-connect preview: a single transient path, rebuilt cheap each draw
-    if (this._pendingEl && this._pendingEl.parentNode === this.layerLinks)
-      this.layerLinks.removeChild(this._pendingEl);
-    this._pendingEl = null;
-    if (this._pendingLink) {
-      const from = this._nodeAt(this._pendingLink.fromId);
-      if (from) {
-        const fp = this._pos(from);
+          continue;
+        linkSeen.add(l.id);
+        const revealed = l.id === this.selectedLinkId;
+        const sig = revealed ? "r" : "p";
+        let entry = this._linkEls.get(l.id);
+        if (!entry || entry.sig !== sig) {
+          const fresh = this._buildLinkEl(l, revealed);
+          fresh.sig = sig;
+          if (entry && entry.g.parentNode === this.layerLinks)
+            swapChild(this.layerLinks, fresh.g, entry.g);
+          this._linkEls.set(l.id, fresh);
+          entry = fresh;
+        }
+        if (entry.g.parentNode !== this.layerLinks)
+          this.layerLinks.appendChild(entry.g);
         const a = graphToScreen(v, fp.x + NODE_W, fp.y + NODE_H / 2);
-        const b = graphToScreen(v, this._pendingLink.gx, this._pendingLink.gy);
-        this._pendingEl = svg("path", {
-          class: "link-pending",
-          d: linkPath(a, b),
-        });
-        this.layerLinks.appendChild(this._pendingEl);
+        const b = graphToScreen(v, tp.x, tp.y + NODE_H / 2);
+        this._updateLinkEl(entry, l, a, b);
       }
+      // detach culled links (keep entries) and delete departed ones entirely
+      // task 13: cache liveLinks keyed on snapshot identity (same pattern as _nodeMap).
+      if (this._liveLinksSnap !== this.snap) {
+        this._liveLinksCache = new Set(this.snap.links.map((l) => l.id));
+        this._liveLinksSnap = this.snap;
+      }
+      const liveLinks = this._liveLinksCache;
+      for (const [id, entry] of this._linkEls) {
+        if (linkSeen.has(id)) continue;
+        if (entry.g.parentNode === this.layerLinks)
+          this.layerLinks.removeChild(entry.g);
+        if (!liveLinks.has(id)) this._linkEls.delete(id);
+      }
+      // drag-connect preview: a single transient path, rebuilt cheap each draw
+      if (this._pendingEl && this._pendingEl.parentNode === this.layerLinks)
+        this.layerLinks.removeChild(this._pendingEl);
+      this._pendingEl = null;
+      if (this._pendingLink) {
+        const from = this._nodeAt(this._pendingLink.fromId);
+        if (from) {
+          const fp = this._pos(from);
+          const a = graphToScreen(v, fp.x + NODE_W, fp.y + NODE_H / 2);
+          const b = graphToScreen(
+            v,
+            this._pendingLink.gx,
+            this._pendingLink.gy,
+          );
+          this._pendingEl = svg("path", {
+            class: "link-pending",
+            d: linkPath(a, b),
+          });
+          this.layerLinks.appendChild(this._pendingEl);
+        }
+      }
+
+      // nodes (retained: rebuild only on sig change; in-place updates otherwise)
+      // task 21: pass buildingsById so _selectedGroupMembers reuses the draw-top map.
+      this._grpMembers = this._selectedGroupMembers(buildingsById);
+      const refocus = this._activeNodeId();
+      const seen = new Set();
+      for (const n of this.snap.nodes) {
+        if (
+          vp &&
+          !this._nodeAlwaysVisible(n, refocus) &&
+          !nodeInRect(this._pos(n), vp)
+        )
+          continue;
+        seen.add(n.id);
+        const armed = !!(this.armedPort && this.armedPort.nodeId === n.id);
+        const nTier = n.id === this.selectedId ? "full" : tier;
+        const icon = this._nodeIcon(n);
+        const sig = nodeSig(n, nTier, armed, icon);
+        let entry = this._nodeEls.get(n.id);
+        if (!entry || entry.sig !== sig) {
+          const fresh = this._buildNodeEl(n, nTier, armed, icon, nowMs);
+          fresh.sig = sig;
+          if (entry && entry.g.parentNode === this.layerNodes)
+            swapChild(this.layerNodes, fresh.g, entry.g);
+          this._nodeEls.set(n.id, fresh);
+          entry = fresh;
+        }
+        if (entry.g.parentNode !== this.layerNodes)
+          this.layerNodes.appendChild(entry.g);
+        this._updateNodeEl(entry, n, v);
+      }
+      // detach culled nodes (keep entries) and delete departed ones entirely
+      const liveIds = this._nodeMap();
+      for (const [id, entry] of this._nodeEls) {
+        if (seen.has(id)) continue;
+        if (entry.g.parentNode === this.layerNodes)
+          this.layerNodes.removeChild(entry.g);
+        if (!liveIds.has(id)) this._nodeEls.delete(id);
+      }
+      if (refocus != null) this._restoreFocus(refocus);
     }
 
-    // nodes (retained: rebuild only on sig change; in-place updates otherwise)
-    // task 21: pass buildingsById so _selectedGroupMembers reuses the draw-top map.
-    this._grpMembers = this._selectedGroupMembers(buildingsById); // members of any selected group
-    const refocus = this._activeNodeId(); // a sig-rebuild still destroys focus
-    const tier = lodTier(v.scale);
-    const seen = new Set();
-    for (const n of this.snap.nodes) {
-      if (
-        vp &&
-        !this._nodeAlwaysVisible(n, refocus) &&
-        !nodeInRect(this._pos(n), vp)
-      )
-        continue;
-      seen.add(n.id);
-      const armed = !!(this.armedPort && this.armedPort.nodeId === n.id);
-      const nTier = n.id === this.selectedId ? "full" : tier;
-      const icon = this._nodeIcon(n);
-      const sig = nodeSig(n, nTier, armed, icon);
-      let entry = this._nodeEls.get(n.id);
-      if (!entry || entry.sig !== sig) {
-        const fresh = this._buildNodeEl(n, nTier, armed, icon, nowMs);
-        fresh.sig = sig;
-        if (entry && entry.g.parentNode === this.layerNodes)
-          swapChild(this.layerNodes, fresh.g, entry.g);
-        this._nodeEls.set(n.id, fresh);
-        entry = fresh;
-      }
-      if (entry.g.parentNode !== this.layerNodes)
-        this.layerNodes.appendChild(entry.g);
-      this._updateNodeEl(entry, n, v);
-    }
-    // detach culled nodes (keep entries) and delete departed ones entirely
-    const liveIds = this._nodeMap();
-    for (const [id, entry] of this._nodeEls) {
-      if (seen.has(id)) continue;
-      if (entry.g.parentNode === this.layerNodes)
-        this.layerNodes.removeChild(entry.g);
-      if (!liveIds.has(id)) this._nodeEls.delete(id);
-    }
     // empty-canvas hint: present exactly when there are no nodes at all
     if (this.snap.nodes.length === 0) {
       const isNew = !this._hintEl;
@@ -1777,7 +1861,6 @@ export class GraphView {
     } else if (this._hintEl && this._hintEl.parentNode === this.layerNodes) {
       this.layerNodes.removeChild(this._hintEl);
     }
-    if (refocus != null) this._restoreFocus(refocus);
 
     // overlay: live select box + copy ghost (on top of everything)
     this._replace(this.layerOverlay, this._drawOverlay(v));
@@ -1793,6 +1876,84 @@ export class GraphView {
 
     // floating action bar follows the selection bbox
     this._renderActionBar();
+  }
+
+  // Build (or update) the batched map-tier layer. Called only while tier==="map".
+  // Paths cover the WHOLE graph (no viewport cull — pan must not reveal blanks)
+  // and rebuild only when the snapshot identity OR the individually-rendered
+  // set changes (a batch built without the dragged/selected ids would ghost
+  // them); the layer transform handles pan/zoom so paths stay stable mid-gesture.
+  _updateMapBatch(indivSeen) {
+    const snap = this.snap;
+    const indivKey = [...indivSeen].sort().join(",");
+    const needRebuild =
+      this._mapBatchSnap !== snap || this._mapIndivKey !== indivKey;
+    if (needRebuild) {
+      this._mapBatchSnap = snap;
+      this._mapIndivKey = indivKey;
+
+      // --- link batch: one straight segment per link ---
+      let linkD = "";
+      for (const l of snap.links) {
+        const from = this._nodeAt(l.from),
+          to = this._nodeAt(l.to);
+        if (!from || !to) continue;
+        const fp = this._pos(from),
+          tp = this._pos(to);
+        // Graph-space straight line from out-port to in-port
+        const ax = fp.x + NODE_W,
+          ay = fp.y + NODE_H / 2;
+        const bx = tp.x,
+          by = tp.y + NODE_H / 2;
+        linkD += `M${ax} ${ay}L${bx} ${by}`;
+      }
+
+      // Rebuild (or create) the single link path element
+      if (!this._mapLinkEl) {
+        this._mapLinkEl = svg("path", { class: "map-links" });
+      }
+      setAttr(this._mapLinkEl, "d", linkD || "M0 0");
+
+      // --- node batch: one <path> per kind (rect subpaths M x y h W v H h-W z) ---
+      // Collect per-kind path strings; skip individually-rendered nodes.
+      const kindPaths = {};
+      for (const n of snap.nodes) {
+        if (indivSeen.has(n.id)) continue;
+        const np = this._pos(n);
+        const kind = n.kind;
+        const d = `M${np.x} ${np.y}h${NODE_W}v${NODE_H}h${-NODE_W}z`;
+        kindPaths[kind] = (kindPaths[kind] || "") + d;
+      }
+
+      // Rebuild per-kind path elements; remove kinds that disappeared.
+      for (const kind of Object.keys(this._mapNodeEls)) {
+        if (!kindPaths[kind]) {
+          const el = this._mapNodeEls[kind];
+          if (el.parentNode === this.layerMap) this.layerMap.removeChild(el);
+          delete this._mapNodeEls[kind];
+        }
+      }
+      for (const kind of Object.keys(kindPaths)) {
+        if (!this._mapNodeEls[kind]) {
+          const color = MAP_KIND_COLORS[kind] || "#888";
+          this._mapNodeEls[kind] = svg("path", {
+            class: "map-nodes",
+            fill: color,
+          });
+        }
+        setAttr(this._mapNodeEls[kind], "d", kindPaths[kind] || "M0 0");
+      }
+    }
+
+    // Sync layerMap children: links path first, then per-kind node paths.
+    // We do a minimal diff (append if not present) so re-entry after non-map
+    // tier is cheap (all were cleared by _replace(layerMap, [])).
+    if (this._mapLinkEl && this._mapLinkEl.parentNode !== this.layerMap)
+      this.layerMap.appendChild(this._mapLinkEl);
+    for (const kind of Object.keys(this._mapNodeEls)) {
+      const el = this._mapNodeEls[kind];
+      if (el.parentNode !== this.layerMap) this.layerMap.appendChild(el);
+    }
   }
 
   // Retained link element. Structure: base path + wide transparent hit path
@@ -1858,7 +2019,7 @@ export class GraphView {
     }
   }
 
-  _drawBuilding(b, v) {
+  _drawBuilding(b, v, isMap = false) {
     const r = this._buildingRect(b);
     const a = graphToScreen(v, r.x, r.y);
     let bCls = "building";
@@ -1880,13 +2041,16 @@ export class GraphView {
         rx: 6,
       }),
     );
-    g.appendChild(
-      svg(
-        "text",
-        { class: "building-label", x: a.x + 6, y: a.y - 6 / v.scale },
-        [b.name],
-      ),
-    );
+    // Drop name label at map tier — sub-pixel text is expensive and illegible.
+    if (!isMap) {
+      g.appendChild(
+        svg(
+          "text",
+          { class: "building-label", x: a.x + 6, y: a.y - 6 / v.scale },
+          [b.name],
+        ),
+      );
+    }
     return g;
   }
 
