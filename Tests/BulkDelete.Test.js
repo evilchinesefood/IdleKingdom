@@ -159,6 +159,21 @@ describe("GraphView multi-drag — move a marquee selection in one MoveNodes", (
     const ids = s.dispatched[0].moves.map((m) => m.id).sort();
     expect(ids).toEqual(["n1", "n2"]); // g1 not moved
   });
+
+  it("a tap-abandoned multi-drag: _clearTransient drops the live nudges, no dispatch", () => {
+    const s = dragStub({
+      _clearTransient: GraphView.prototype._clearTransient,
+    });
+    s._grabMulti("n1", 60, 32);
+    s._dragMulti("n1", 64, 35); // a sub-threshold wiggle set tiny _dragPos nudges
+    expect(s._dragPos.n1).toEqual({ x: 4, y: 3 });
+    // tap path leaves _multiDrag set; pointer-clear runs _clearTransient
+    s._clearTransient();
+    expect(s.dispatched.length).toBe(0); // never dispatched
+    expect(s._dragPos.n1).toBe(undefined); // nudges dropped
+    expect(s._dragPos.n2).toBe(undefined);
+    expect(s._multiDrag).toBe(null);
+  });
 });
 
 describe("GraphInput drag gate — multi vs single routing", () => {
@@ -196,6 +211,7 @@ describe("GraphInput drag gate — multi vs single routing", () => {
       onMultiDrag: (id) => calls.push("multiDrag:" + id),
       onNodeDrop: (id) => calls.push("drop:" + id),
       onMultiDrop: (id) => calls.push("multiDrop:" + id),
+      onPointersCleared: () => calls.push("cleared"),
       ...over,
     };
     const input = new GraphInput(fakeEl(), cb);
@@ -218,6 +234,46 @@ describe("GraphInput drag gate — multi vs single routing", () => {
     expect(calls.includes("multiDrop:n1")).toBe(true);
     // never falls through to single-node grab
     expect(calls.some((c) => c.startsWith("grab:"))).toBe(false);
+  });
+
+  it("a zero-movement TAP on a multi-selected node collapses to single (onSelect), no drop", () => {
+    const { input, calls } = inputWith({
+      hitNode: () => "n1",
+      isMultiSelected: (id) => id === "n1",
+    });
+    input._down(ev(1, 10, 10));
+    expect(input.mode).toBe("dragMulti"); // gate still arms the drag
+    input._up(ev(1, 10, 10)); // released at the SAME point: a pure tap
+    // no MoveNodes path fired; instead the tap collapses the selection to n1
+    expect(calls.some((c) => c.startsWith("multiDrop:"))).toBe(false);
+    expect(calls.includes("select:n1")).toBe(true);
+    expect(calls.includes("cleared")).toBe(true); // _clearTransient drops nudges
+  });
+
+  it("a SUB-THRESHOLD wiggle on a multi-selected node is still a tap (no drop)", () => {
+    const { input, calls } = inputWith({
+      hitNode: () => "n1",
+      isMultiSelected: (id) => id === "n1",
+    });
+    input._down(ev(1, 10, 10));
+    input._move(ev(1, 13, 12)); // ~3.6px < TAP_MOVE_PX(6): a nudge, not a drag
+    expect(calls.includes("multiDrag:n1")).toBe(true); // live preview fired
+    input._up(ev(1, 13, 12));
+    expect(calls.some((c) => c.startsWith("multiDrop:"))).toBe(false);
+    expect(calls.includes("select:n1")).toBe(true); // collapses to single
+  });
+
+  it("a PAST-THRESHOLD drag still dispatches exactly one MoveNodes (unchanged)", () => {
+    const { input, calls } = inputWith({
+      hitNode: () => "n1",
+      isMultiSelected: (id) => id === "n1",
+    });
+    input._down(ev(1, 10, 10));
+    input._move(ev(1, 60, 30)); // 50+px: a real drag
+    input._up(ev(1, 60, 30));
+    expect(calls.includes("multiDrop:n1")).toBe(true);
+    expect(calls.filter((c) => c.startsWith("multiDrop:")).length).toBe(1);
+    expect(calls.some((c) => c.startsWith("select:"))).toBe(false); // no collapse
   });
 
   it("a grouped node in selNodes does NOT multi-drag (position-locked, select-only)", () => {
