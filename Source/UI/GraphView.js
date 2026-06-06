@@ -6,6 +6,9 @@ import {
   linkPath,
   linkBezier,
   snapToGrid,
+  graphBounds,
+  fitScaleFor,
+  dynamicMin,
 } from "./Render/Svg.js";
 import { GraphInput } from "./GraphInput.js";
 import { INTENT } from "../Engine/Intents.js";
@@ -215,11 +218,16 @@ export class GraphView {
     this.onSelectionChange = opts.onSelectionChange || (() => {}); // multi-select set changed
     this.onModeChange = opts.onModeChange || (() => {});
 
+    // Lazily-computed dynamic min scale (recomputed on snapshot change or gesture).
+    this._dynMin = null; // null = stale, recomputed on next getScaleMin() call
+    this._dynMinSnap = null;
+
     this.input = new GraphInput(this.svgEl, {
       getView: () => this.view,
       setView: (v) => {
         this.view = v;
       },
+      getScaleMin: () => this._getScaleMin(),
       hitPort: (gx, gy) => this._hitPort(gx, gy),
       hitNode: (gx, gy) => this._hitNode(gx, gy),
       isSelected: (id) => this.selectedId === id,
@@ -273,6 +281,7 @@ export class GraphView {
     if (typeof ResizeObserver === "function") {
       this._ro = new ResizeObserver(() => {
         this._hostRect = null;
+        this._dynMin = null; // viewport changed -> dynamic zoom floor is stale
       });
       this._ro.observe(this.host);
     }
@@ -283,6 +292,68 @@ export class GraphView {
     const r = this.svgEl.getBoundingClientRect();
     const g = screenToGraph(this.view, r.width / 2, r.height / 2);
     return { x: Math.round(g.x), y: Math.round(g.y) };
+  }
+
+  // Lazy dynamic scale minimum. Recomputed when the snapshot identity changes
+  // (new nodes/buildings) — cheap: only bounds math, no DOM work.
+  _getScaleMin() {
+    if (this._dynMinSnap !== this.snap || this._dynMin === null) {
+      this._dynMinSnap = this.snap;
+      const bounds = this.snap
+        ? graphBounds(
+            this.snap.nodes || [],
+            this.snap.buildings || [],
+            NODE_W,
+            NODE_H,
+          )
+        : null;
+      let w = 0,
+        h = 0;
+      try {
+        const r =
+          this.host.getBoundingClientRect && this.host.getBoundingClientRect();
+        if (r && r.width) {
+          w = r.width;
+          h = r.height;
+        }
+      } catch {}
+      this._dynMin = dynamicMin(bounds, w, h);
+    }
+    return this._dynMin;
+  }
+
+  // Frame all nodes + buildings in the viewport, capped at scale 1.0 (never zooms in).
+  // No-op on an empty graph. Centers the graph content, then does a full redraw.
+  fitView() {
+    if (!this.snap) return;
+    const bounds = graphBounds(
+      this.snap.nodes || [],
+      this.snap.buildings || [],
+      NODE_W,
+      NODE_H,
+    );
+    if (!bounds) return; // empty graph
+    let w = 0,
+      h = 0;
+    try {
+      const r =
+        this.host.getBoundingClientRect && this.host.getBoundingClientRect();
+      if (r && r.width) {
+        w = r.width;
+        h = r.height;
+      }
+    } catch {}
+    if (!w || !h) return; // headless — can't fit without a real viewport
+    const pad = 40;
+    const s = fitScaleFor(bounds, w, h, pad);
+    const cx = bounds.x + bounds.w / 2;
+    const cy = bounds.y + bounds.h / 2;
+    this.view = {
+      scale: s,
+      tx: w / 2 - cx * s,
+      ty: h / 2 - cy * s,
+    };
+    this._endGesture(); // drops any delta transform + triggers full redraw
   }
 
   _connectMove(fromId, gx, gy) {
@@ -440,6 +511,7 @@ export class GraphView {
 
   render(snap) {
     this.snap = snap;
+    this._dynMin = null; // invalidate lazy scale min on new snapshot
     this._draw();
   }
 

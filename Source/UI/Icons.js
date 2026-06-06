@@ -62,6 +62,7 @@ export const ICONS = {
   menu: { name: "bars" },
   storage: { name: "warehouse" },
   copy: { name: "copy" },
+  fit: { name: "expand" },
   victory: { name: "crown", primary: "var(--gold)" },
   save_fail: { name: "triangle-exclamation", primary: "var(--bad)" },
   ready: { name: "circle-check", primary: "var(--good)" },
