@@ -577,7 +577,7 @@ wa-button.res-buy {
    A generous top margin guarantees this row never tucks under the last card. */
 .tuning-row {
   margin-top: 48px;
-  padding: 24px 24px 24px;
+  padding: 24px;
 }
 .tuning-title {
   font-family: var(--font-display);
