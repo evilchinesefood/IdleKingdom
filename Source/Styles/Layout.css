@@ -570,21 +570,39 @@ wa-button.res-buy {
 .res-node:hover {
   z-index: 2;
 }
-/* Machine Tuning — endless research sink below the tree */
+/* Machine Tuning — endless research sink below the tree.
+   The tree above lays its cards out absolutely; their real heights are
+   content-driven (the CARD_H=120 constant only feeds SVG edge math, not the
+   reserved container height), so a deep card can overflow the reserved space.
+   A generous top margin guarantees this row never tucks under the last card. */
 .tuning-row {
-  padding: 0 24px 24px;
+  margin-top: 48px;
+  padding: 24px 24px 24px;
 }
 .tuning-title {
   font-family: var(--font-display);
-  margin: 0.5rem 0;
+  margin: 0 0 0.6rem;
 }
+/* One non-wrapping line; horizontal scroll is the narrow-screen safety valve. */
 .tuning-cards {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
+  flex-wrap: nowrap;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
 }
 .tune-card {
-  width: 240px;
+  flex: 0 0 auto;
+  width: 168px;
+  --spacing: 0.5rem; /* tighten WA card inner padding */
+}
+.tune-card .res-name {
+  font-size: 0.82rem;
+}
+.tune-card .res-cost,
+.tune-card .res-desc,
+.tune-card .res-eff {
+  font-size: 0.68rem;
 }
 
 /* War board — territory cards in conquest order, siege front and center. */
@@ -662,6 +680,9 @@ wa-button.res-buy {
 .war-board wa-tag,
 .war-board wa-badge {
   padding-inline: 0.7rem;
+  /* WA badge ships line-height:1 + 0.375em block padding, so text hugs the
+     top/bottom edges — bump the vertical padding for breathing room. */
+  padding-block: 0.4em;
 }
 
 /* Overlay layer (tooltip callout + wa-dialog modals) */

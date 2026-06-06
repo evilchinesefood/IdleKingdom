@@ -251,7 +251,7 @@ describe("Snapshot — Machine Tuning rows", () => {
     const snap = build(s, solve(s, content), content);
     const g = snap.tuning.find((t) => t.kind === "gatherer");
     expect(g.rank).toBe(0);
-    expect(g.nextCost).toBe(50);
+    expect(g.nextCost).toBe(25);
     expect(g.affordable).toBe(true);
     // scholar machine is locked at start -> no tuning row
     expect(snap.tuning.some((t) => t.kind === "scholar")).toBe(false);

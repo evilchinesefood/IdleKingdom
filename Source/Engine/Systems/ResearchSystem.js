@@ -140,7 +140,7 @@ export function buyResearch(state, content, id) {
  *  production bonus by `mult`; the next rank's cost grows by `costGrowth`. */
 export const TUNING = {
   kinds: ["gatherer", "smelter", "workshop", "barracks", "market", "scholar"],
-  baseCost: 50,
+  baseCost: 25,
   costGrowth: 1.6,
   mult: 1.1,
 };
@@ -150,7 +150,7 @@ export function tuningRank(state, kind) {
 }
 
 export function tuningCost(state, kind) {
-  // round (not ceil): 50 * 1.6^2 floats to 128.00000000000003
+  // round (not ceil): float drift (e.g. 25 * 1.6^4 = 163.84000…0003)
   return Math.round(
     TUNING.baseCost * Math.pow(TUNING.costGrowth, tuningRank(state, kind)),
   );
