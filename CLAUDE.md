@@ -63,16 +63,16 @@ The non-canvas UI is built on **Web Awesome v3.7.0** web components with **FA Pr
 ## Deploy (buildless rsync to the home server)
 
 - **Target:** `johnayers@johndayers.com:/home/johnayers/dev.jdayers.com/kingdom/`. SSH is **password auth only** — pass `-o PreferredAuthentications=password -o PubkeyAuthentication=no` (the SFTP subsystem is blocked; use rsync/scp over ssh). The **Home Server / johndayers.com** password is in your password manager / WSL `~/.claude` memory `server_access.md` — **deliberately not stored in this file**. The deploy toolchain (`sshpass`) is WSL-based; run it from the `/mnt/c/...` path.
-- **Bump `ServiceWorker.js` `CACHE` on every asset-touching deploy** (it's a cache-first SW; the activate handler purges old caches + re-precaches). The current version lives in `ServiceWorker.js` (`idlekingdom-v58` as of 2026-06-06) — bump to the next number on every deploy. Any asset that must work offline MUST be listed in `SHELL`: as of v58 ALL first-party Engine/UI modules + CSS are precached atomically (`cache.addAll`), vendor/fonts on a tolerant path — new source files must be added to `SHELL_FIRST_PARTY`.
+- **Bump `ServiceWorker.js` `CACHE` on every asset-touching deploy** (it's a cache-first SW; the activate handler purges old caches + re-precaches). The current version lives in `ServiceWorker.js` (check it — don't trust this file to be current) — bump to the next number on every deploy. Any asset that must work offline MUST be listed in `SHELL`: as of v58 ALL first-party Engine/UI modules + CSS are precached atomically (`cache.addAll`), vendor/fonts on a tolerant path — new source files must be added to `SHELL_FIRST_PARTY`.
 - **`.htaccess`** (committed at repo root, REQUIRED): `DirectoryIndex Index.html` (the PascalCase entry would otherwise 403), ES-module MIME types, and `AddType font/woff2 .woff2` (the FA webfont renders as boxes without it).
-- **Exclude from rsync** (and NEVER ship `.npmrc` — it holds the FA Pro token): `.git/ docs/ Tests/ node_modules/ package.json package-lock.json .gitignore .npmrc .npmrc.example .omc/ CLAUDE.md AGENTS.md`.
+- **Exclude from rsync** (and NEVER ship `.npmrc` — it holds the FA Pro token): `.git/ docs/ Tests/ node_modules/ package.json package-lock.json .gitignore .npmrc .npmrc.example .omc/ CLAUDE.md AGENTS.md fixes.md`.
 - Command:
   ```bash
   SSHPASS='<home-server-pw>' sshpass -e rsync -avz --delete \
     --exclude='.git/' --exclude='docs/' --exclude='Tests/' --exclude='node_modules/' \
     --exclude='package.json' --exclude='package-lock.json' --exclude='.gitignore' \
     --exclude='.npmrc' --exclude='.npmrc.example' --exclude='.omc/' \
-    --exclude='CLAUDE.md' --exclude='AGENTS.md' \
+    --exclude='CLAUDE.md' --exclude='AGENTS.md' --exclude='fixes.md' \
     -e "ssh -o StrictHostKeyChecking=no -o PreferredAuthentications=password -o PubkeyAuthentication=no" \
     /mnt/c/Users/evilc/Github/IdleKingdom/ johnayers@johndayers.com:/home/johnayers/dev.jdayers.com/kingdom/
   ```
@@ -100,7 +100,7 @@ The non-canvas UI is built on **Web Awesome v3.7.0** web components with **FA Pr
 - **UI re-platform onto Web Awesome — Phases 1–5 COMPLETE & deployed** (SW `idlekingdom-v10`):
   P1 foundation (vendored WA/FA, `Icons.js`, `WaTheme.css`, `Dom.js` `onWa*`/`prop:` extensions, all emoji → FA Duotone); P2 HUD/tabs; P3 factory panels + Snapshot derived fields + MAX/STARVED badges + link click-to-reveal (B1); P4 research/war (siege replaced expeditions/heroes in the war rework); P5 dialogs/tooltip/error-flash/legend; + the WA short-size-token fix. All on `main`, pushed to `origin`.
 - **PENDING — the human's:** per-phase **browser acceptance** (WA/FA only render in a real browser) and the **acceptance tags** `ui-p1-foundation` / `ui-p2-hud-tabs` / `ui-p3-factory` / `ui-p4-content-panels` / `ui-p5-modals-tooltips-polish` — **not all applied yet** (gated on sign-off). Don't apply them or claim acceptance without the human's confirmation.
-- **Spec + plans:** `docs/superpowers/specs/` and `docs/superpowers/plans/` (the `2026-06-01-idlekingdom-ui-replatform-*` set is the re-platform; `2026-05-31-*` is the original MVP).
+- **Spec + plans:** archived OUTSIDE the repo at `C:\Users\evilc\OneDrive\Documents\AI\IdleKingdomDocs\` (`superpowers/specs+plans` — MVP, UI re-platform, war rework, render perf — plus dated deep-review fixes lists). The repo-local `docs/`+`fixes.md` working copies were removed 2026-06-06; `.gitignore`/rsync excludes for them remain as re-track protection.
 
 ## Working style
 
