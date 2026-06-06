@@ -160,8 +160,8 @@ class AppInstance {
         return;
       }
       if (k === "c") {
-        // copy the current multi-selection (with upgrades) to the clipboard
-        if (this.graphView && this.graphView.hasSelection())
+        // copy the current selection (single OR multi) to the clipboard
+        if (this.graphView && this.graphView._barHasSelection())
           this.graphView._copySelection(true);
         e.preventDefault();
         return;
