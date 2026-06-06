@@ -258,8 +258,16 @@ export class GraphInput {
     }
 
     if (wasMode === "dragMulti" && this.dragNodeId) {
-      const g = this._toGraph(e);
-      if (this.cb.onMultiDrop) this.cb.onMultiDrop(this.dragNodeId, g.x, g.y);
+      if (moved > TAP_MOVE_PX) {
+        const g = this._toGraph(e);
+        if (this.cb.onMultiDrop) this.cb.onMultiDrop(this.dragNodeId, g.x, g.y);
+      } else {
+        // A tap (or sub-threshold wiggle) on a multi-selected node is NOT a move:
+        // route it to a plain select so it collapses the multi-selection to this
+        // one node (pre-Task-D behavior), and dispatch no no-op MoveNodes. Any
+        // tiny _dragPos nudges are dropped by onPointersCleared -> _clearTransient.
+        if (this.cb.onSelect) this.cb.onSelect(this.dragNodeId);
+      }
     }
 
     if (wasMode === "selectBox") {

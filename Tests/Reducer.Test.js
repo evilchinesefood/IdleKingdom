@@ -403,6 +403,47 @@ describe("Reducer", () => {
     expect(noId.error).toBe("Malformed MoveNodes intent");
   });
 
+  it("MoveNodes rejects 'No movement' when every move equals the current pos", () => {
+    const s = seededState(new FakeClock(0));
+    const before = JSON.stringify(s);
+    const sm = s.graph.nodes.find((n) => n.id === "n_smelter_0");
+    const mn = s.graph.nodes.find((n) => n.id === "n_miner_0");
+    const out = reduce(
+      s,
+      {
+        type: "MoveNodes",
+        moves: [
+          { id: "n_smelter_0", x: sm.pos.x, y: sm.pos.y },
+          { id: "n_miner_0", x: mn.pos.x, y: mn.pos.y },
+        ],
+      },
+      content,
+    );
+    expect(out.error).toBe("No movement");
+    expect(out.state).toBe(s); // unchanged reference on reject
+    expect(JSON.stringify(s)).toBe(before);
+  });
+
+  it("MoveNodes accepts when at least one node actually moves (mixed)", () => {
+    const s = seededState(new FakeClock(0));
+    const sm = s.graph.nodes.find((n) => n.id === "n_smelter_0");
+    const mn = s.graph.nodes.find((n) => n.id === "n_miner_0");
+    const out = reduce(
+      s,
+      {
+        type: "MoveNodes",
+        moves: [
+          { id: "n_smelter_0", x: sm.pos.x, y: sm.pos.y }, // unchanged
+          { id: "n_miner_0", x: mn.pos.x + 40, y: mn.pos.y }, // moved
+        ],
+      },
+      content,
+    );
+    expect(out.error).toBe(undefined);
+    const moved = out.state.graph.nodes.find((n) => n.id === "n_miner_0");
+    expect(moved.pos).toEqual({ x: mn.pos.x + 40, y: mn.pos.y });
+  });
+
   it("PlaceNode rejects a gatherer with a not-yet-enabled raw (defensive minor)", () => {
     const s = seededState(new FakeClock(0)); // timber not enabled yet
     const n0 = s.graph.nodes.length;

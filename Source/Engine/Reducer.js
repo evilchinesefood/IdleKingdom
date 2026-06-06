@@ -608,6 +608,13 @@ export function reduce(state, intent, content) {
         if (!node) return reject(state, "No such machine");
         targets.push([node, m]);
       }
+      // Reject a no-op (every move == its current pos) so an accepted UNDOABLE
+      // intent never pushes a useless undo entry — mirrors RenameBuilding. The UI
+      // already gates this on the tap threshold; this guards programmatic dispatch.
+      if (
+        targets.every(([node, m]) => node.pos.x === m.x && node.pos.y === m.y)
+      )
+        return reject(state, "No movement");
       for (const [node, m] of targets) node.pos = { x: m.x, y: m.y };
       preserveSolved = true;
       break;
