@@ -294,12 +294,14 @@ wa-button::part(base) {
   max-width: calc(100% - 340px);
 }
 /* Toolbar buttons: white fill when idle (gold accent when the mode is active). */
-.tool-select:not([appearance="accent"])::part(base) {
+.tool-select:not([appearance="accent"])::part(base),
+.tool-fit::part(base) {
   background: #fff;
   color: var(--ink);
   border-color: var(--line);
 }
-.tool-select:not([appearance="accent"]) i {
+.tool-select:not([appearance="accent"]) i,
+.tool-fit i {
   --fa-primary-color: var(--ink) !important;
   --fa-secondary-color: var(--gold) !important;
 }

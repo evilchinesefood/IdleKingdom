@@ -43,11 +43,11 @@ function checkEffectRefs(eff) {
 }
 
 describe("ResearchNodes content", () => {
-  it("has 19 nodes, all research-currency, each keyed by id", () => {
+  it("has 25 nodes, all research-currency, each keyed by id", () => {
     const all = Object.values(RESEARCH_NODES);
-    expect(all.length).toBe(19);
+    expect(all.length).toBe(25);
     for (const [k, n] of Object.entries(RESEARCH_NODES)) expect(n.id).toBe(k);
-    expect(all.filter((n) => n.currency === "research").length).toBe(19);
+    expect(all.filter((n) => n.currency === "research").length).toBe(25);
     expect(all.filter((n) => n.currency === "renown").length).toBe(0);
   });
 
@@ -103,17 +103,42 @@ describe("ResearchNodes content", () => {
     expect(RESEARCH_NODES.res_armory.requiresTerritory).toBe(null);
   });
 
-  it("only master_smithing and quartermaster are territory-gated (both t_ironreach)", () => {
+  it("territory-gated nodes: t_ironreach gates master_smithing+quartermaster; t_highwall gates Tier-A; t_blackkeep gates Tier-B", () => {
     const gated = Object.values(RESEARCH_NODES)
       .filter((n) => n.requiresTerritory != null)
       .map((n) => n.id)
       .sort();
-    expect(gated).toEqual(["res_master_smithing", "res_quartermaster"]);
+    expect(gated).toEqual([
+      "res_eternal_forge",
+      "res_illuminated_texts",
+      "res_master_smithing",
+      "res_merchant_compact",
+      "res_quartermaster",
+      "res_siege_engines",
+      "res_war_drums",
+      "res_yensburg_reborn",
+    ]);
     expect(RESEARCH_NODES.res_master_smithing.requiresTerritory).toBe(
       "t_ironreach",
     );
     expect(RESEARCH_NODES.res_quartermaster.requiresTerritory).toBe(
       "t_ironreach",
+    );
+    expect(RESEARCH_NODES.res_war_drums.requiresTerritory).toBe("t_highwall");
+    expect(RESEARCH_NODES.res_merchant_compact.requiresTerritory).toBe(
+      "t_highwall",
+    );
+    expect(RESEARCH_NODES.res_illuminated_texts.requiresTerritory).toBe(
+      "t_highwall",
+    );
+    expect(RESEARCH_NODES.res_siege_engines.requiresTerritory).toBe(
+      "t_blackkeep",
+    );
+    expect(RESEARCH_NODES.res_eternal_forge.requiresTerritory).toBe(
+      "t_blackkeep",
+    );
+    expect(RESEARCH_NODES.res_yensburg_reborn.requiresTerritory).toBe(
+      "t_blackkeep",
     );
   });
 

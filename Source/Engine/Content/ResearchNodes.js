@@ -301,4 +301,96 @@ export const RESEARCH_NODES = {
       "Auto-sells the undrained surplus of any listed good at 50% of its Market price (storage buffers are never sold).",
     flavor: "One ledger, one seal, and nothing in Yensburg goes to waste.",
   },
+
+  // ── Tier A — unlocked after The High Wall falls ──────────────────────────
+  res_war_drums: {
+    id: "res_war_drums",
+    name: "War Drums",
+    currency: "research",
+    cost: 2500,
+    prereqs: ["res_drill_yard", "res_master_smithing"],
+    requiresTerritory: "t_highwall",
+    effects: [{ type: "productionBonus", kind: "barracks", mult: 1.5 }],
+    description:
+      "+50% Barracks muster rate — militia, soldiers, and knights all muster faster.",
+    flavor:
+      "The drumbeat carries farther than any order; the ranks close before the echo fades.",
+  },
+  res_merchant_compact: {
+    id: "res_merchant_compact",
+    name: "Merchant Compact",
+    currency: "research",
+    cost: 3000,
+    prereqs: ["res_logistics"],
+    requiresTerritory: "t_highwall",
+    effects: [
+      { type: "globalRateBonus", mult: 1.15 },
+      { type: "marketCapacityBonus", mult: 1.2 },
+    ],
+    description:
+      "+15% output to all production (gatherers, smelters, workshops) and +20% Market sell capacity.",
+    flavor:
+      "The guilds sign the compact under torchlight; by morning, every cart rolls faster.",
+  },
+  res_illuminated_texts: {
+    id: "res_illuminated_texts",
+    name: "Illuminated Texts",
+    currency: "research",
+    cost: 3500,
+    prereqs: ["res_grand_design"],
+    requiresTerritory: "t_highwall",
+    effects: [{ type: "scholarBonus", mult: 2.0 }],
+    description:
+      "+100% Scholar research output — your scribes double their output.",
+    flavor:
+      "Gold leaf and lapis lazuli: the margin notes alone are worth a siege.",
+  },
+
+  // ── Tier B — post-victory free-play, unlocked after The Black Keep falls ─
+  res_siege_engines: {
+    id: "res_siege_engines",
+    name: "Siege Engines",
+    currency: "research",
+    cost: 25000,
+    prereqs: ["res_war_drums"],
+    requiresTerritory: "t_blackkeep",
+    effects: [{ type: "productionBonus", kind: "barracks", mult: 2.0 }],
+    description:
+      "+100% Barracks muster rate — your war machines turn the barracks into a force of nature.",
+    flavor:
+      "Trebuchet, ballista, ram — the enemy's walls mean nothing when the machines arrive.",
+  },
+  res_eternal_forge: {
+    id: "res_eternal_forge",
+    name: "The Eternal Forge",
+    currency: "research",
+    cost: 40000,
+    prereqs: ["res_merchant_compact", "res_illuminated_texts"],
+    requiresTerritory: "t_blackkeep",
+    effects: [
+      { type: "globalRateBonus", mult: 1.3 },
+      { type: "scholarBonus", mult: 1.5 },
+    ],
+    description:
+      "+30% to all production (gatherers, smelters, workshops) and +50% Scholar research output.",
+    flavor:
+      "The forge that never cools; the quill that never dries. Yensburg does not rest.",
+  },
+  res_yensburg_reborn: {
+    id: "res_yensburg_reborn",
+    name: "Yensburg Reborn",
+    currency: "research",
+    cost: 60000,
+    prereqs: ["res_siege_engines", "res_eternal_forge"],
+    requiresTerritory: "t_blackkeep",
+    effects: [
+      { type: "globalRateBonus", mult: 1.5 },
+      { type: "productionBonus", kind: "barracks", mult: 1.5 },
+      { type: "marketCapacityBonus", mult: 2.0 },
+    ],
+    description:
+      "+50% to all production, +50% Barracks muster rate, and ×2 Market sell capacity. The city is whole again.",
+    flavor:
+      "The banners fly, the bells ring. What the Usurer-Lord took, the people have rebuilt — and then some.",
+  },
 };

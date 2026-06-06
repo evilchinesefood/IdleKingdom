@@ -140,7 +140,7 @@ class AppInstance {
     this._applyPrefs();
     this.router.onChange(() => this._mountScreen());
     this.game.onSnapshot((snap) => this._onSnapshot(snap));
-    document.addEventListener("keydown", (e) => this._handleGlobalKey(e));
+    document.addEventListener("keydown", (e) => this._handleGlobalKey(e), true);
     if (typeof document !== "undefined") {
       document.addEventListener(
         "pointerdown",
@@ -170,6 +170,10 @@ class AppInstance {
   // calls preventDefault, so we bail on defaultPrevented to avoid double-acting.
   _handleGlobalKey(e) {
     if (this.activeScreen !== "factory") return;
+    // While a modal overlay is open, let it own the keyboard — the capture-phase
+    // stopPropagation below would otherwise starve wa-dialog's Escape close.
+    if (this.showSettings || this.pendingOfflineSummary || this.showVictory)
+      return;
     const t = e.target;
     const tag = (t && t.tagName ? t.tagName : "").toUpperCase();
     const typing =
@@ -189,6 +193,7 @@ class AppInstance {
           this._reconcileSelection();
         }
         e.preventDefault();
+        e.stopPropagation();
         return;
       }
       if ((k === "z" && e.shiftKey) || k === "y") {
@@ -197,6 +202,7 @@ class AppInstance {
           this._reconcileSelection();
         }
         e.preventDefault();
+        e.stopPropagation();
         return;
       }
       if (k === "c") {
@@ -204,17 +210,23 @@ class AppInstance {
         if (this.graphView && this.graphView._barHasSelection())
           this.graphView._copySelection(true);
         e.preventDefault();
+        e.stopPropagation();
         return;
       }
       if (k === "v") {
         if (this.graphView) this.graphView._pasteSelection();
         e.preventDefault();
+        e.stopPropagation();
         return;
       }
       return;
     }
 
     if (typing || e.defaultPrevented) return;
+
+    // Graph nodes own their own keydown via _onNodeKey (Enter/Space/C/Delete/arrows).
+    // When a node <g> is focused, let the event bubble normally to _onNodeKey.
+    if (t && t.dataset && t.dataset.nodeId !== undefined) return;
 
     if (k === "escape") {
       if (this.buildUi.selectedPaletteKind) {
@@ -235,6 +247,7 @@ class AppInstance {
       }
       this.renderNow();
       e.preventDefault();
+      e.stopPropagation();
       return;
     }
 
@@ -257,6 +270,7 @@ class AppInstance {
       }
       this.renderNow();
       e.preventDefault();
+      e.stopPropagation();
       return;
     }
 
@@ -266,14 +280,23 @@ class AppInstance {
         gv._groupSelection();
         this.renderNow();
         e.preventDefault();
+        e.stopPropagation();
       }
       return;
     }
 
     if (k === "f") {
       if (this.graphView) {
+        // Move focus off a focused HUD control (e.g. the active nav tab) so the
+        // keypress doesn't paint a focus ring on it — F means "look at the map".
+        const a = document.activeElement;
+        if (a && a.closest && a.closest(".hud") && this.graphView.host) {
+          this.graphView.host.setAttribute("tabindex", "-1");
+          this.graphView.host.focus();
+        }
         this.graphView.fitView();
         e.preventDefault();
+        e.stopPropagation();
       }
       return;
     }
@@ -293,6 +316,7 @@ class AppInstance {
         delta: { dx, dy },
       });
       e.preventDefault();
+      e.stopPropagation();
     } else if (this.selectedNodeId) {
       const n = (this.lastSnap ? this.lastSnap.nodes : []).find(
         (x) => x.id === this.selectedNodeId,
@@ -305,6 +329,7 @@ class AppInstance {
         });
       }
       e.preventDefault();
+      e.stopPropagation();
     }
   }
 

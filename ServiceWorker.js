@@ -1,4 +1,4 @@
-const CACHE = "idlekingdom-v60";
+const CACHE = "idlekingdom-v61";
 const SHELL_FIRST_PARTY = [
   "./",
   "./Index.html",

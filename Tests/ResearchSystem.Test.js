@@ -280,6 +280,74 @@ describe("ResearchSystem", () => {
     expect(s.unlocks.productionBonuses.workshop).toBeCloseTo(1.1, 1e-9);
   });
 
+  it("Tier-A nodes blocked until t_highwall reclaimed, purchasable after", () => {
+    const s = NewGame(new FakeClock(0));
+    s.currencies.research = 100000;
+    // Satisfy all prereqs for res_war_drums
+    own(s, "res_scholar");
+    own(s, "res_lumber");
+    own(s, "res_tannery");
+    own(s, "res_coalworks");
+    own(s, "res_steelmaking");
+    own(s, "res_smithing");
+    own(s, "res_fittings");
+    own(s, "res_armory");
+    own(s, "res_drill_yard");
+    own(s, "res_hardened_steel");
+    s.territories.reclaimed.push(
+      "t_gatehouse",
+      "t_smithyward",
+      "t_oldmarket",
+      "t_ironreach",
+    );
+    own(s, "res_master_smithing");
+    // prereqs met but t_highwall not yet reclaimed
+    expect(canBuyResearch(s, content, "res_war_drums")).toBe(false);
+    expect(researchStatus(s, content, "res_war_drums")).toBe("locked");
+    // reclaim t_highwall
+    s.territories.reclaimed.push("t_highwall");
+    expect(canBuyResearch(s, content, "res_war_drums")).toBe(true);
+    buyResearch(s, content, "res_war_drums");
+    expect(s.unlocks.researchOwned.includes("res_war_drums")).toBe(true);
+    // effect: productionBonus barracks ×1.5
+    expect(s.unlocks.productionBonuses.barracks).toBeCloseTo(1.5, 1e-9);
+  });
+
+  it("Tier-B nodes blocked until t_blackkeep reclaimed, purchasable after", () => {
+    const s = NewGame(new FakeClock(0));
+    s.currencies.research = 100000;
+    // Satisfy prereqs for res_siege_engines (needs res_war_drums)
+    own(s, "res_scholar");
+    own(s, "res_lumber");
+    own(s, "res_tannery");
+    own(s, "res_coalworks");
+    own(s, "res_steelmaking");
+    own(s, "res_smithing");
+    own(s, "res_fittings");
+    own(s, "res_armory");
+    own(s, "res_drill_yard");
+    own(s, "res_hardened_steel");
+    s.territories.reclaimed.push(
+      "t_gatehouse",
+      "t_smithyward",
+      "t_oldmarket",
+      "t_ironreach",
+    );
+    own(s, "res_master_smithing");
+    s.territories.reclaimed.push("t_highwall");
+    own(s, "res_war_drums");
+    // prereqs met but t_blackkeep not yet reclaimed
+    expect(canBuyResearch(s, content, "res_siege_engines")).toBe(false);
+    expect(researchStatus(s, content, "res_siege_engines")).toBe("locked");
+    // reclaim t_blackkeep
+    s.territories.reclaimed.push("t_blackkeep");
+    expect(canBuyResearch(s, content, "res_siege_engines")).toBe(true);
+    buyResearch(s, content, "res_siege_engines");
+    expect(s.unlocks.researchOwned.includes("res_siege_engines")).toBe(true);
+    // effect: productionBonus barracks ×2.0 (stacks on the ×1.5 from res_war_drums)
+    expect(s.unlocks.productionBonuses.barracks).toBeCloseTo(1.5 * 2.0, 1e-9);
+  });
+
   it("res_quartermaster effect wiring: EFFECTS and content effects are in lockstep and set autoSell (task 7)", () => {
     // content.researchNodes[id].effects (display/validation) must match the applied EFFECTS.
     const node = content.researchNodes.res_quartermaster;
