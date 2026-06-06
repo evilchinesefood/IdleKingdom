@@ -3,6 +3,7 @@ import { clone } from "./GameState.js";
 import { isValidLink } from "./Simulation/Topology.js";
 import * as Economy from "./Systems/EconomySystem.js";
 import * as Research from "./Systems/ResearchSystem.js";
+import { isCrafter } from "./Content/Machines.js";
 
 // Gatherer resources assignable from the very start (before any research/reclaim).
 // Seeded with ONLY iron_ore; timber/hide/coal_raw/gemstone are added to
@@ -32,12 +33,12 @@ function nodeById(state, id) {
 }
 
 // All buildings transitively reachable via `children` from `id` (excludes `id`).
-// Cycle-guarded via a visited set.
-export function descendantBuildingIds(buildings, id) {
-  const byId = new Map(buildings.map((b) => [b.id, b]));
+// Cycle-guarded via a visited set. Pass a prebuilt `byId` Map to avoid rebuilding it.
+export function descendantBuildingIds(buildings, id, byId) {
+  const map = byId || new Map(buildings.map((b) => [b.id, b]));
   const out = new Set();
   const walk = (cur) => {
-    const b = byId.get(cur);
+    const b = map.get(cur);
     if (!b || !Array.isArray(b.children)) return;
     for (const cid of b.children) {
       if (out.has(cid)) continue;
@@ -51,14 +52,15 @@ export function descendantBuildingIds(buildings, id) {
 }
 
 // Every node id in `id` plus all its descendant buildings (own nodeIds + recursive).
-export function buildingMemberNodeIds(buildings, id) {
-  const byId = new Map(buildings.map((b) => [b.id, b]));
+// Pass a prebuilt `byId` Map to avoid rebuilding it.
+export function buildingMemberNodeIds(buildings, id, byId) {
+  const map = byId || new Map(buildings.map((b) => [b.id, b]));
   const ids = new Set();
-  const self = byId.get(id);
+  const self = map.get(id);
   if (!self) return [];
   for (const nid of self.nodeIds || []) ids.add(nid);
-  for (const did of descendantBuildingIds(buildings, id)) {
-    const b = byId.get(did);
+  for (const did of descendantBuildingIds(buildings, id, map)) {
+    const b = map.get(did);
     if (b) for (const nid of b.nodeIds || []) ids.add(nid);
   }
   return [...ids];
@@ -204,12 +206,7 @@ export function reduce(state, intent, content) {
     case "SetRecipe": {
       const node = nodeById(next, intent.nodeId);
       if (!node) return reject(state, "No such machine");
-      if (
-        node.kind !== "smelter" &&
-        node.kind !== "workshop" &&
-        node.kind !== "barracks"
-      )
-        return reject(state, "Not a crafter");
+      if (!isCrafter(node.kind)) return reject(state, "Not a crafter");
       if (!next.unlocks.recipesUnlocked.includes(intent.recipeId))
         return reject(state, "Recipe locked");
       const recipe = content.recipes[intent.recipeId];
@@ -363,16 +360,21 @@ export function reduce(state, intent, content) {
       const { dx, dy } = intent.delta;
       // move the whole subtree: this building's rect + every descendant's rect,
       // and all member node positions (own + nested).
+      const bByIdM = new Map(next.graph.buildings.map((x) => [x.id, x]));
       const ids = new Set([
         b.id,
-        ...descendantBuildingIds(next.graph.buildings, b.id),
+        ...descendantBuildingIds(next.graph.buildings, b.id, bByIdM),
       ]);
       for (const x of next.graph.buildings) {
         if (!ids.has(x.id)) continue;
         x.rect.x += dx;
         x.rect.y += dy;
       }
-      for (const nid of buildingMemberNodeIds(next.graph.buildings, b.id)) {
+      for (const nid of buildingMemberNodeIds(
+        next.graph.buildings,
+        b.id,
+        bByIdM,
+      )) {
         const n = nodeById(next, nid);
         if (n) n.pos = { x: n.pos.x + dx, y: n.pos.y + dy };
       }
@@ -473,7 +475,7 @@ export function reduce(state, intent, content) {
         )
           return reject(state, "Machine not placeable");
         if (
-          (n.kind === "smelter" || n.kind === "workshop") &&
+          isCrafter(n.kind) &&
           n.recipeId &&
           !next.unlocks.recipesUnlocked.includes(n.recipeId)
         )
@@ -543,12 +545,13 @@ export function reduce(state, intent, content) {
       // in any of them (plus any link touching those machines).
       const b = next.graph.buildings.find((x) => x.id === intent.buildingId);
       if (!b) return reject(state, "No such building");
+      const bByIdD = new Map(next.graph.buildings.map((x) => [x.id, x]));
       const members = new Set(
-        buildingMemberNodeIds(next.graph.buildings, b.id),
+        buildingMemberNodeIds(next.graph.buildings, b.id, bByIdD),
       );
       const gone = new Set([
         b.id,
-        ...descendantBuildingIds(next.graph.buildings, b.id),
+        ...descendantBuildingIds(next.graph.buildings, b.id, bByIdD),
       ]);
       next.graph.nodes = next.graph.nodes.filter((n) => !members.has(n.id));
       next.graph.links = next.graph.links.filter(

@@ -97,6 +97,9 @@ export class Hud {
           class: "hud-hamburger",
           key: "hamburger",
           "aria-label": "Menu",
+          "aria-expanded": this.el.classList.contains("menu-open")
+            ? "true"
+            : "false",
           onclick: () => this.el.classList.toggle("menu-open"),
         },
         [icon("menu", { noTone: true })],

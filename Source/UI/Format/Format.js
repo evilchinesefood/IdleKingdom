@@ -22,7 +22,8 @@ export function fmtRate(n) {
 }
 
 // keep in sync with fmtCost in Source/Engine/Systems/EconomySystem.js (reject toasts
-// must show the same number as the panel button for any given cost)
+// must show the same number as the panel button for any given cost).
+// Sync guard: Tests/CostFormat.Test.js
 export function fmtCost(amount /*, currency */) {
   return fmtNum(amount);
 }

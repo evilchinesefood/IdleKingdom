@@ -18,8 +18,8 @@ if (offlineSummary && offlineSummary.appliedMs > 60_000)
   App.showOfflineSummary(offlineSummary);
 
 // Passive display refresh: gold/research counters tick every 2s WITHOUT rebuilding
-// the interactive panels. User actions (intents) and expedition resolution render
-// immediately via Game._emit — this is what keeps buttons and dropdowns clickable.
+// the interactive panels. User actions (intents) render immediately via Game._emit —
+// this is what keeps buttons and dropdowns clickable.
 setInterval(() => App.refreshHud(), 2000);
 
 // --- Autosave (debounced ~1s; interval ~10s; visibility/pagehide immediate) ---
@@ -47,6 +47,9 @@ function doSave() {
 function requestSave(immediate) {
   if (immediate) {
     if (saveTimer) clearTimeout(saveTimer);
+    // Skip forced save if a successful save already completed within the last 1s
+    // (visibilitychange + pagehide + beforeunload can fire back-to-back within ms).
+    if (clock.now() - lastSavedAt < 1000) return;
     doSave();
     return;
   }

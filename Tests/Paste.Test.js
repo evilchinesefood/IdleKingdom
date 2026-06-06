@@ -221,6 +221,65 @@ describe("Reducer PasteNodes", () => {
     expect(game.getState().graph.nodes.length).toBe(before + 2);
   });
 
+  it("rejects pasting a barracks with a locked recipeId (task 2 — barracks exploit)", () => {
+    const game = newGame(1e6);
+    const s = game.getState();
+    // Unlock barracks machine kind but NOT r_knight recipe — tests the recipe gate specifically
+    s.unlocks.machinesUnlocked.push("barracks");
+    expect(s.unlocks.recipesUnlocked.includes("r_knight")).toBe(false);
+    const out = reduce(
+      s,
+      {
+        type: INTENT.PasteNodes,
+        nodes: [
+          {
+            kind: "barracks",
+            level: 1,
+            recipeId: "r_knight",
+            resourceId: null,
+            dx: 0,
+            dy: 0,
+          },
+        ],
+        links: [],
+        at: { x: 0, y: 0 },
+      },
+      content,
+    );
+    expect(out.error).toBe("Recipe locked");
+    expect(out.state).toBe(s);
+  });
+
+  it("accepts pasting a barracks with an unlocked recipeId (task 2 regression)", () => {
+    const game = newGame(1e6);
+    const s = game.getState();
+    // unlock both the machine kind and the recipe
+    s.unlocks.machinesUnlocked.push("barracks");
+    s.unlocks.recipesUnlocked.push("r_militia");
+    const before = s.graph.nodes.length;
+    const out = reduce(
+      s,
+      {
+        type: INTENT.PasteNodes,
+        nodes: [
+          {
+            kind: "barracks",
+            level: 1,
+            recipeId: "r_militia",
+            resourceId: null,
+            dx: 0,
+            dy: 0,
+          },
+        ],
+        links: [],
+        at: { x: 0, y: 0 },
+      },
+      content,
+    );
+    expect(out.error).toBe(undefined);
+    expect(out.state.graph.nodes.length).toBe(before + 1);
+  });
+
   it("carries resourceIds for a storage node", () => {
     const game = newGame(1e6);
     const out = game.dispatch({

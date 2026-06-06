@@ -8,6 +8,7 @@
 html,
 body {
   height: 100%;
+  overscroll-behavior: none;
 }
 /* Global type scale: +20% over the 16px UA default so all rem/em-based UI text
    (panels, HUD, menus, dialogs, Web Awesome components) grows uniformly. */

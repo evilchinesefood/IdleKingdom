@@ -305,18 +305,21 @@ describe("GraphInput drag gate — multi vs single routing", () => {
 });
 
 describe("GraphView._nodeIcon — reflects resource/output, not just kind", () => {
-  const gv = (recipes = {}) => ({ game: { content: { recipes } } });
+  const gv = () => ({});
   const ni = (stub, n) => GraphView.prototype._nodeIcon.call(stub, n);
   it("gatherer shows its resource icon", () => {
     expect(ni(gv(), { kind: "gatherer", resourceId: "iron_ore" })).toBe(
       iconName("iron_ore"),
     );
   });
-  it("crafter shows its recipe output icon", () => {
-    const s = gv({ r_iron_bar: { output: "iron_bar" } });
-    expect(ni(s, { kind: "smelter", recipeId: "r_iron_bar" })).toBe(
-      iconName("iron_bar"),
-    );
+  it("crafter shows its recipe output icon (via snapshot outputResourceId)", () => {
+    expect(
+      ni(gv(), {
+        kind: "smelter",
+        recipeId: "r_iron_bar",
+        outputResourceId: "iron_bar",
+      }),
+    ).toBe(iconName("iron_bar"));
   });
   it("storage shows its first held resource icon", () => {
     expect(

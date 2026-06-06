@@ -17,12 +17,12 @@ describe("GameState.NewGame", () => {
     expect(g.meta.createdAt).toBe(1000);
   });
 
-  it("MAJOR #4/#5: only r_iron_bar unlocked, no heroes key, t_gatehouse first", () => {
+  it("MAJOR #4/#5: only r_iron_bar unlocked, no heroes key, empty reclaimed", () => {
     const g = NewGame(new FakeClock(0));
     expect(g.unlocks.recipesUnlocked).toEqual(["r_iron_bar"]);
     expect("heroes" in g).toBe(false);
-    expect(g.territories.available).toEqual(["t_gatehouse"]);
     expect(g.territories.reclaimed).toEqual([]);
+    expect("available" in g.territories).toBe(false);
   });
 
   it("starts with an EMPTY graph (the player builds everything)", () => {

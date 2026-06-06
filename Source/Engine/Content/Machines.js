@@ -52,6 +52,14 @@ export const MACHINES = {
   },
 };
 
+/** Machine kinds that are recipe-driven crafters (recipeId, consume inputs, produce output). */
+export const CRAFTER_KINDS = ["smelter", "workshop", "barracks"];
+
+/** True when a machine kind is a recipe crafter. */
+export function isCrafter(kind) {
+  return CRAFTER_KINDS.includes(kind);
+}
+
 /** Gatherer UI variants (cosmetic; engine treats all as `gatherer`). */
 export const GATHERER_VARIANTS = {
   miner: { label: "Miner", resourceIds: ["iron_ore", "coal_raw", "gemstone"] },

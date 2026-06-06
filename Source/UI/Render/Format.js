@@ -1,3 +1,5 @@
+// HUD number/rate formatter. fmtCost (panel costs) lives in Source/UI/Format/Format.js
+// and Source/Engine/Systems/EconomySystem.js — sync guard: Tests/CostFormat.Test.js.
 const UNITS = [
   { v: 1e9, s: "B" },
   { v: 1e6, s: "M" },

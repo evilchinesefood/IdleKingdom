@@ -425,11 +425,12 @@ describe("SaveManager.deserialize", () => {
     expect(state.currencies.gold).toBe(25.0);
   });
 
-  it("canonical-ID guard: NewGame has only r_iron_bar and t_gatehouse", () => {
+  it("canonical-ID guard: NewGame has only r_iron_bar, no available field", () => {
     const clock = new FakeClock(0);
     const state = NewGame(clock);
     expect(state.unlocks.recipesUnlocked).toEqual(["r_iron_bar"]);
-    expect(state.territories.available[0]).toBe("t_gatehouse");
+    expect(state.territories.reclaimed).toEqual([]);
+    expect("available" in state.territories).toBe(false);
   });
 });
 
@@ -491,5 +492,42 @@ describe("migrate10to11 — war rework", () => {
     expect(out.unlocks.heroSlots).toBe(undefined);
     expect(out.unlocks.researchOwned.includes("res_war_college")).toBe(false); // node deleted
     expect(out.unlocks.productionBonuses.barracks).toBe(1.0);
+  });
+
+  it("migrating a v10 blob WITHOUT productionBonuses yields a fully-seeded map (task 5)", () => {
+    const v10 = {
+      version: 10,
+      currencies: { gold: 25, research: 0 },
+      graph: {
+        nodes: [],
+        links: [],
+        buildings: [],
+        nextNodeSeq: 0,
+        nextLinkSeq: 0,
+        nextBuildingSeq: 0,
+      },
+      unlocks: {
+        machinesUnlocked: ["gatherer", "smelter"],
+        recipesUnlocked: ["r_iron_bar"],
+        researchOwned: [],
+        gathererResources: [],
+        marketListings: ["iron_ore"],
+        titheRate: 0,
+        autoSell: false,
+        offlineCapHours: 1,
+        // no productionBonuses key at all
+      },
+      siege: { progress: 0 },
+      territories: { reclaimed: [], available: ["t_gatehouse"] },
+      meta: { won: false, tutorialDone: true, createdAt: 0 },
+    };
+    const out = migrate10to11(v10);
+    const pb = out.unlocks.productionBonuses;
+    expect(pb.gatherer).toBe(1.0);
+    expect(pb.smelter).toBe(1.0);
+    expect(pb.workshop).toBe(1.0);
+    expect(pb.barracks).toBe(1.0);
+    expect(pb.market).toBe(1.0);
+    expect(pb.scholar).toBe(1.0);
   });
 });

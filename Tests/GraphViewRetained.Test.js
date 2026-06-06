@@ -559,3 +559,59 @@ describe("GraphView single-machine action bar (headless mount)", () => {
     expect(gv._barSig === sigA).toBe(false); // id is part of the sig
   });
 });
+
+// Task 35: SVG carries aria-label="Factory graph"
+describe("GraphView accessibility — SVG label", () => {
+  it("svgEl has aria-label='Factory graph'", () => {
+    const gv = mount({ nodes: [], links: [], buildings: [] });
+    expect(gv.svgEl.getAttribute("aria-label")).toBe("Factory graph");
+  });
+});
+
+// Task 32: _groupSelection dispatches CreateBuilding for ≥2 selected nodes.
+// The g-shortcut guard (selNodes + selBuildings >= 2) lives in App._handleGlobalKey;
+// the underlying method is tested here for correctness when used with a valid selection.
+describe("GraphView _groupSelection", () => {
+  it("dispatches CreateBuilding when ≥2 nodes are selected", () => {
+    let dispatched = null;
+    installDom();
+    const host = makeEl("div");
+    const game = {
+      content: { recipes: {} },
+      dispatch: (intent) => {
+        dispatched = intent;
+        return { ok: true };
+      },
+    };
+    const gv = new GraphView(host, game);
+    gv.render({
+      nodes: [nrow("a"), nrow("b", { pos: { x: 400, y: 100 } })],
+      links: [],
+      buildings: [],
+    });
+    gv.selNodes = new Set(["a", "b"]);
+    gv._groupSelection();
+    expect(dispatched && dispatched.type).toBe("CreateBuilding");
+    expect(
+      dispatched.nodeIds.includes("a") && dispatched.nodeIds.includes("b"),
+    ).toBe(true);
+  });
+
+  it("does not dispatch when selNodes and selBuildings are both empty", () => {
+    let dispatched = null;
+    installDom();
+    const host = makeEl("div");
+    const game = {
+      content: { recipes: {} },
+      dispatch: (intent) => {
+        dispatched = intent;
+        return { ok: true };
+      },
+    };
+    const gv = new GraphView(host, game);
+    gv.render({ nodes: [], links: [], buildings: [] });
+    // selNodes and selBuildings start empty — _groupSelection early-returns
+    gv._groupSelection();
+    expect(dispatched).toBe(null);
+  });
+});

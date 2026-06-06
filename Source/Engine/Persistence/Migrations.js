@@ -138,8 +138,15 @@ export function migrate10to11(blob) {
   next.unlocks.researchOwned = (next.unlocks.researchOwned || []).filter(
     (id) => id !== "res_war_college",
   );
+  // Seed a full default map (without storage — task 40 drops that slot) then
+  // overlay whatever the v10 blob already had, so no kind is left undefined.
   next.unlocks.productionBonuses = {
+    gatherer: 1.0,
+    smelter: 1.0,
+    workshop: 1.0,
     barracks: 1.0,
+    market: 1.0,
+    scholar: 1.0,
     ...next.unlocks.productionBonuses,
   };
   if (!next.siege) next.siege = { progress: 0 };
