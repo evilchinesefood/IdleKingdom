@@ -221,9 +221,13 @@ export class GraphView {
       hitPort: (gx, gy) => this._hitPort(gx, gy),
       hitNode: (gx, gy) => this._hitNode(gx, gy),
       isSelected: (id) => this.selectedId === id,
+      isMultiSelected: (id) => this.selNodes.has(id),
       onNodeGrab: (id, gx, gy) => this._grab(id, gx, gy),
       onNodeDrag: (id, gx, gy) => this._dragNode(id, gx, gy),
       onNodeDrop: (id, gx, gy) => this._dropNode(id, gx, gy),
+      onMultiGrab: (id, gx, gy) => this._grabMulti(id, gx, gy),
+      onMultiDrag: (id, gx, gy) => this._dragMulti(id, gx, gy),
+      onMultiDrop: (id, gx, gy) => this._dropMulti(id, gx, gy),
       onConnect: (from, to) => this._connect(from, to),
       onConnectMove: (fromId, gx, gy) => this._connectMove(fromId, gx, gy),
       onConnectEnd: () => this._connectEnd(),
@@ -536,6 +540,68 @@ export class GraphView {
     this._grabOffset = null;
   }
 
+  // The movable members of the active multi-selection: every node in selNodes
+  // EXCEPT grouped machines (position-locked — they move with their building).
+  _multiMoveIds() {
+    const out = [];
+    for (const id of this.selNodes) {
+      const n = this._nodeAt(id);
+      if (n && !n.building) out.push(id);
+    }
+    return out;
+  }
+
+  // Multi-drag grab: record the anchor's cursor offset + each member's start pos
+  // so per-move we just add the anchor's delta to every member (no jump).
+  _grabMulti(id, gx, gy) {
+    const ids = this._multiMoveIds();
+    const start = {};
+    for (const mid of ids) {
+      const n = this._nodeAt(mid);
+      if (n) start[mid] = { x: this._pos(n).x, y: this._pos(n).y };
+    }
+    const anchor = start[id] || { x: gx, y: gy };
+    this._multiDrag = {
+      anchor: id,
+      off: { x: gx - anchor.x, y: gy - anchor.y },
+      start,
+    };
+  }
+
+  // Live multi-move: nudge every member by the anchor's delta via _dragPos so the
+  // retained render (and links) follow through _pos — one coalesced redraw.
+  _dragMulti(id, gx, gy) {
+    const md = this._multiDrag;
+    if (!md) return;
+    const ax = gx - md.off.x,
+      ay = gy - md.off.y;
+    const a = md.start[md.anchor];
+    if (!a) return;
+    const dx = ax - a.x,
+      dy = ay - a.y;
+    this._dragPos = this._dragPos || {};
+    for (const mid of Object.keys(md.start))
+      this._dragPos[mid] = { x: md.start[mid].x + dx, y: md.start[mid].y + dy };
+    this._requestDraw(); // per-pointermove: coalesce to one redraw per frame
+  }
+
+  // Drop: snap each member's final pos per the pref, dispatch ONE MoveNodes (one
+  // undo entry), then clear the live overrides. Selection is left intact.
+  _dropMulti(id, gx, gy) {
+    const md = this._multiDrag;
+    if (!md) return;
+    const moves = [];
+    for (const mid of Object.keys(md.start)) {
+      let pos = (this._dragPos && this._dragPos[mid]) || md.start[mid];
+      if (this.snapEnabled()) pos = snapToGrid(pos, GRID);
+      moves.push({ id: mid, x: pos.x, y: pos.y });
+    }
+    if (moves.length) this.game.dispatch({ type: INTENT.MoveNodes, moves });
+    for (const mid of Object.keys(md.start))
+      if (this._dragPos) delete this._dragPos[mid];
+    this._multiDrag = null;
+  }
+
   _connect(fromId, toId) {
     const from = this._nodeAt(fromId),
       to = this._nodeAt(toId);
@@ -781,12 +847,26 @@ export class GraphView {
   // drop any live move/box override so it doesn't persist into later renders.
   // Copy mode (a deliberate tool state) is intentionally left alone.
   _clearTransient() {
-    if (this._buildingDrag || this._bGrab || this._selectBox || this._resize) {
+    if (
+      this._buildingDrag ||
+      this._bGrab ||
+      this._selectBox ||
+      this._resize ||
+      this._multiDrag
+    ) {
       this._buildingDrag = null;
       this._bGrab = null;
       this._dragSubtree = null;
       this._selectBox = null;
       this._resize = null;
+      // An abandoned multi-drag (e.g. a 2nd pinch finger) drops its live nudges
+      // with no dispatch — the selection survives, positions snap back to snapshot.
+      if (this._multiDrag) {
+        if (this._dragPos)
+          for (const mid of Object.keys(this._multiDrag.start))
+            delete this._dragPos[mid];
+        this._multiDrag = null;
+      }
       this._draw();
     }
   }

@@ -598,6 +598,20 @@ export function reduce(state, intent, content) {
       preserveSolved = true; // pos is render-only; the solve is unchanged
       break;
     }
+    case "MoveNodes": {
+      // All-or-nothing: resolve every node first so an unknown id rejects with
+      // the clone discarded (no partial apply). Same rationale as SetNodePos —
+      // pure layout, solve() never reads node.pos, so carry the cache forward.
+      const targets = [];
+      for (const m of intent.moves) {
+        const node = nodeById(next, m.id);
+        if (!node) return reject(state, "No such machine");
+        targets.push([node, m]);
+      }
+      for (const [node, m] of targets) node.pos = { x: m.x, y: m.y };
+      preserveSolved = true;
+      break;
+    }
     case "AckVictory": {
       next.meta.seenVictory = true;
       break;

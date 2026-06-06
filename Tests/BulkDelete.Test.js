@@ -4,6 +4,7 @@ import {
   deltaTransform,
   actionBarSpec,
 } from "../Source/UI/GraphView.js";
+import { GraphInput } from "../Source/UI/GraphInput.js";
 import { iconName } from "../Source/UI/Icons.js";
 
 // Drive GraphView._onSelectBox in isolation via a stub `this` (no canvas/DOM needed):
@@ -69,6 +70,181 @@ describe("GraphView._onSelectBox — marquee populates the selection", () => {
     GraphView.prototype._onSelectBox.call(s, { x: 0, y: 0, w: 300, h: 300 });
     expect(s.selectedId).toBe(null); // marquee replaced it
     expect([...s.selNodes]).toEqual(["n1"]);
+  });
+});
+
+describe("GraphView multi-drag — move a marquee selection in one MoveNodes", () => {
+  // Stub `this` for the _grabMulti/_dragMulti/_dropMulti prototype methods.
+  function dragStub(over) {
+    const dispatched = [];
+    return {
+      selNodes: new Set(["n1", "n2"]),
+      snap: {
+        nodes: [
+          { id: "n1", pos: { x: 0, y: 0 } },
+          { id: "n2", pos: { x: 100, y: 0 } },
+        ],
+      },
+      game: { dispatch: (i) => dispatched.push(i) },
+      snapEnabled: () => false,
+      _draw() {},
+      _requestDraw() {},
+      _nodeMap: GraphView.prototype._nodeMap,
+      _nodeAt: GraphView.prototype._nodeAt,
+      _pos: GraphView.prototype._pos,
+      _multiMoveIds: GraphView.prototype._multiMoveIds,
+      _grabMulti: GraphView.prototype._grabMulti,
+      _dragMulti: GraphView.prototype._dragMulti,
+      _dropMulti: GraphView.prototype._dropMulti,
+      dispatched,
+      ...over,
+    };
+  }
+
+  it("dragging the anchor applies the same delta to every selected node (live _dragPos)", () => {
+    const s = dragStub();
+    // grab n1 at its center (60,32); the anchor offset is (60,32)
+    s._grabMulti("n1", 60, 32);
+    // move pointer +50,+20 -> anchor delta is (+50,+20)
+    s._dragMulti("n1", 110, 52);
+    expect(s._dragPos.n1).toEqual({ x: 50, y: 20 });
+    expect(s._dragPos.n2).toEqual({ x: 150, y: 20 }); // 100+50, 0+20
+  });
+
+  it("drop builds ONE MoveNodes with the final pos of every member", () => {
+    const s = dragStub();
+    s._grabMulti("n1", 60, 32);
+    s._dragMulti("n1", 110, 52);
+    s._dropMulti("n1", 110, 52);
+    expect(s.dispatched.length).toBe(1);
+    const intent = s.dispatched[0];
+    expect(intent.type).toBe("MoveNodes");
+    expect(intent.moves.sort((a, b) => a.id.localeCompare(b.id))).toEqual([
+      { id: "n1", x: 50, y: 20 },
+      { id: "n2", x: 150, y: 20 },
+    ]);
+    // live overrides cleared after drop
+    expect(s._dragPos.n1).toBe(undefined);
+    expect(s._dragPos.n2).toBe(undefined);
+  });
+
+  it("snaps each final pos to the grid when the pref is on", () => {
+    const s = dragStub({ snapEnabled: () => true });
+    s._grabMulti("n1", 60, 32);
+    s._dragMulti("n1", 73, 45); // anchor delta +13,+13 -> n1 at (13,13), n2 at (113,13)
+    s._dropMulti("n1", 73, 45);
+    const moves = s.dispatched[0].moves;
+    // GRID=20: 13->0/20 rounding handled by snapToGrid; just assert it changed off raw
+    for (const m of moves) {
+      expect(m.x % 20).toBe(0);
+      expect(m.y % 20).toBe(0);
+    }
+  });
+
+  it("excludes a grouped machine that sneaks into selNodes (position-locked)", () => {
+    const s = dragStub({
+      selNodes: new Set(["n1", "n2", "g1"]),
+      snap: {
+        nodes: [
+          { id: "n1", pos: { x: 0, y: 0 } },
+          { id: "n2", pos: { x: 100, y: 0 } },
+          { id: "g1", pos: { x: 200, y: 0 }, building: "b1" }, // grouped
+        ],
+      },
+    });
+    s._grabMulti("n1", 60, 32);
+    s._dragMulti("n1", 110, 52);
+    expect(s._dragPos.g1).toBe(undefined); // grouped node never nudged
+    s._dropMulti("n1", 110, 52);
+    const ids = s.dispatched[0].moves.map((m) => m.id).sort();
+    expect(ids).toEqual(["n1", "n2"]); // g1 not moved
+  });
+});
+
+describe("GraphInput drag gate — multi vs single routing", () => {
+  // Headless fake <svg>: enough surface for GraphInput's pointer handlers.
+  function fakeEl() {
+    return {
+      addEventListener() {},
+      setPointerCapture() {},
+      classList: { add() {}, remove() {} },
+      getBoundingClientRect: () => ({
+        left: 0,
+        top: 0,
+        width: 800,
+        height: 600,
+      }),
+    };
+  }
+  // Identity view so screen coords == graph coords.
+  function inputWith(over) {
+    const calls = [];
+    const cb = {
+      getView: () => ({ scale: 1, tx: 0, ty: 0 }),
+      setView() {},
+      hitPort: () => null,
+      hitNode: () => null,
+      hitBuilding: () => null,
+      hitLink: () => null,
+      isSelected: () => false,
+      isGrouped: () => false,
+      isMultiSelected: () => false,
+      onSelect: (id) => calls.push("select:" + id),
+      onNodeGrab: (id) => calls.push("grab:" + id),
+      onMultiGrab: (id) => calls.push("multiGrab:" + id),
+      onNodeDrag: (id) => calls.push("drag:" + id),
+      onMultiDrag: (id) => calls.push("multiDrag:" + id),
+      onNodeDrop: (id) => calls.push("drop:" + id),
+      onMultiDrop: (id) => calls.push("multiDrop:" + id),
+      ...over,
+    };
+    const input = new GraphInput(fakeEl(), cb);
+    return { input, calls };
+  }
+  const ev = (id, x, y) => ({ pointerId: id, clientX: x, clientY: y });
+
+  it("pointerdown on a node IN the multi-selection starts a multi-drag", () => {
+    const { input, calls } = inputWith({
+      hitNode: () => "n1",
+      isMultiSelected: (id) => id === "n1",
+    });
+    input._down(ev(1, 10, 10));
+    expect(input.mode).toBe("dragMulti");
+    expect(input.dragNodeId).toBe("n1");
+    expect(calls.includes("multiGrab:n1")).toBe(true);
+    input._move(ev(1, 60, 30));
+    expect(calls.includes("multiDrag:n1")).toBe(true);
+    input._up(ev(1, 60, 30));
+    expect(calls.includes("multiDrop:n1")).toBe(true);
+    // never falls through to single-node grab
+    expect(calls.some((c) => c.startsWith("grab:"))).toBe(false);
+  });
+
+  it("a grouped node in selNodes does NOT multi-drag (position-locked, select-only)", () => {
+    const { input, calls } = inputWith({
+      hitNode: () => "g1",
+      isMultiSelected: () => true,
+      isGrouped: (id) => id === "g1",
+    });
+    input._down(ev(1, 10, 10));
+    expect(input.mode).toBe("selectOnly");
+    expect(calls.some((c) => c.startsWith("multiGrab:"))).toBe(false);
+  });
+
+  it("a node NOT in the selection keeps the single select-first / single-drag rule", () => {
+    // not selected yet -> selectOnly (first gesture selects, no drag)
+    const a = inputWith({ hitNode: () => "n9", isSelected: () => false });
+    a.input._down(ev(1, 10, 10));
+    expect(a.input.mode).toBe("selectOnly");
+    expect(a.calls.includes("select:n9")).toBe(true);
+    // already single-selected (not multi) -> single dragNode
+    const b = inputWith({
+      hitNode: () => "n9",
+      isSelected: (id) => id === "n9",
+    });
+    b.input._down(ev(1, 10, 10));
+    expect(b.input.mode).toBe("dragNode");
+    expect(b.calls.includes("grab:n9")).toBe(true);
   });
 });
 
