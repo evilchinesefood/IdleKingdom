@@ -216,6 +216,141 @@ describe("Snapshot.throughput/atCapacity/starved (§8)", () => {
     expect(market.effectiveRate).toBeCloseTo(0, 1e-9); // produces no graph resource
   });
 
+  it("fully-fed barracks -> atCapacity true, starved false, capacityPct ~1", () => {
+    // Build: iron-ore gatherer -> smelter (r_iron_bar) provides iron_bar, two
+    // timber gatherers -> workshop (r_parchment) provides parchment for a plank-
+    // chain.  For simplicity use a minimal chain that fully feeds r_militia:
+    // sword/armor/shield gatherers (fake gatherers producing the required inputs)
+    // wired directly into the barracks.  We cheat by using resourceId gatherers
+    // for each troop-input resource so availableOut fills the barracks inputs at cap.
+    // r_militia: inputs {sword:1, armor:1, shield:1}, baseOut 0.05, barracks rateGain 0.02
+    // barracks L1 cap = baseOut + rateGain*(1-1) = 0.05
+    // gatherer L1 cap = 1.0/s each — easily saturates the barracks want of 0.05/s
+    const s = graphState(
+      new FakeClock(0),
+      [
+        {
+          id: "g_sword",
+          kind: "gatherer",
+          level: 1,
+          resourceId: "sword",
+          recipeId: null,
+          stockpile: {},
+          pos: { x: 0, y: 0 },
+        },
+        {
+          id: "g_armor",
+          kind: "gatherer",
+          level: 1,
+          resourceId: "armor",
+          recipeId: null,
+          stockpile: {},
+          pos: { x: 1, y: 0 },
+        },
+        {
+          id: "g_shield",
+          kind: "gatherer",
+          level: 1,
+          resourceId: "shield",
+          recipeId: null,
+          stockpile: {},
+          pos: { x: 2, y: 0 },
+        },
+        {
+          id: "bk",
+          kind: "barracks",
+          level: 1,
+          resourceId: null,
+          recipeId: "r_militia",
+          stockpile: {},
+          pos: { x: 3, y: 0 },
+        },
+      ],
+      [
+        { id: "lsw", from: "g_sword", to: "bk", resourceId: "sword" },
+        { id: "lar", from: "g_armor", to: "bk", resourceId: "armor" },
+        { id: "lsh", from: "g_shield", to: "bk", resourceId: "shield" },
+      ],
+    );
+    const snap = build(s, solve(s, content), content);
+    const bk = snap.nodes.find((n) => n.id === "bk");
+    expect(bk.atCapacity).toBe(true);
+    expect(bk.starved).toBe(false);
+    expect(bk.capacityPct).toBeCloseTo(1.0, 1e-9);
+  });
+
+  it("under-fed barracks -> starved true, atCapacity false", () => {
+    // Barracks with no inputs connected: troopRate = 0, cap = 0.05 -> starved
+    const s = graphState(new FakeClock(0), [
+      {
+        id: "bk2",
+        kind: "barracks",
+        level: 1,
+        resourceId: null,
+        recipeId: "r_militia",
+        stockpile: {},
+        pos: { x: 0, y: 0 },
+      },
+    ]);
+    const snap = build(s, solve(s, content), content);
+    const bk2 = snap.nodes.find((n) => n.id === "bk2");
+    expect(bk2.starved).toBe(true);
+    expect(bk2.atCapacity).toBe(false);
+    expect(bk2.capacityPct).toBeCloseTo(0, 1e-9);
+  });
+
+  it("fully-fed barracks working = true", () => {
+    const s = graphState(
+      new FakeClock(0),
+      [
+        {
+          id: "g_sword",
+          kind: "gatherer",
+          level: 1,
+          resourceId: "sword",
+          recipeId: null,
+          stockpile: {},
+          pos: { x: 0, y: 0 },
+        },
+        {
+          id: "g_armor",
+          kind: "gatherer",
+          level: 1,
+          resourceId: "armor",
+          recipeId: null,
+          stockpile: {},
+          pos: { x: 1, y: 0 },
+        },
+        {
+          id: "g_shield",
+          kind: "gatherer",
+          level: 1,
+          resourceId: "shield",
+          recipeId: null,
+          stockpile: {},
+          pos: { x: 2, y: 0 },
+        },
+        {
+          id: "bk3",
+          kind: "barracks",
+          level: 1,
+          resourceId: null,
+          recipeId: "r_militia",
+          stockpile: {},
+          pos: { x: 3, y: 0 },
+        },
+      ],
+      [
+        { id: "lsw3", from: "g_sword", to: "bk3", resourceId: "sword" },
+        { id: "lar3", from: "g_armor", to: "bk3", resourceId: "armor" },
+        { id: "lsh3", from: "g_shield", to: "bk3", resourceId: "shield" },
+      ],
+    );
+    const snap = build(s, solve(s, content), content);
+    const bk3 = snap.nodes.find((n) => n.id === "bk3");
+    expect(bk3.working).toBe(true);
+  });
+
   it("unconfigured gatherer (resourceId null) -> neither atCapacity nor starved", () => {
     const s = graphState(new FakeClock(0), [
       {

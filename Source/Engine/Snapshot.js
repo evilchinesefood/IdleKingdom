@@ -155,10 +155,24 @@ export function build(state, solved, content, lastError = null) {
     const producerRate = Object.values(out).reduce((a, b) => a + b, 0);
     const consumerRate = Object.values(drawMap).reduce((a, b) => a + b, 0);
     const isConsumer = node.kind === "scholar" || node.kind === "market";
-    const throughput = isConsumer ? consumerRate : producerRate;
+    // barracks is a crafter-SINK: troops never enter the resource graph, so
+    // availableOut[id] = {} and producerRate = 0.  Use the troop muster rate
+    // (siegeRateByNode) as the throughput basis so capacityPct/atCapacity/starved
+    // reflect real supply rather than being permanently zero / starved.
+    const isBarracks = node.kind === "barracks";
+    const troopRate = isBarracks
+      ? (solved.siegeRateByNode && solved.siegeRateByNode[node.id]) || 0
+      : 0;
+    const throughput = isBarracks
+      ? troopRate
+      : isConsumer
+        ? consumerRate
+        : producerRate;
     // storage is excluded: its `cap` is an oversized passthrough ceiling, not a demand,
     // so it must not read as starved when running below it (gatherers take no input).
-    const takesInput = node.kind !== "gatherer" && node.kind !== "storage";
+    // barracks uses troopRate above, so exclude it from the generic producerRate path.
+    const takesInput =
+      node.kind !== "gatherer" && node.kind !== "storage" && !isBarracks;
     const EPS = 1e-6;
     const heldIds = node.kind === "storage" ? node.resourceIds || [] : null;
     // storage passes each held type through up to `cap`, so its effective ceiling
@@ -166,7 +180,11 @@ export function build(state, solved, content, lastError = null) {
     const capBasis =
       node.kind === "storage" ? cap * Math.max(1, heldIds.length) : cap;
     const atCapacity = capBasis > 0 && throughput >= capBasis - EPS;
-    const starved = cap > 0 && takesInput && throughput < cap - EPS;
+    // barracks: starved uses the same cap>0 && throughput<cap check, but now
+    // throughput = troopRate so the condition is true only when genuinely under-fed.
+    const starved = isBarracks
+      ? cap > 0 && troopRate < cap - EPS
+      : cap > 0 && takesInput && throughput < cap - EPS;
     // "working" = actively moving USED resources (drives the moving-parts animation):
     // a producer must be SHIPPING output downstream (not producing into the void or a
     // full chain), and a consumer/storage must be drawing input. Anything with no flow
