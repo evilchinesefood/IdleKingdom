@@ -204,7 +204,11 @@ export function reduce(state, intent, content) {
     case "SetRecipe": {
       const node = nodeById(next, intent.nodeId);
       if (!node) return reject(state, "No such machine");
-      if (node.kind !== "smelter" && node.kind !== "workshop")
+      if (
+        node.kind !== "smelter" &&
+        node.kind !== "workshop" &&
+        node.kind !== "barracks"
+      )
         return reject(state, "Not a crafter");
       if (!next.unlocks.recipesUnlocked.includes(intent.recipeId))
         return reject(state, "Recipe locked");

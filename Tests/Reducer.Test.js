@@ -515,4 +515,86 @@ describe("Reducer", () => {
     const placed = out.state.graph.nodes[out.state.graph.nodes.length - 1];
     expect(placed.kind).toBe("smelter");
   });
+
+  // A barracks is a recipe-driven crafter (crafterKind: "barracks"). SetRecipe
+  // must treat it as a crafter so players can switch militia -> soldier -> knight
+  // on an existing barracks (the natural war progression).
+  function withBarracks(clock) {
+    const s = seededState(clock);
+    s.unlocks.machinesUnlocked.push("barracks");
+    s.unlocks.recipesUnlocked.push("r_militia", "r_soldier");
+    s.graph.nodes.push({
+      id: "n_barracks_0",
+      kind: "barracks",
+      level: 1,
+      resourceId: null,
+      recipeId: "r_militia",
+      stockpile: {},
+      pos: { x: 840, y: 200 },
+    });
+    return s;
+  }
+
+  it("SetRecipe accepts a barracks and changes its recipe (barracks is a crafter)", () => {
+    const s = withBarracks(new FakeClock(0));
+    const out = reduce(
+      s,
+      { type: "SetRecipe", nodeId: "n_barracks_0", recipeId: "r_soldier" },
+      content,
+    );
+    expect(out.error).toBe(undefined);
+    expect(
+      out.state.graph.nodes.find((n) => n.id === "n_barracks_0").recipeId,
+    ).toBe("r_soldier");
+  });
+
+  it("SetRecipe supports the militia -> soldier switch on an existing barracks", () => {
+    const s = withBarracks(new FakeClock(0));
+    expect(s.graph.nodes.find((n) => n.id === "n_barracks_0").recipeId).toBe(
+      "r_militia",
+    );
+    const out = reduce(
+      s,
+      { type: "SetRecipe", nodeId: "n_barracks_0", recipeId: "r_soldier" },
+      content,
+    );
+    expect(out.error).toBe(undefined);
+    expect(
+      out.state.graph.nodes.find((n) => n.id === "n_barracks_0").recipeId,
+    ).toBe("r_soldier");
+  });
+
+  it("SetRecipe guards remain: smelter recipe on a barracks is a crafter mismatch", () => {
+    const s = withBarracks(new FakeClock(0));
+    const out = reduce(
+      s,
+      { type: "SetRecipe", nodeId: "n_barracks_0", recipeId: "r_iron_bar" },
+      content,
+    );
+    expect(out.error).toBe("Recipe/crafter mismatch");
+    expect(out.state).toBe(s);
+  });
+
+  it("SetRecipe guards remain: barracks recipe on a smelter is a crafter mismatch", () => {
+    const s = withBarracks(new FakeClock(0));
+    const out = reduce(
+      s,
+      { type: "SetRecipe", nodeId: "n_smelter_0", recipeId: "r_soldier" },
+      content,
+    );
+    expect(out.error).toBe("Recipe/crafter mismatch");
+    expect(out.state).toBe(s);
+  });
+
+  it("SetRecipe guards remain: a locked barracks recipe (r_knight) is rejected", () => {
+    const s = withBarracks(new FakeClock(0)); // r_knight not unlocked
+    expect(s.unlocks.recipesUnlocked.includes("r_knight")).toBe(false);
+    const out = reduce(
+      s,
+      { type: "SetRecipe", nodeId: "n_barracks_0", recipeId: "r_knight" },
+      content,
+    );
+    expect(out.error).toBe("Recipe locked");
+    expect(out.state).toBe(s);
+  });
 });
