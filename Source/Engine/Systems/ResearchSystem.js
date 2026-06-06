@@ -90,6 +90,26 @@ const EFFECTS = {
     },
   ],
   res_quartermaster: [{ type: "autoSell", enabled: true }],
+
+  // Tier A — t_highwall gated
+  res_war_drums: [{ type: "productionBonus", kind: "barracks", mult: 1.5 }],
+  res_merchant_compact: [
+    { type: "globalRateBonus", mult: 1.15 },
+    { type: "marketCapacityBonus", mult: 1.2 },
+  ],
+  res_illuminated_texts: [{ type: "scholarBonus", mult: 2.0 }],
+
+  // Tier B — t_blackkeep gated
+  res_siege_engines: [{ type: "productionBonus", kind: "barracks", mult: 2.0 }],
+  res_eternal_forge: [
+    { type: "globalRateBonus", mult: 1.3 },
+    { type: "scholarBonus", mult: 1.5 },
+  ],
+  res_yensburg_reborn: [
+    { type: "globalRateBonus", mult: 1.5 },
+    { type: "productionBonus", kind: "barracks", mult: 1.5 },
+    { type: "marketCapacityBonus", mult: 2.0 },
+  ],
 };
 
 export function researchStatus(state, content, id) {
