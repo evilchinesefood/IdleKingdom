@@ -62,13 +62,13 @@ describe("ResearchSystem", () => {
 
   it("buyTuningError: cost-named when ONLY cost blocks, catch-all otherwise", () => {
     const s = NewGame(new FakeClock(0));
-    s.currencies.research = 9; // gatherer tuning rank 0 costs 50
+    s.currencies.research = 9; // gatherer tuning rank 0 costs 25
     expect(buyTuningError(s, content, "gatherer")).toBe(
-      "Not enough research — tuning costs 50",
+      "Not enough research — tuning costs 25",
     );
     expect(buyTuningError(s, content, "storage")).toBe("Cannot buy tuning"); // not tunable
     expect(buyTuningError(s, content, "scholar")).toBe("Cannot buy tuning"); // locked machine
-    s.currencies.research = 50;
+    s.currencies.research = 25;
     expect(buyTuningError(s, content, "gatherer")).toBe(null);
   });
 
@@ -313,16 +313,24 @@ describe("ResearchSystem", () => {
 });
 
 describe("Machine Tuning — endless research sink", () => {
-  it("cost grows geometrically per rank (50, 80, 128)", () => {
+  it("cost grows geometrically per rank (25, 40, 64) — halved baseline", () => {
     const s = NewGame(new FakeClock(0));
     s.currencies.research = 1000;
-    expect(tuningCost(s, "gatherer")).toBe(50);
+    expect(tuningCost(s, "gatherer")).toBe(25);
     buyTuning(s, content, "gatherer");
-    expect(tuningCost(s, "gatherer")).toBe(80);
+    expect(tuningCost(s, "gatherer")).toBe(40);
     buyTuning(s, content, "gatherer");
-    expect(tuningCost(s, "gatherer")).toBe(128);
-    expect(s.currencies.research).toBeCloseTo(1000 - 50 - 80, 1e-9);
+    expect(tuningCost(s, "gatherer")).toBe(64);
+    expect(s.currencies.research).toBeCloseTo(1000 - 25 - 40, 1e-9);
     expect(s.unlocks.tuningRanks.gatherer).toBe(2);
+  });
+
+  it("baseline is halved: rank 0 === 25, rank 1 === 40 (was 50/80)", () => {
+    const s = NewGame(new FakeClock(0));
+    s.currencies.research = 1000;
+    expect(tuningCost(s, "gatherer")).toBe(25);
+    buyTuning(s, content, "gatherer");
+    expect(tuningCost(s, "gatherer")).toBe(40);
   });
 
   it("each rank multiplies the kind's bonus by 1.1, stacking on one-shot research", () => {
@@ -342,7 +350,7 @@ describe("Machine Tuning — endless research sink", () => {
     expect(canBuyTuning(s, content, "storage")).toBe(false); // not a tunable kind
     expect(canBuyTuning(s, content, "gatherer")).toBe(false); // broke
     const out = reduce(s, { type: "BuyTuning", kind: "gatherer" }, fullContent);
-    expect(out.error).toBe("Not enough research — tuning costs 50"); // gatherer rank-0 tuning cost
+    expect(out.error).toBe("Not enough research — tuning costs 25"); // gatherer rank-0 tuning cost
     expect(out.state).toBe(s); // original untouched on reject
   });
 
