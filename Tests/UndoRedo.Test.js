@@ -99,6 +99,36 @@ describe("Undo/redo — structural edits", () => {
     expect(r.ok).toBe(false);
     expect(game._undo.length).toBe(undoDepth); // rejected -> no new history
   });
+
+  it("MoveNodes is one undo entry: a single undo restores ALL moved positions", () => {
+    const game = newGame();
+    const place = (x, y) =>
+      game.dispatch({
+        type: INTENT.PlaceNode,
+        kind: "gatherer",
+        resourceId: "iron_ore",
+        pos: { x, y },
+      });
+    place(0, 0);
+    place(100, 0);
+    const [a, b] = game.getSnapshot().nodes.map((n) => n.id);
+    const depth = game._undo.length;
+    game.dispatch({
+      type: "MoveNodes",
+      moves: [
+        { id: a, x: 500, y: 500 },
+        { id: b, x: 600, y: 600 },
+      ],
+    });
+    expect(game._undo.length).toBe(depth + 1); // ONE history entry for the whole move
+    const moved = game.getSnapshot().nodes;
+    expect(moved.find((n) => n.id === a).pos).toEqual({ x: 500, y: 500 });
+    expect(moved.find((n) => n.id === b).pos).toEqual({ x: 600, y: 600 });
+    game.undo(); // single Ctrl+Z restores BOTH
+    const back = game.getSnapshot().nodes;
+    expect(back.find((n) => n.id === a).pos).toEqual({ x: 0, y: 0 });
+    expect(back.find((n) => n.id === b).pos).toEqual({ x: 100, y: 0 });
+  });
 });
 
 describe("Undo/redo — preserves LIVE stockpiles (task 1)", () => {

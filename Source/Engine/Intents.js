@@ -13,6 +13,7 @@ export const INTENT = {
   RemoveNode: "RemoveNode",
   RemoveLink: "RemoveLink",
   SetNodePos: "SetNodePos",
+  MoveNodes: "MoveNodes",
   CreateBuilding: "CreateBuilding",
   MoveBuilding: "MoveBuilding",
   ResizeBuilding: "ResizeBuilding",
@@ -52,6 +53,10 @@ const SHAPES = {
     i.pos &&
     Number.isFinite(i.pos.x) &&
     Number.isFinite(i.pos.y),
+  MoveNodes: (i) =>
+    Array.isArray(i.moves) &&
+    i.moves.length > 0 &&
+    i.moves.every((m) => m && isStr(m.id) && isNum(m.x) && isNum(m.y)),
   CreateBuilding: (i) =>
     isRect(i.rect) &&
     (isStrArr(i.nodeIds) || isStrArr(i.children)) &&

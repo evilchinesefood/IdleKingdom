@@ -129,8 +129,19 @@ export class GraphInput {
     }
     const nodeId = this.cb.hitNode(g.x, g.y);
     if (nodeId) {
-      const already = this.cb.isSelected && this.cb.isSelected(nodeId);
       const grouped = this.cb.isGrouped && this.cb.isGrouped(nodeId);
+      // A node already in the multi-selection drags the WHOLE set as a unit (one
+      // MoveNodes on drop) — no need to group first. Grouped machines stay
+      // position-locked, so they fall through to plain select.
+      const multi =
+        !grouped && this.cb.isMultiSelected && this.cb.isMultiSelected(nodeId);
+      if (multi) {
+        this.mode = "dragMulti";
+        this.dragNodeId = nodeId; // anchor
+        if (this.cb.onMultiGrab) this.cb.onMultiGrab(nodeId, g.x, g.y);
+        return;
+      }
+      const already = this.cb.isSelected && this.cb.isSelected(nodeId);
       this.cb.onSelect(nodeId);
       // A grouped machine is position-locked: it selects (for editing) but never
       // drags — the building moves as a unit instead.
@@ -186,6 +197,11 @@ export class GraphInput {
       this.cb.onNodeDrag(this.dragNodeId, g.x, g.y);
       return;
     }
+    if (this.mode === "dragMulti") {
+      const g = this._toGraph(e);
+      if (this.cb.onMultiDrag) this.cb.onMultiDrag(this.dragNodeId, g.x, g.y);
+      return;
+    }
     if (this.mode === "selectBox") {
       const g = this._toGraph(e);
       if (this.cb.onSelectBoxMove) this.cb.onSelectBoxMove(this._box(g));
@@ -239,6 +255,11 @@ export class GraphInput {
     if (wasMode === "dragNode" && this.dragNodeId) {
       const g = this._toGraph(e);
       if (this.cb.onNodeDrop) this.cb.onNodeDrop(this.dragNodeId, g.x, g.y);
+    }
+
+    if (wasMode === "dragMulti" && this.dragNodeId) {
+      const g = this._toGraph(e);
+      if (this.cb.onMultiDrop) this.cb.onMultiDrop(this.dragNodeId, g.x, g.y);
     }
 
     if (wasMode === "selectBox") {

@@ -329,6 +329,80 @@ describe("Reducer", () => {
     expect(out.state).toBe(s);
   });
 
+  it("MoveNodes repositions every listed machine in one accepted intent", () => {
+    const s = seededState(new FakeClock(0));
+    const out = reduce(
+      s,
+      {
+        type: "MoveNodes",
+        moves: [
+          { id: "n_smelter_0", x: 10, y: 20 },
+          { id: "n_miner_0", x: 30, y: 40 },
+        ],
+      },
+      content,
+    );
+    expect(out.error).toBe(undefined);
+    const sm = out.state.graph.nodes.find((n) => n.id === "n_smelter_0");
+    const mn = out.state.graph.nodes.find((n) => n.id === "n_miner_0");
+    expect(sm.pos).toEqual({ x: 10, y: 20 });
+    expect(mn.pos).toEqual({ x: 30, y: 40 });
+  });
+
+  it("MoveNodes is all-or-nothing: any unknown id rejects with state unchanged", () => {
+    const s = seededState(new FakeClock(0));
+    const before = JSON.stringify(s);
+    const out = reduce(
+      s,
+      {
+        type: "MoveNodes",
+        moves: [
+          { id: "n_smelter_0", x: 10, y: 20 },
+          { id: "n_nope", x: 30, y: 40 },
+        ],
+      },
+      content,
+    );
+    expect(out.error).toBe("No such machine");
+    expect(out.state).toBe(s); // unchanged reference on reject
+    expect(JSON.stringify(s)).toBe(before); // input not mutated (no partial apply)
+  });
+
+  it("MoveNodes is render-only: carries the prior _solved cache forward", () => {
+    const s = seededState(new FakeClock(0));
+    s._solved = solve(s, content);
+    const cached = s._solved;
+    const out = reduce(
+      s,
+      { type: "MoveNodes", moves: [{ id: "n_smelter_0", x: 7, y: 7 }] },
+      content,
+    );
+    expect(out.error).toBe(undefined);
+    expect(out.state._solved).toBe(cached); // pos is render-only, solve unchanged
+    expect(solve(out.state, content).goldRate).toBeCloseTo(
+      cached.goldRate,
+      1e-9,
+    );
+  });
+
+  it("MoveNodes validator rejects an empty array and bad coords", () => {
+    const s = seededState(new FakeClock(0));
+    const empty = reduce(s, { type: "MoveNodes", moves: [] }, content);
+    expect(empty.error).toBe("Malformed MoveNodes intent");
+    const nan = reduce(
+      s,
+      { type: "MoveNodes", moves: [{ id: "n_smelter_0", x: NaN, y: 1 }] },
+      content,
+    );
+    expect(nan.error).toBe("Malformed MoveNodes intent");
+    const noId = reduce(
+      s,
+      { type: "MoveNodes", moves: [{ id: "", x: 1, y: 1 }] },
+      content,
+    );
+    expect(noId.error).toBe("Malformed MoveNodes intent");
+  });
+
   it("PlaceNode rejects a gatherer with a not-yet-enabled raw (defensive minor)", () => {
     const s = seededState(new FakeClock(0)); // timber not enabled yet
     const n0 = s.graph.nodes.length;
