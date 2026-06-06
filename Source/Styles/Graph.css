@@ -260,6 +260,20 @@
   stroke-dasharray: 5 4;
   pointer-events: none;
 }
+/* Map-tier batch layer — flat rects + straight neutral lines, no dashes/text/badges.
+   vector-effect keeps strokes ~1px regardless of zoom level. */
+.map-links {
+  fill: none;
+  stroke: var(--iron);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+  stroke-opacity: 0.55;
+}
+.map-nodes {
+  stroke: none;
+  opacity: 0.82;
+}
+
 /* Copy ghost (building rect + member outlines) */
 .building-ghost {
   fill: rgba(201, 162, 39, 0.1);

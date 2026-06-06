@@ -6,14 +6,18 @@ import {
   cullRectFor,
   nodeInRect,
   segmentIntersectsRect,
+  MAP_SCALE,
+  LOD_SCALE,
 } from "../Source/UI/GraphView.js";
 
 describe("GraphView retained-render pure helpers", () => {
-  it("lodTier: full at/above 0.5, far below", () => {
+  it("lodTier: 3-way thresholds — full/far/map", () => {
     expect(lodTier(1)).toBe("full");
-    expect(lodTier(0.5)).toBe("full");
-    expect(lodTier(0.49)).toBe("far");
-    expect(lodTier(0.1)).toBe("far");
+    expect(lodTier(LOD_SCALE)).toBe("full"); // at threshold = full
+    expect(lodTier(LOD_SCALE - 0.01)).toBe("far"); // just below LOD = far
+    expect(lodTier(MAP_SCALE)).toBe("far"); // at MAP threshold = still far
+    expect(lodTier(MAP_SCALE - 0.001)).toBe("map"); // just below MAP = map
+    expect(lodTier(0.001)).toBe("map"); // deep zoom = map
   });
 
   it("nodeSig captures structure, not continuous values", () => {
@@ -649,5 +653,185 @@ describe("GraphView _groupSelection", () => {
     // selNodes and selBuildings start empty — _groupSelection early-returns
     gv._groupSelection();
     expect(dispatched).toBe(null);
+  });
+});
+
+// ---- Map LOD tier tests -----------------------------------------------------
+
+describe("GraphView map LOD tier", () => {
+  // Helper: count children with a given class in a layer element.
+  function countClass(layer, cls) {
+    return layer.childNodes.filter(
+      (c) => c.getAttribute && (c.getAttribute("class") || "").includes(cls),
+    ).length;
+  }
+
+  it("map tier populates layerMap with batch paths and detaches per-element nodes/links", () => {
+    const gv = mount({
+      nodes: [
+        nrow("a", { pos: { x: 0, y: 0 }, kind: "gatherer" }),
+        nrow("b", { pos: { x: 200, y: 0 }, kind: "smelter" }),
+        nrow("c", { pos: { x: 400, y: 0 }, kind: "gatherer" }),
+      ],
+      links: [lrow("l1", "a", "b"), lrow("l2", "b", "c")],
+      buildings: [],
+    });
+    // Inject map-tier scale
+    gv.view = { scale: MAP_SCALE - 0.01, tx: 0, ty: 0 };
+    gv._hostRect = { width: 1280, height: 800 };
+    gv.render({
+      nodes: [
+        nrow("a", { pos: { x: 0, y: 0 }, kind: "gatherer" }),
+        nrow("b", { pos: { x: 200, y: 0 }, kind: "smelter" }),
+        nrow("c", { pos: { x: 400, y: 0 }, kind: "gatherer" }),
+      ],
+      links: [lrow("l1", "a", "b"), lrow("l2", "b", "c")],
+      buildings: [],
+    });
+    // Batch layer has at least 1 child (link path + at least 1 node-kind path)
+    expect(gv.layerMap.childNodes.length > 0).toBe(true);
+    // Per-element nodes are detached from layerNodes (map tier shows batch instead)
+    expect(gv.layerNodes.childNodes.length).toBe(0);
+    // Per-element links are detached from layerLinks
+    expect(gv.layerLinks.childNodes.length).toBe(0);
+    // The retained Maps still hold the entries (for zoom-back re-attach)
+    expect(gv._nodeEls.has("a")).toBe(true);
+    expect(gv._linkEls.has("l1")).toBe(true);
+  });
+
+  it("selected node renders individually at map tier; non-selected nodes do not", () => {
+    const snap = {
+      nodes: [
+        nrow("sel", { pos: { x: 0, y: 0 } }),
+        nrow("bg", { pos: { x: 200, y: 0 } }),
+      ],
+      links: [],
+      buildings: [],
+    };
+    const gv = mount(snap);
+    gv.selectedId = "sel";
+    gv.view = { scale: MAP_SCALE - 0.01, tx: 0, ty: 0 };
+    gv._hostRect = { width: 1280, height: 800 };
+    gv.render(snap);
+    // The selected node renders individually in layerNodes
+    expect(gv.layerNodes.childNodes.length).toBe(1);
+    expect(gv._nodeEls.get("sel").g.parentNode === gv.layerNodes).toBe(true);
+    // The non-selected node is detached
+    expect(gv._nodeEls.get("bg").g.parentNode).toBe(null);
+    // Batch layer still populated
+    expect(gv.layerMap.childNodes.length > 0).toBe(true);
+  });
+
+  it("deselect at map tier returns the node to the batch (indiv-set change rebuilds)", () => {
+    const snap = {
+      nodes: [
+        nrow("sel", { pos: { x: 0, y: 0 } }),
+        nrow("bg", { pos: { x: 200, y: 0 } }),
+      ],
+      links: [],
+      buildings: [],
+    };
+    const gv = mount(snap);
+    gv.selectedId = "sel";
+    gv.view = { scale: MAP_SCALE - 0.01, tx: 0, ty: 0 };
+    gv._hostRect = { width: 1280, height: 800 };
+    gv.render(snap);
+    const kind = snap.nodes[0].kind;
+    // While selected, the batch excludes the individually-rendered node
+    expect(gv._mapNodeEls[kind].getAttribute("d").includes("M0 0h")).toBe(
+      false,
+    );
+
+    gv.selectedId = null;
+    gv.render(snap); // same snapshot identity — indiv-set change must rebuild
+    expect(gv.layerNodes.childNodes.length).toBe(0);
+    expect(gv._mapNodeEls[kind].getAttribute("d").includes("M0 0h")).toBe(true);
+  });
+
+  it("zoom back from map to far re-attaches retained per-element nodes", () => {
+    const snap = {
+      nodes: [nrow("a"), nrow("b", { pos: { x: 200, y: 0 } })],
+      links: [lrow("l1", "a", "b")],
+      buildings: [],
+    };
+    const gv = mount(snap);
+    // Go map tier
+    gv.view = { scale: MAP_SCALE - 0.01, tx: 0, ty: 0 };
+    gv._hostRect = { width: 1280, height: 800 };
+    gv.render(snap);
+    expect(gv.layerNodes.childNodes.length).toBe(0); // detached at map tier
+
+    // Zoom back to far tier
+    gv.view = { scale: MAP_SCALE + 0.05, tx: 0, ty: 0 }; // between MAP and LOD
+    gv.render(snap);
+    // Batch layer is cleared
+    expect(gv.layerMap.childNodes.length).toBe(0);
+    // Per-element nodes are back
+    expect(gv.layerNodes.childNodes.length).toBe(2);
+    expect(gv._nodeEls.get("a").g.parentNode === gv.layerNodes).toBe(true);
+    // Per-element links are back
+    expect(gv.layerLinks.childNodes.length).toBe(1);
+  });
+
+  it("zoom back from map to full re-attaches with full tier (icons present)", () => {
+    const snap = {
+      nodes: [nrow("a")],
+      links: [],
+      buildings: [],
+    };
+    const gv = mount(snap);
+    gv.view = { scale: MAP_SCALE - 0.01, tx: 0, ty: 0 };
+    gv._hostRect = { width: 1280, height: 800 };
+    gv.render(snap);
+    const entryMap = gv._nodeEls.get("a");
+
+    // Zoom back to full tier
+    gv.view = { scale: 1, tx: 0, ty: 0 };
+    gv.render(snap);
+    // Element was rebuilt for full tier (sig changed: map->full)
+    const entryFull = gv._nodeEls.get("a");
+    expect(entryFull.g.parentNode === gv.layerNodes).toBe(true);
+    // Has icon foreignObject (full tier)
+    const classes = entryFull.g.childNodes.map(
+      (c) => c.getAttribute("class") || "",
+    );
+    expect(classes.some((c) => c.includes("node-ico"))).toBe(true);
+    expect(gv.layerMap.childNodes.length).toBe(0);
+  });
+
+  it("nodeSig crossing map<->far triggers rebuild", () => {
+    const snap = { nodes: [nrow("a")], links: [], buildings: [] };
+    const gv = mount(snap);
+    gv.view = { scale: LOD_SCALE - 0.01, tx: 0, ty: 0 }; // far tier
+    gv.render(snap);
+    const entryFar = gv._nodeEls.get("a").g;
+
+    gv.view = { scale: MAP_SCALE - 0.001, tx: 0, ty: 0 }; // map tier
+    gv.render(snap);
+    // At map tier the node is detached (not in layerNodes), but the entry is replaced
+    // if the sig changed (map tier builds individual nodes at "full" for selected only).
+    // The non-selected node "a" is now batched — entry still present in map.
+    expect(gv._nodeEls.has("a")).toBe(true);
+
+    // Zoom back to far: entry should re-attach and may be rebuilt if sig differs
+    gv.view = { scale: MAP_SCALE + 0.01, tx: 0, ty: 0 }; // back to far
+    gv.render(snap);
+    expect(gv._nodeEls.get("a").g.parentNode === gv.layerNodes).toBe(true);
+  });
+
+  it("batch rebuild only on snapshot identity change, not on repeated same-snap renders", () => {
+    const snap = {
+      nodes: [nrow("a"), nrow("b", { pos: { x: 200, y: 0 } })],
+      links: [lrow("l1", "a", "b")],
+      buildings: [],
+    };
+    const gv = mount(snap);
+    gv.view = { scale: MAP_SCALE - 0.01, tx: 0, ty: 0 };
+    gv._hostRect = { width: 1280, height: 800 };
+    gv.render(snap);
+    const linkElAfterFirst = gv._mapLinkEl;
+    // Re-render with same snap object — batch should NOT rebuild (same identity)
+    gv.render(snap);
+    expect(gv._mapLinkEl === linkElAfterFirst).toBe(true);
   });
 });

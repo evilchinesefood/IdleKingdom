@@ -1,7 +1,7 @@
 const SVG_NS = "http://www.w3.org/2000/svg";
 export const SCALE_MIN = 0.25;
 export const SCALE_MAX = 4;
-export const SCALE_HARD_FLOOR = 0.02; // absolute minimum — prevents degenerate gesture math
+export const SCALE_HARD_FLOOR = 0.005; // absolute minimum — prevents degenerate gesture math; low enough that fit-all frames sprawling 3000+ machine maps
 const FIT_MARGIN = 0.9; // fraction of viewport the bounding box fills at fit scale
 
 export function svg(tag, props = {}, children = [], doc = document) {
