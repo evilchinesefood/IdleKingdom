@@ -270,6 +270,14 @@ class AppInstance {
       return;
     }
 
+    if (k === "f") {
+      if (this.graphView) {
+        this.graphView.fitView();
+        e.preventDefault();
+      }
+      return;
+    }
+
     let dx = 0,
       dy = 0;
     if (k === "arrowleft") dx = -NUDGE;
@@ -730,6 +738,23 @@ class AppInstance {
           },
         },
         selectLabel,
+      ),
+      h(
+        "wa-button",
+        {
+          key: "tool-fit",
+          class: "tool-fit",
+          size: "s",
+          variant: "neutral",
+          appearance: "outlined",
+          "aria-label": "Fit all machines in view",
+          onclick: () => {
+            if (!this.graphView) return;
+            Sound.play("click");
+            this.graphView.fitView();
+          },
+        },
+        [icon("fit"), " Fit"],
       ),
     ]);
   }

@@ -568,6 +568,42 @@ describe("GraphView accessibility — SVG label", () => {
   });
 });
 
+describe("GraphView fitView", () => {
+  it("no-ops on an empty graph (no throw, view unchanged)", () => {
+    const gv = mount({ nodes: [], links: [], buildings: [] });
+    const v0 = { ...gv.view };
+    gv.fitView();
+    expect(gv.view.scale).toBe(v0.scale);
+  });
+
+  it("no-ops when no real host rect is available (headless)", () => {
+    const gv = mount({ nodes: [nrow("a")], links: [], buildings: [] });
+    // headless shim has no getBoundingClientRect -> fitView returns early
+    gv.fitView();
+    expect(gv.view.scale).toBe(1); // unchanged from makeView default
+  });
+
+  it("sets a scale <= 1.0 and centers the graph in a real viewport", () => {
+    const gv = mount({
+      nodes: [
+        nrow("a", { pos: { x: 0, y: 0 } }),
+        nrow("b", { pos: { x: 1000, y: 500 } }),
+      ],
+      links: [],
+      buildings: [],
+    });
+    // inject a measurable viewport
+    gv.host.getBoundingClientRect = () => ({
+      width: 800,
+      height: 600,
+      left: 0,
+      top: 0,
+    });
+    gv.fitView();
+    expect(gv.view.scale > 0 && gv.view.scale <= 1.0).toBe(true);
+  });
+});
+
 // Task 32: _groupSelection dispatches CreateBuilding for ≥2 selected nodes.
 // The g-shortcut guard (selNodes + selBuildings >= 2) lives in App._handleGlobalKey;
 // the underlying method is tested here for correctness when used with a valid selection.

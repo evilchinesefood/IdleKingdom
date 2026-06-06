@@ -201,7 +201,8 @@ export class GraphInput {
       const cx = (pts[0].x + pts[1].x) / 2 - r.left;
       const cy = (pts[0].y + pts[1].y) / 2 - r.top;
       const factor = this.pinchDist > 0 ? dist / this.pinchDist : 1;
-      this.cb.setView(zoomAt(this.cb.getView(), cx, cy, factor));
+      const min = this.cb.getScaleMin ? this.cb.getScaleMin() : undefined;
+      this.cb.setView(zoomAt(this.cb.getView(), cx, cy, factor, min));
       this.pinchDist = dist;
       this.cb.onViewChange("gesture");
       return;
@@ -377,8 +378,15 @@ export class GraphInput {
     e.preventDefault();
     const r = this.el.getBoundingClientRect();
     const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+    const min = this.cb.getScaleMin ? this.cb.getScaleMin() : undefined;
     this.cb.setView(
-      zoomAt(this.cb.getView(), e.clientX - r.left, e.clientY - r.top, factor),
+      zoomAt(
+        this.cb.getView(),
+        e.clientX - r.left,
+        e.clientY - r.top,
+        factor,
+        min,
+      ),
     );
     this.cb.onViewChange("wheel");
   }
