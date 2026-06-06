@@ -361,7 +361,8 @@ function snap(game) {
 function recordingDispatch(game) {
   const d = (intent) => {
     d.last = intent;
-    return game.dispatch(intent);
+    d.lastResult = game.dispatch(intent);
+    return d.lastResult;
   };
   return d;
 }
@@ -1072,6 +1073,14 @@ step(
         nidispatch.last.nodeId === barracksId &&
         nidispatch.last.recipeId === "r_militia",
       `expected SetRecipe r_militia, got ${JSON.stringify(nidispatch.last)}`,
+    );
+    // The reducer must ACCEPT SetRecipe on a barracks. Asserting the node's
+    // recipeId alone is a no-op here (BuildMenu already baked r_militia into the
+    // PlaceNode), so a silently-rejected SetRecipe would slip through. Demand the
+    // dispatch reports ok — this is the guard that catches "Not a crafter".
+    assert(
+      nidispatch.lastResult.ok,
+      `SetRecipe r_militia on barracks was rejected: ${nidispatch.lastResult.error}`,
     );
     assert(
       game.getState().graph.nodes.find((n) => n.id === barracksId).recipeId ===
