@@ -19,12 +19,115 @@ function fmt(n) {
   return (Math.round(n * 100) / 100).toString();
 }
 
-function deepFreeze(obj) {
-  if (obj && typeof obj === "object" && !Object.isFrozen(obj)) {
-    Object.freeze(obj);
-    for (const k of Object.keys(obj)) deepFreeze(obj[k]);
-  }
-  return obj;
+// ---------------------------------------------------------------------------
+// Memoization for sub-arrays that only change on unlock/reclaim/structural events.
+// Stored on the module so the cache persists across calls within a session.
+// ---------------------------------------------------------------------------
+
+// Memo entry shape: { key: string, value: any }
+let _researchMemo = null;
+let _tuningMemo = null;
+let _territoriesMemo = null;
+// buildings cost memo: keyed on graph identity + per-building id/nodeIds/rect
+let _buildingsCostMemo = null;
+
+function _researchKey(state) {
+  const u = state.unlocks;
+  // Floor both balances: affordable flips when a floor-integer threshold crosses.
+  // Avoids churn from sub-integer accumulation between 2s HUD ticks while still
+  // updating at most once per accumulated unit (well within the refresh cadence).
+  const rBal = Math.floor(state.currencies.research || 0);
+  const gBal = Math.floor(state.currencies.gold || 0);
+  return (
+    (u.researchOwned ? u.researchOwned.length : 0) +
+    "|" +
+    (u.recipesUnlocked ? u.recipesUnlocked.length : 0) +
+    "|" +
+    (u.machinesUnlocked ? u.machinesUnlocked.length : 0) +
+    "|" +
+    (u.titheRate ?? 0) +
+    "|" +
+    rBal +
+    "|" +
+    gBal +
+    "|" +
+    (state.territories && state.territories.reclaimed
+      ? state.territories.reclaimed.join(",")
+      : "")
+  );
+}
+
+function _tuningKey(state) {
+  const u = state.unlocks;
+  const kinds = u.machinesUnlocked ? u.machinesUnlocked.join(",") : "";
+  const bonuses = u.productionBonuses
+    ? Object.values(u.productionBonuses).join(",")
+    : "";
+  const ranks = u.tuningRanks ? Object.values(u.tuningRanks).join(",") : "";
+  // Floor research balance: affordable flips when this changes.
+  const rBal = Math.floor(state.currencies.research || 0);
+  return kinds + "|" + bonuses + "|" + ranks + "|" + rBal;
+}
+
+function _territoriesKey(state) {
+  return (
+    (state.territories && state.territories.reclaimed
+      ? state.territories.reclaimed.join(",")
+      : "") +
+    "|" +
+    (state.siege && state.siege.progress != null
+      ? Math.floor(state.siege.progress)
+      : 0)
+  );
+}
+
+function _buildingsCostKey(state) {
+  const bl = state.graph.buildings || [];
+  // Key on building count + each building's id + nodeIds length + node levels
+  // (copyCost depends on levels). Cheap string that changes on any structural edit.
+  return (
+    bl.length +
+    "|" +
+    bl.map((b) => b.id + ":" + (b.nodeIds ? b.nodeIds.length : 0)).join(",") +
+    "|" +
+    (state.graph.nodes || []).map((n) => n.id + "." + n.level).join(",")
+  );
+}
+
+/** Empty snapshot for pre-load rendering (no game state yet). Shape mirrors build() output. */
+export function empty(content) {
+  return Object.freeze({
+    currencies: Object.freeze({ gold: 0, research: 0 }),
+    rates: Object.freeze({ goldRate: 0, researchRate: 0 }),
+    currencyStrings: Object.freeze({
+      gold: "0",
+      research: "0",
+      goldRate: "0/s",
+      researchRate: "0/s",
+    }),
+    nodes: Object.freeze([]),
+    links: Object.freeze([]),
+    buildings: Object.freeze([]),
+    research: Object.freeze([]),
+    tuning: Object.freeze([]),
+    territories: Object.freeze([]),
+    siege: Object.freeze({
+      targetId: null,
+      progress: 0,
+      cost: null,
+      rate: 0,
+      etaSeconds: null,
+    }),
+    buildMenu: Object.freeze({
+      placeableMachines: [],
+      unlockedRecipes: [],
+      gathererResources: [],
+      unlockedResources: [],
+    }),
+    save: Object.freeze({ status: "ok", lastSavedAt: null }),
+    meta: Object.freeze({ won: false, seenVictory: false, tutorialDone: true }),
+    lastError: null,
+  });
 }
 
 export function build(state, solved, content, lastError = null) {
@@ -110,24 +213,50 @@ export function build(state, solved, content, lastError = null) {
         (solved.researchByNode && solved.researchByNode[node.id]) || 0,
       siegeOut:
         (solved.siegeRateByNode && solved.siegeRateByNode[node.id]) || 0,
+      // the resource this node ships downstream (null for barracks/market/scholar)
+      outputResourceId: (() => {
+        if (node.kind === "gatherer") return node.resourceId || null;
+        if (node.kind === "smelter" || node.kind === "workshop") {
+          const r = content.recipes[node.recipeId];
+          return (r && r.output) || null;
+        }
+        if (node.kind === "storage")
+          return (node.resourceIds && node.resourceIds[0]) || null;
+        return null;
+      })(),
     };
   });
 
   const costIdx = new Map(state.graph.nodes.map((n) => [n.id, n]));
+  const bKey = _buildingsCostKey(state);
+  let buildingsCostData;
+  if (_buildingsCostMemo && _buildingsCostMemo.key === bKey) {
+    buildingsCostData = _buildingsCostMemo.value;
+  } else {
+    buildingsCostData = buildingList.map((b) => {
+      const costs = buildingCopyCosts(b, state, content, costIdx);
+      return {
+        id: b.id,
+        copyCost: costs.withUpgrades,
+        copyCostStructure: costs.structure,
+      };
+    });
+    _buildingsCostMemo = { key: bKey, value: buildingsCostData };
+  }
+  const byCostId = new Map(buildingsCostData.map((x) => [x.id, x]));
+  const gold = state.currencies.gold;
   const buildings = buildingList.map((b) => {
-    const costs = buildingCopyCosts(b, state, content, costIdx);
-    const copyCost = costs.withUpgrades;
-    const copyCostStructure = costs.structure;
+    const cd = byCostId.get(b.id) || { copyCost: 0, copyCostStructure: 0 };
     return {
       id: b.id,
       name: b.name,
       nodeIds: b.nodeIds.slice(),
       children: (b.children || []).slice(),
       rect: { x: b.rect.x, y: b.rect.y, w: b.rect.w, h: b.rect.h },
-      copyCost,
-      copyCostStructure,
-      canAffordCopy: state.currencies.gold >= copyCost,
-      canAffordCopyStructure: state.currencies.gold >= copyCostStructure,
+      copyCost: cd.copyCost,
+      copyCostStructure: cd.copyCostStructure,
+      canAffordCopy: gold >= cd.copyCost,
+      canAffordCopyStructure: gold >= cd.copyCostStructure,
     };
   });
 
@@ -148,65 +277,94 @@ export function build(state, solved, content, lastError = null) {
     };
   });
 
-  const research = Object.values(content.researchNodes).map((rn) => {
-    const status = researchStatus(state, content, rn.id);
-    return {
-      id: rn.id,
-      name: rn.name,
-      cost: rn.cost,
-      currency: rn.currency,
-      status,
-      prereqsMet: rn.prereqs.every((p) =>
-        state.unlocks.researchOwned.includes(p),
-      ),
-      affordable: canBuyResearch(state, content, rn.id),
-      // surface the territory gate so the tree can explain WHY a node is locked
-      requiresTerritory: rn.requiresTerritory
-        ? {
-            name:
-              (content.territories[rn.requiresTerritory] || {}).name ||
-              rn.requiresTerritory,
-            met: state.territories.reclaimed.includes(rn.requiresTerritory),
-          }
-        : null,
-      effectsText: rn.flavor || "",
-      description: rn.description || "",
-    };
-  });
-
-  // Machine Tuning rows (endless sink) — only kinds the player has unlocked.
-  const tuning = TUNING.kinds
-    .filter((k) => state.unlocks.machinesUnlocked.includes(k))
-    .map((kind) => ({
-      kind,
-      rank: tuningRank(state, kind),
-      bonus:
-        (state.unlocks.productionBonuses &&
-          state.unlocks.productionBonuses[kind]) ??
-        1.0,
-      nextCost: tuningCost(state, kind),
-      affordable: canBuyTuning(state, content, kind),
-    }));
-
-  const targetId = nextTerritory(state, content);
-  const territories = Object.values(content.territories)
-    .sort((a, b) => a.order - b.order)
-    .map((t) => {
-      let status;
-      if (state.territories.reclaimed.includes(t.id)) status = "reclaimed";
-      else if (t.id === targetId) status = "sieging";
-      else status = "locked";
+  let research;
+  const rKey = _researchKey(state);
+  if (_researchMemo && _researchMemo.key === rKey) {
+    research = _researchMemo.value;
+  } else {
+    research = Object.values(content.researchNodes).map((rn) => {
+      const status = researchStatus(state, content, rn.id);
       return {
-        id: t.id,
-        name: t.name,
-        order: t.order,
-        siegeCost: t.siegeCost,
-        rewards: { ...t.rewards },
+        id: rn.id,
+        name: rn.name,
+        cost: rn.cost,
+        currency: rn.currency,
         status,
-        flavor: t.flavor || "",
-        isVictory: !!t.isVictory,
+        prereqsMet: rn.prereqs.every((p) =>
+          state.unlocks.researchOwned.includes(p),
+        ),
+        // prereq ids + display names so ResearchTree needs no RESEARCH_NODES import for names
+        prereqs: rn.prereqs.map((p) => ({
+          id: p,
+          name: (content.researchNodes[p] || {}).name || p,
+        })),
+        affordable: canBuyResearch(state, content, rn.id),
+        // surface the territory gate so the tree can explain WHY a node is locked
+        requiresTerritory: rn.requiresTerritory
+          ? {
+              name:
+                (content.territories[rn.requiresTerritory] || {}).name ||
+                rn.requiresTerritory,
+              met: state.territories.reclaimed.includes(rn.requiresTerritory),
+            }
+          : null,
+        effectsText: rn.flavor || "",
+        description: rn.description || "",
       };
     });
+    Object.freeze(research);
+    _researchMemo = { key: rKey, value: research };
+  }
+
+  // Machine Tuning rows (endless sink) — only kinds the player has unlocked.
+  let tuning;
+  const tKey = _tuningKey(state);
+  if (_tuningMemo && _tuningMemo.key === tKey) {
+    tuning = _tuningMemo.value;
+  } else {
+    tuning = TUNING.kinds
+      .filter((k) => state.unlocks.machinesUnlocked.includes(k))
+      .map((kind) => ({
+        kind,
+        rank: tuningRank(state, kind),
+        bonus:
+          (state.unlocks.productionBonuses &&
+            state.unlocks.productionBonuses[kind]) ??
+          1.0,
+        nextCost: tuningCost(state, kind),
+        affordable: canBuyTuning(state, content, kind),
+      }));
+    Object.freeze(tuning);
+    _tuningMemo = { key: tKey, value: tuning };
+  }
+
+  const targetId = nextTerritory(state, content);
+  let territories;
+  const terrKey = _territoriesKey(state);
+  if (_territoriesMemo && _territoriesMemo.key === terrKey) {
+    territories = _territoriesMemo.value;
+  } else {
+    territories = Object.values(content.territories)
+      .sort((a, b) => a.order - b.order)
+      .map((t) => {
+        let status;
+        if (state.territories.reclaimed.includes(t.id)) status = "reclaimed";
+        else if (t.id === targetId) status = "sieging";
+        else status = "locked";
+        return {
+          id: t.id,
+          name: t.name,
+          order: t.order,
+          siegeCost: t.siegeCost,
+          rewards: { ...t.rewards },
+          status,
+          flavor: t.flavor || "",
+          isVictory: !!t.isVictory,
+        };
+      });
+    Object.freeze(territories);
+    _territoriesMemo = { key: terrKey, value: territories };
+  }
 
   const siegeRate = solved.siegeRate || 0;
   const target = targetId ? content.territories[targetId] : null;
@@ -275,5 +433,18 @@ export function build(state, solved, content, lastError = null) {
     lastError: lastError || null,
   };
 
-  return deepFreeze(snap);
+  // Shallow-freeze: top-level snap object + its direct array/object properties.
+  // Reducer purity + UI read-discipline make deep-freeze unnecessary; memoized
+  // sub-arrays are already frozen when stored.
+  Object.freeze(snap.currencies);
+  Object.freeze(snap.rates);
+  Object.freeze(snap.currencyStrings);
+  Object.freeze(snap.nodes);
+  Object.freeze(snap.links);
+  Object.freeze(snap.buildings);
+  Object.freeze(snap.siege);
+  Object.freeze(snap.buildMenu);
+  Object.freeze(snap.save);
+  Object.freeze(snap.meta);
+  return Object.freeze(snap);
 }

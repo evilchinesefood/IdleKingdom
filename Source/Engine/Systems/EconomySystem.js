@@ -2,7 +2,7 @@
 // MUST stay byte-identical to the UI's fmtCost/fmtNum in Source/UI/Format/Format.js so
 // a reject toast and the panel button never show different numbers for the same cost:
 // >=1000 rounds to a whole number with thousands separators; below that, one decimal.
-// (keep in sync with Source/UI/Format/Format.js)
+// Sync guard: Tests/CostFormat.Test.js (keep in sync with Source/UI/Format/Format.js)
 export function fmtCost(n) {
   if (!isFinite(n)) return "0";
   const abs = Math.abs(n);

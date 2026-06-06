@@ -35,12 +35,11 @@ export const START_STATE = {
       barracks: 1.0,
       market: 1.0,
       scholar: 1.0,
-      storage: 1.0,
     },
     autoSell: false,
   },
   siege: { progress: 0 },
-  territories: { reclaimed: [], available: ["t_gatehouse"] },
+  territories: { reclaimed: [] },
   meta: {
     tutorialDone: false,
     seenVictory: false,

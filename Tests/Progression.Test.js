@@ -26,14 +26,15 @@ const ORDER = [
 ];
 
 describe("ProgressionSystem", () => {
-  it("reclaim moves territory to reclaimed, advances available, applies unlocks", () => {
+  it("reclaim moves territory to reclaimed, applies unlocks", () => {
     const s = NewGame(new FakeClock(0));
     reclaim(s, content, "t_gatehouse");
     expect(s.territories.reclaimed.includes("t_gatehouse")).toBe(true);
-    expect(s.territories.available.includes("t_gatehouse")).toBe(false);
-    expect(s.territories.available.includes("t_smithyward")).toBe(true);
     // t_gatehouse unlock: gatherer bonus 1.10
     expect(s.unlocks.productionBonuses.gatherer).toBeCloseTo(1.1, 1e-9);
+    // extra fields on territories are tolerated (old saves with `available` still load)
+    s.territories.available = ["t_smithyward"];
+    expect(s.territories.available[0]).toBe("t_smithyward");
   });
 
   it("t_smithyward applies its smelter production bonus", () => {

@@ -18,6 +18,7 @@ import * as Sound from "./Sound.js";
 import { victoryReady } from "./Logic/Selectors.js";
 import { INTENT } from "../Engine/Intents.js";
 import { SAVE_KEY } from "../Engine/Persistence/SaveManager.js";
+import { empty as emptySnap } from "../Engine/Snapshot.js";
 
 export const App = {
   mount(rootEl, game) {
@@ -60,11 +61,27 @@ class AppInstance {
     this.errorEl.setAttribute("role", "alert");
     this.errorEl.style.display = "none";
 
+    // Task 33: polite live region for milestone announcements (research/territory/victory).
+    this.liveEl = document.createElement("div");
+    this.liveEl.setAttribute("aria-live", "polite");
+    this.liveEl.setAttribute("aria-atomic", "true");
+    this.liveEl.className = "sr-live";
+    // Visually hidden but readable by screen readers.
+    this.liveEl.style.cssText =
+      "position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;";
+    // Diff state for detecting discrete transitions.
+    this._liveSnap = {
+      researchOwned: new Set(),
+      reclaimedCount: 0,
+      won: false,
+    };
+
     this.root.innerHTML = "";
     this.root.appendChild(this.hudEl);
     this.root.appendChild(this.screenEl);
     this.root.appendChild(this.overlayEl);
     this.root.appendChild(this.errorEl);
+    this.root.appendChild(this.liveEl);
 
     this.prefs = loadPrefs();
     this.showSettings = false;
@@ -79,12 +96,31 @@ class AppInstance {
     this.selectedBuildingId = null;
     this.toolbarEl = null;
     this._pendingRename = null; // un-committed building-name keystrokes (flushed on deselect)
+    this._paletteOpenerEl = null; // button that last opened the build-menu popover
     this.buildUi = {
       selectedPaletteKind: null,
       setPalette: (k) => {
         Sound.play("click");
+        // Record which machine button opened the popover so we can restore focus
+        // on close, but only when OPENING (k != null).
+        if (k) {
+          try {
+            const a = document.activeElement;
+            if (a && a !== document.body) this._paletteOpenerEl = a;
+          } catch {}
+        }
         this.buildUi.selectedPaletteKind = k;
         this.renderNow();
+        // After the patch, move focus to the first placement button in the popover.
+        if (k && this.buildBarEl) {
+          try {
+            const btn =
+              this.buildBarEl.querySelector(
+                ".bm-popover .bm-place:not([disabled])",
+              ) || this.buildBarEl.querySelector(".bm-popover .bm-place");
+            if (btn && typeof btn.focus === "function") btn.focus();
+          } catch {}
+        }
       },
       spawnPos: () =>
         this.graphView && this.graphView.centerGraphPos
@@ -95,6 +131,9 @@ class AppInstance {
     this.pendingOfflineSummary = null;
     this.victoryShown = false;
     this.showVictory = false;
+    this._settingsOpener = null;
+    this._offlineOpener = null;
+    this._victoryOpener = null;
   }
 
   start() {
@@ -114,6 +153,7 @@ class AppInstance {
             )
           ) {
             this.buildUi.selectedPaletteKind = null;
+            this._paletteOpenerEl = null; // pointer closed it — no focus restore needed
             this.renderNow();
           }
         },
@@ -179,16 +219,18 @@ class AppInstance {
     if (k === "escape") {
       if (this.buildUi.selectedPaletteKind) {
         this.buildUi.selectedPaletteKind = null;
+        // Restore focus to the machine button that opened the popover.
+        const opener = this._paletteOpenerEl;
+        this._paletteOpenerEl = null;
+        if (opener && typeof opener.focus === "function") opener.focus();
       } else if (this.graphView && this.graphView.getMode()) {
         this.graphView.cancelMode();
       } else {
         this.selectedNodeId = null;
         this.selectedBuildingId = null;
         if (this.graphView) {
-          this.graphView.selectedId = null;
-          this.graphView.selectedBuildingId = null;
-          this.graphView.selectedLinkId = null;
-          this.graphView.render(this.lastSnap || this._emptySnap());
+          this.graphView.clearSelection(); // GraphView owns selection state
+          this.graphView.render(this.lastSnap || emptySnap(this.game.content));
         }
       }
       this.renderNow();
@@ -215,6 +257,16 @@ class AppInstance {
       }
       this.renderNow();
       e.preventDefault();
+      return;
+    }
+
+    if (k === "g") {
+      const gv = this.graphView;
+      if (gv && gv.selNodes.size + gv.selBuildings.size >= 2) {
+        gv._groupSelection();
+        this.renderNow();
+        e.preventDefault();
+      }
       return;
     }
 
@@ -308,14 +360,43 @@ class AppInstance {
 
   openSettings() {
     Sound.play("click");
+    this._settingsOpener = this._captureActiveEl();
     this.showSettings = true;
     this.renderNow();
+    this._focusDialog("Settings");
+  }
+
+  // Capture document.activeElement defensively (null on headless).
+  _captureActiveEl() {
+    try {
+      const a = document.activeElement;
+      return a && a !== document.body ? a : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // Move focus into a wa-dialog by id after a vdom patch.
+  _focusDialog(id) {
+    try {
+      const d = document.getElementById(id);
+      if (!d) return;
+      // Try first focusable child, then fall back to the dialog element itself.
+      const first = d.querySelector(
+        'wa-button:not([disabled]), button:not([disabled]), input:not([disabled]), [tabindex="0"]',
+      );
+      if (first && typeof first.focus === "function") first.focus();
+      else if (typeof d.focus === "function") {
+        d.setAttribute("tabindex", "-1");
+        d.focus();
+      }
+    } catch {}
   }
 
   _mountScreen() {
     const route = this.router.current;
     if (this.activeScreen === route) {
-      this.hud.render(this.lastSnap || this._emptySnap());
+      this.hud.render(this.lastSnap || emptySnap(this.game.content));
       return;
     }
     this._flushPendingRename(); // commit a half-typed name before leaving the factory
@@ -342,6 +423,9 @@ class AppInstance {
       this.buildBarEl.className = "build-bar";
       this.screenEl.appendChild(this.buildBarEl);
       this.graphView = new GraphView(canvas, this.game, {
+        onEmptyHint: (msg) => {
+          if (this.liveEl) this.liveEl.textContent = msg;
+        },
         onSelect: (id) => {
           this._flushPendingRename(); // commit a half-typed name before deselecting
           this.selectedNodeId = id;
@@ -382,7 +466,7 @@ class AppInstance {
       this._routeHost = host;
     }
 
-    const snap = this.lastSnap || this._emptySnap();
+    const snap = this.lastSnap || emptySnap(this.game.content);
     this.hud.render(snap);
     if (this.lastSnap) this._renderScreen(this.lastSnap);
   }
@@ -393,15 +477,55 @@ class AppInstance {
       this.victoryShown = true;
       this.showVictory = true;
     }
+    this._announceSnap(snap);
     this.hud.render(snap);
     this._renderScreen(snap);
     this._renderOverlay(snap);
     if (snap.lastError) this._flashError(snap.lastError);
   }
 
+  // Task 33: diff discrete milestone transitions and post a one-liner to the live region.
+  _announceSnap(snap) {
+    if (!this.liveEl) return;
+    const prev = this._liveSnap;
+    const msgs = [];
+
+    // Research: detect newly-owned nodes.
+    for (const r of snap.research || []) {
+      if (r.status === "owned" && !prev.researchOwned.has(r.id)) {
+        msgs.push("Research complete: " + r.name);
+        prev.researchOwned.add(r.id);
+      }
+    }
+
+    // Territories: detect reclaim count increase.
+    const reclaimedNow = (snap.territories || []).filter(
+      (t) => t.status === "reclaimed",
+    ).length;
+    if (reclaimedNow > prev.reclaimedCount) {
+      const newOnes = (snap.territories || []).filter(
+        (t) => t.status === "reclaimed",
+      );
+      // Announce the last newly-reclaimed territory name.
+      const newest = newOnes[reclaimedNow - 1];
+      if (newest) msgs.push("Territory reclaimed: " + newest.name);
+      prev.reclaimedCount = reclaimedNow;
+    }
+
+    // Victory.
+    if (snap.meta && snap.meta.won && !prev.won) {
+      msgs.push("Victory!");
+      prev.won = true;
+    }
+
+    if (msgs.length) {
+      this.liveEl.textContent = msgs[msgs.length - 1]; // one announcement at a time
+    }
+  }
+
   // Re-render the active screen + overlay from the last snapshot (used by UI-state changes).
   renderNow() {
-    const snap = this.lastSnap || this._emptySnap();
+    const snap = this.lastSnap || emptySnap(this.game.content);
     this._renderScreen(snap);
     this._renderOverlay(snap);
   }
@@ -509,10 +633,7 @@ class AppInstance {
           buildingId: this.selectedBuildingId,
         });
         this.selectedBuildingId = null;
-        if (this.graphView) {
-          this.graphView.selectedBuildingId = null;
-          this.graphView._clearSelectionSets(); // drop the now-stale group from the bar
-        }
+        if (this.graphView) this.graphView.clearSelection(); // GraphView owns selection state
         this.renderNow();
       },
     };
@@ -616,21 +737,35 @@ class AppInstance {
   _renderOverlay(snap) {
     const children = [];
     if (this.pendingOfflineSummary) {
+      const isNew = !this._offlineOpener;
+      if (isNew) this._offlineOpener = this._captureActiveEl() || true;
       children.push(
         OfflineSummary(this.pendingOfflineSummary, () => {
           this.pendingOfflineSummary = null;
+          const opener =
+            this._offlineOpener !== true ? this._offlineOpener : null;
+          this._offlineOpener = null;
           this.renderNow();
+          if (opener && typeof opener.focus === "function") opener.focus();
         }),
       );
+      if (isNew) this._focusDialog("OfflineSummary");
     }
     if (this.showVictory) {
+      const isNew = !this._victoryOpener;
+      if (isNew) this._victoryOpener = this._captureActiveEl() || true;
       children.push(
         Victory(() => {
           this.showVictory = false;
           this.dispatch({ type: INTENT.AckVictory });
+          const opener =
+            this._victoryOpener !== true ? this._victoryOpener : null;
+          this._victoryOpener = null;
           this.renderNow();
+          if (opener && typeof opener.focus === "function") opener.focus();
         }),
       );
+      if (isNew) this._focusDialog("Victory");
     }
     if (this.showSettings) {
       children.push(
@@ -656,7 +791,10 @@ class AppInstance {
           },
           onClose: () => {
             this.showSettings = false;
+            const opener = this._settingsOpener;
+            this._settingsOpener = null;
             this.renderNow();
+            if (opener && typeof opener.focus === "function") opener.focus();
           },
         }),
       );
@@ -686,33 +824,5 @@ class AppInstance {
   showOfflineSummary(summary) {
     this.pendingOfflineSummary = summary;
     this.renderNow();
-  }
-
-  _emptySnap() {
-    return {
-      currencies: { gold: 0, research: 0 },
-      rates: { goldRate: 0, researchRate: 0 },
-      save: { status: "ok" },
-      nodes: [],
-      links: [],
-      buildings: [],
-      research: [],
-      tuning: [],
-      territories: [],
-      siege: {
-        targetId: null,
-        progress: 0,
-        cost: null,
-        rate: 0,
-        etaSeconds: null,
-      },
-      buildMenu: {
-        placeableMachines: [],
-        unlockedRecipes: [],
-        gathererResources: [],
-        unlockedResources: [],
-      },
-      meta: { won: false, seenVictory: false, tutorialDone: true },
-    };
   }
 }

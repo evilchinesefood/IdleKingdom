@@ -1,7 +1,8 @@
 #App {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: 100vh;
+  height: 100dvh;
 }
 
 /* Every Web Awesome button gets a >=44px touch target on ALL breakpoints
@@ -114,11 +115,14 @@ wa-button::part(base) {
 }
 .hud-error {
   position: fixed;
-  top: 60px;
+  /* 60px clears the single-row HUD; on mobile the HUD wraps taller — use a
+     larger offset so the toast never sits under the hamburger menu rows. */
+  top: max(60px, 10dvh);
   left: 50%;
   transform: translateX(-50%);
-  z-index: 50;
-  max-width: 90vw;
+  /* above .overlay-layer (z 70) so the toast is never buried by a dialog */
+  z-index: 80;
+  max-width: min(90vw, 480px);
 }
 
 /* Screen host */
@@ -511,6 +515,7 @@ wa-button.res-buy {
   inset: 0;
   overflow: auto;
   background: var(--grid);
+  overscroll-behavior: contain;
 }
 
 /* Research tree */
@@ -613,6 +618,7 @@ wa-button.res-buy {
   padding: 1rem;
   overflow-y: auto;
   height: 100%;
+  overscroll-behavior: contain;
   /* Default card surface; each card overrides with a cycling tint below. */
   --wa-color-surface-default: var(--parchment);
 }
@@ -922,6 +928,12 @@ wa-button.res-buy {
 
 /* Narrow (mobile): panels become bottom-sheets */
 @media (max-width: 720px) {
+  /* Shared anchor: both the inspector sheet and the build bar use this var so
+     their heights never drift out of sync. */
+  :root {
+    --sheet-h: 45dvh;
+  }
+
   /* the panels no longer dock on the right here, so drop the right-edge
      reservation — otherwise calc(100% - 340px) crushes the toolbar on phones */
   .factory-tools {
@@ -937,8 +949,9 @@ wa-button.res-buy {
     left: 0;
     right: 0;
     bottom: 0;
-    max-height: 45dvh;
+    max-height: var(--sheet-h);
     overflow-y: auto;
+    overscroll-behavior: contain;
     border-top: 2px solid var(--iron);
     background: #fff;
     box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.3);
@@ -949,7 +962,7 @@ wa-button.res-buy {
   /* Lift the build bar above the inspector bottom-sheet so they don't overlap,
      and let it scroll horizontally / popovers stay reachable. */
   .build-bar {
-    bottom: calc(45dvh + 0.5rem);
+    bottom: calc(var(--sheet-h) + 0.5rem + env(safe-area-inset-bottom));
   }
   .war-board {
     padding-bottom: 56px;

@@ -3,8 +3,21 @@ import { icon } from "./Icons.js";
 import { cap } from "./Format/Format.js";
 import { RESOURCES } from "../Engine/Content/Resources.js";
 import { RECIPES } from "../Engine/Content/Recipes.js";
-import { MACHINES, GATHERER_VARIANTS } from "../Engine/Content/Machines.js";
+import {
+  MACHINES,
+  GATHERER_VARIANTS,
+  isCrafter,
+} from "../Engine/Content/Machines.js";
 import { INTENT } from "../Engine/Intents.js";
+
+// Memoize placement button lists per (kind, unlocked-set signature).
+const _detailMemo = new Map();
+function _cachedDetail(key, build) {
+  if (_detailMemo.has(key)) return _detailMemo.get(key);
+  const v = build();
+  _detailMemo.set(key, v);
+  return v;
+}
 
 // A single placement button. Locked recipes are dimmed + inert (same treatment
 // as locked machine tiles): grayed via .locked, disabled, no click handler.
@@ -28,67 +41,76 @@ function placeBtn({ key, iconId, label, locked, onclick }) {
 // Build the placement buttons for a given machine kind, hosted inside the
 // per-type popover. ALL recipes for the kind are listed; the ones the player
 // hasn't unlocked yet are grayed out (locked) rather than hidden.
+// `dispatch` and `ui` are stable app-level refs — safe to capture in cached closures.
 function detailForKind(kind, bm, dispatch, ui) {
-  const detail = [h("div", { class: "bm-detail-title" }, "Machine Recipe:")];
-  if (kind === "gatherer") {
-    const unlocked = new Set(bm.gathererResources || []);
-    for (const v of Object.values(GATHERER_VARIANTS)) {
-      for (const rid of v.resourceIds) {
-        const res = RESOURCES[rid];
-        if (!res) continue;
+  // Key on (kind, unlocked set) so options refresh after a research unlock.
+  const unlockedSig =
+    kind === "gatherer"
+      ? (bm.gathererResources || []).join(",")
+      : (bm.unlockedRecipes || []).join(",");
+  const memoKey = kind + "|" + unlockedSig;
+  return _cachedDetail(memoKey, () => {
+    const detail = [h("div", { class: "bm-detail-title" }, "Machine Recipe:")];
+    if (kind === "gatherer") {
+      const unlocked = new Set(bm.gathererResources || []);
+      for (const v of Object.values(GATHERER_VARIANTS)) {
+        for (const rid of v.resourceIds) {
+          const res = RESOURCES[rid];
+          if (!res) continue;
+          detail.push(
+            placeBtn({
+              key: "bm-place-gatherer-" + rid,
+              iconId: rid,
+              label: `${v.label}: ${res.display}`,
+              locked: !unlocked.has(rid),
+              onclick: () =>
+                dispatch({
+                  type: INTENT.PlaceNode,
+                  kind: "gatherer",
+                  resourceId: rid,
+                  pos: ui.spawnPos(),
+                }),
+            }),
+          );
+        }
+      }
+    } else if (isCrafter(kind)) {
+      const unlocked = new Set(bm.unlockedRecipes || []);
+      for (const r in RECIPES) {
+        const recipe = RECIPES[r];
+        if (recipe.crafterKind !== kind) continue;
+        const out = RESOURCES[recipe.output];
+        if (!out) continue;
         detail.push(
           placeBtn({
-            key: "bm-place-gatherer-" + rid,
-            iconId: rid,
-            label: `${v.label}: ${res.display}`,
-            locked: !unlocked.has(rid),
+            key: "bm-place-recipe-" + r,
+            iconId: recipe.output,
+            label: out.display,
+            locked: !unlocked.has(r),
             onclick: () =>
               dispatch({
                 type: INTENT.PlaceNode,
-                kind: "gatherer",
-                resourceId: rid,
+                kind,
+                recipeId: r,
                 pos: ui.spawnPos(),
               }),
           }),
         );
       }
-    }
-  } else if (kind === "smelter" || kind === "workshop" || kind === "barracks") {
-    const unlocked = new Set(bm.unlockedRecipes || []);
-    for (const r in RECIPES) {
-      const recipe = RECIPES[r];
-      if (recipe.crafterKind !== kind) continue;
-      const out = RESOURCES[recipe.output];
-      if (!out) continue;
+    } else {
       detail.push(
         placeBtn({
-          key: "bm-place-recipe-" + r,
-          iconId: recipe.output,
-          label: out.display,
-          locked: !unlocked.has(r),
+          key: "bm-place-" + kind,
+          iconId: kind,
+          label: cap(kind),
+          locked: false,
           onclick: () =>
-            dispatch({
-              type: INTENT.PlaceNode,
-              kind,
-              recipeId: r,
-              pos: ui.spawnPos(),
-            }),
+            dispatch({ type: INTENT.PlaceNode, kind, pos: ui.spawnPos() }),
         }),
       );
     }
-  } else {
-    detail.push(
-      placeBtn({
-        key: "bm-place-" + kind,
-        iconId: kind,
-        label: cap(kind),
-        locked: false,
-        onclick: () =>
-          dispatch({ type: INTENT.PlaceNode, kind, pos: ui.spawnPos() }),
-      }),
-    );
-  }
-  return detail;
+    return detail;
+  });
 }
 
 // Returns true if a pointerdown event should close the open popover.

@@ -82,6 +82,42 @@ describe("BulkInspector — same-type bulk panel", () => {
     expect(set).toEqual(["r_plank"]);
   });
 
+  it("renders recipe dropdown for 2 barracks (task 3)", () => {
+    const bsnap = {
+      nodes: [
+        {
+          id: "k1",
+          kind: "barracks",
+          level: 1,
+          recipeId: "r_militia",
+          upgradeCost: 60,
+        },
+        {
+          id: "k2",
+          kind: "barracks",
+          level: 1,
+          recipeId: "r_militia",
+          upgradeCost: 60,
+        },
+      ],
+      buildMenu: {
+        unlockedRecipes: ["r_militia"],
+        gathererResources: [],
+        unlockedResources: [],
+      },
+    };
+    const v = BulkInspector(
+      bsnap,
+      { kind: "barracks", nodeIds: ["k1", "k2"] },
+      {},
+    );
+    const sel = findByClass(v, "bulk-recipe");
+    expect(sel != null).toBe(true);
+    // options include the muster recipe
+    const opts = (sel.children || []).filter((c) => c && c.tag === "wa-option");
+    expect(opts.length > 0).toBe(true);
+  });
+
   it("shows a gather select (not a recipe select) for gatherers", () => {
     const gsnap = {
       nodes: [

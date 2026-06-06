@@ -97,6 +97,12 @@
   .node-working i {
     animation: none;
   }
+  .credit .cursor {
+    animation: none;
+  }
+  .credit {
+    transition: none;
+  }
 }
 
 /* capacity bar */

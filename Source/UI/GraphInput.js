@@ -23,11 +23,21 @@ export class GraphInput {
     this.startScreen = null;
     this.pinchDist = 0;
     this.pinchRect = null; // host rect cached at pinch start (no per-move reflow)
+    // task 11: host rect cached at pointerdown, reused through the gesture,
+    // invalidated on pointerup/pointercancel/resize (mirrors pinchRect pattern).
+    this._gestureRect = null;
+    if (typeof ResizeObserver === "function") {
+      this._ro = new ResizeObserver(() => {
+        this._gestureRect = null;
+      });
+      this._ro.observe(this.el);
+    }
     this._bind();
   }
 
   _toGraph(ev) {
-    const r = this.el.getBoundingClientRect();
+    // task 11: use the cached rect during an active gesture; measure fresh otherwise.
+    const r = this._gestureRect || this.el.getBoundingClientRect();
     return screenToGraph(
       this.cb.getView(),
       ev.clientX - r.left,
@@ -49,6 +59,10 @@ export class GraphInput {
     this.el.setPointerCapture && this.el.setPointerCapture(e.pointerId);
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     this.startScreen = { x: e.clientX, y: e.clientY };
+    // task 11: cache host rect at first pointer down; all _toGraph calls through
+    // the gesture reuse this instead of forcing a synchronous layout each move.
+    if (this.pointers.size === 1)
+      this._gestureRect = this.el.getBoundingClientRect();
 
     if (this.pointers.size === 2) {
       // pinch start
@@ -338,6 +352,9 @@ export class GraphInput {
       this.downDelete = null;
       this.dragBuildingId = null;
       this.boxStart = null;
+      // task 11: invalidate the cached rect on gesture end so the next pointerdown
+      // always measures a fresh layout (viewport may have scrolled/resized).
+      this._gestureRect = null;
       this.el.classList.remove("panning");
       // let GraphView drop any live move/box override if this gesture was
       // abandoned (e.g. interrupted by a pinch) rather than cleanly dropped.

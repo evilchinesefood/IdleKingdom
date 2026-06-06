@@ -91,7 +91,7 @@ export const RESEARCH_NODES = {
     name: "Fittings & Rivets",
     currency: "research",
     cost: 180,
-    prereqs: ["res_steelmaking"],
+    prereqs: ["res_steelmaking", "res_tannery"],
     requiresTerritory: null,
     effects: [
       { type: "unlockRecipe", recipeId: "r_fitting" },

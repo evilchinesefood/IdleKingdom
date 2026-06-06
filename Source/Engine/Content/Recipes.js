@@ -1,6 +1,6 @@
 /** @typedef {Object} Recipe
  *  @property {string} id
- *  @property {"smelter"|"workshop"} crafterKind
+ *  @property {"smelter"|"workshop"|"barracks"} crafterKind
  *  @property {Object<string,number>} inputs  resourceId -> amount per output unit
  *  @property {string} output
  *  @property {number} baseOut    output units/s at crafter L1

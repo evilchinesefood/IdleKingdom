@@ -99,13 +99,16 @@ describe("Snapshot", () => {
     expect(snap2.meta.seenVictory).toBe(true);
   });
 
-  it("snapshot is deeply frozen (nested objects too)", () => {
+  it("snapshot top-level and direct array/object properties are frozen", () => {
+    // deepFreeze replaced with shallow freeze of snap + top-level arrays/objects
+    // (task 15); reducer purity guards engine mutations, UI is read-disciplined.
     const s = seededState(new FakeClock(0));
     const solved = solve(s, content);
     const snap = build(s, solved, content);
+    expect(Object.isFrozen(snap)).toBe(true);
     expect(Object.isFrozen(snap.currencies)).toBe(true);
     expect(Object.isFrozen(snap.nodes)).toBe(true);
-    expect(Object.isFrozen(snap.nodes[0])).toBe(true);
+    // snap.nodes[0] is NOT required to be frozen (nested freeze removed)
   });
 });
 

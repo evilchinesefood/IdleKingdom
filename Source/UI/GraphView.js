@@ -134,9 +134,7 @@ function setAttr(el, k, v) {
 function setText(el, s) {
   if (el._textCache === s) return;
   el._textCache = s;
-  while (el.firstChild) el.removeChild(el.firstChild);
-  el.appendChild(document.createTextNode(s));
-  el.textContent = s; // keep the shim's simple readers working
+  el.textContent = s;
 }
 function swapChild(parent, fresh, old) {
   if (typeof parent.replaceChild === "function")
@@ -151,6 +149,7 @@ export class GraphView {
   constructor(host, game, opts = {}) {
     this.host = host;
     this.game = game;
+    this._opts = opts;
     this.view = makeView();
     this.selectedId = null;
     this.armedPort = null; // {nodeId, dir} for touch tap-port-then-port
@@ -160,7 +159,10 @@ export class GraphView {
     this._grabOffset = null;
     this.selectedLinkId = null;
 
-    this.svgEl = svg("svg", { class: "graph-svg" });
+    this.svgEl = svg("svg", {
+      class: "graph-svg",
+      "aria-label": "Factory graph",
+    });
     // All layers live under ONE root <g> so an active pan/zoom gesture can apply a
     // single delta transform (task 9 fast path) instead of rebuilding everything.
     this.layerRoot = svg("g", {});
@@ -398,12 +400,25 @@ export class GraphView {
     const sx = gx * v.scale + v.tx,
       sy = gy * v.scale + v.ty;
     const tol = 14;
+    // task 20: pre-filter links whose segment bbox doesn't intersect the viewport.
+    const vp = this._cullRect();
     for (const l of this.snap.links) {
       const from = this._nodeAt(l.from),
         to = this._nodeAt(l.to);
       if (!from || !to) continue;
       const fp = this._pos(from),
         tp = this._pos(to);
+      if (
+        vp &&
+        !nodeInRect(fp, vp) &&
+        !nodeInRect(tp, vp) &&
+        !segmentIntersectsRect(
+          { x: fp.x + NODE_W, y: fp.y + NODE_H / 2 },
+          { x: tp.x, y: tp.y + NODE_H / 2 },
+          vp,
+        )
+      )
+        continue;
       const a = graphToScreen(v, fp.x + NODE_W, fp.y + NODE_H / 2);
       const b = graphToScreen(v, tp.x, tp.y + NODE_H / 2);
       const { c1, c2 } = linkBezier(a, b);
@@ -480,7 +495,11 @@ export class GraphView {
 
   _hitPort(gx, gy) {
     if (!this.snap) return null;
+    // task 20: pre-filter against the cull rect (pointer events only originate
+    // in-viewport, so culled nodes can't be hit). HIT_R slack on every side.
+    const vp = this._cullRect();
     for (const n of this.snap.nodes) {
+      if (vp && !nodeInRect(n.pos, vp)) continue;
       // Barracks have no out port (troops are unroutable) — don't hit-test it.
       if (n.kind !== "barracks") {
         const o = this._outPort(n);
@@ -495,7 +514,10 @@ export class GraphView {
   }
   _hitNode(gx, gy) {
     if (!this.snap) return null;
+    // task 20: pre-filter against the cull rect before bbox math.
+    const vp = this._cullRect();
     for (const n of this.snap.nodes) {
+      if (vp && !nodeInRect(n.pos, vp)) continue;
       if (
         gx >= n.pos.x &&
         gx <= n.pos.x + NODE_W &&
@@ -649,8 +671,7 @@ export class GraphView {
       n.kind === "workshop" ||
       n.kind === "barracks"
     ) {
-      const r = n.recipeId && this.game.content.recipes[n.recipeId];
-      if (r && r.output) return iconName(r.output);
+      if (n.outputResourceId) return iconName(n.outputResourceId);
     }
     if (n.kind === "storage" && n.resourceIds && n.resourceIds.length)
       return iconName(n.resourceIds[0]);
@@ -672,17 +693,8 @@ export class GraphView {
   }
 
   _inferResource(fromNode) {
-    // Barracks consume gear into troops, which aren't routable (no downstream
-    // consumer) — they have an IN port only and must never source a link.
-    if (fromNode.kind === "barracks") return null;
-    if (fromNode.resourceId) return fromNode.resourceId; // gatherer
-    if (fromNode.recipeId)
-      return this.game.content.recipes[fromNode.recipeId]?.output ?? null;
-    // storage holds an array; an outbound link carries its first held type
-    // (multi-type rooms route their primary resource via a drawn port link).
-    if (Array.isArray(fromNode.resourceIds) && fromNode.resourceIds.length)
-      return fromNode.resourceIds[0];
-    return null;
+    // outputResourceId is null for barracks (troops aren't routable) and sinks.
+    return fromNode.outputResourceId ?? null;
   }
 
   _select(id) {
@@ -698,6 +710,15 @@ export class GraphView {
   _clearSelectionSets() {
     this.selNodes.clear();
     this.selBuildings.clear();
+  }
+
+  // GraphView owns all selection state. Route every full clear through here so
+  // App and bulk-op sites have one canonical path (Escape handler, bulk ops).
+  clearSelection() {
+    this.selectedId = null;
+    this.selectedBuildingId = null;
+    this.selectedLinkId = null;
+    this._clearSelectionSets();
   }
 
   // task 27: drop any selection (single + multi) whose id is absent from the fresh
@@ -789,8 +810,11 @@ export class GraphView {
 
   // The building `id` plus every group nested under it via `children` (snapshot,
   // cycle-guarded, includes id). Used to move/redraw a whole subtree as one unit.
-  _subtreeBuildingIds(id) {
-    const byId = new Map((this.snap.buildings || []).map((b) => [b.id, b]));
+  // task 21: accepts an optional pre-built byId Map so callers during _draw can
+  // reuse the single map built at draw-top rather than allocating one per call.
+  _subtreeBuildingIds(id, byId) {
+    if (!byId)
+      byId = new Map((this.snap.buildings || []).map((b) => [b.id, b]));
     const out = new Set([id]);
     const walk = (cur) => {
       const b = byId.get(cur);
@@ -1179,7 +1203,8 @@ export class GraphView {
   // All member node ids: the selected loose nodes plus every node in a selected
   // building. In single mode (sets empty) it's just the inspected machine, so the
   // bar's Copy seeds the clipboard with that one node.
-  _selectionMemberIds() {
+  // task 21: accepts an optional pre-built byId Map to avoid re-allocating it.
+  _selectionMemberIds(byId) {
     // CAUTION: a non-empty result no longer implies a multi-selection — this can
     // return the lone inspected machine (selectedId) when both sets are empty.
     if (this.selNodes.size + this.selBuildings.size === 0)
@@ -1189,7 +1214,7 @@ export class GraphView {
     // children (so copying a parent group copies the whole unit, not just its
     // direct members). _subtreeBuildingIds includes the building itself.
     for (const bid of this.selBuildings) {
-      const subtree = this._subtreeBuildingIds(bid);
+      const subtree = this._subtreeBuildingIds(bid, byId);
       for (const n of this.snap.nodes || [])
         if (n.building && subtree.has(n.building)) ids.add(n.id);
     }
@@ -1198,14 +1223,29 @@ export class GraphView {
 
   // Node ids that belong to a SELECTED group (its whole subtree). Drives the
   // group-membership highlight so it's clear which machines a selected group owns.
-  _selectedGroupMembers() {
+  // Cached: recomputed only when the selection set or snapshot identity changes.
+  // task 21: accepts an optional pre-built byId Map to avoid re-allocating it.
+  _selectedGroupMembers(byId) {
+    // Build a stable sig from the current selection + snapshot identity.
+    const selSig = [...this.selBuildings].sort().join(",");
+    const snapRef = this.snap;
+    if (
+      this._grpMembersCache &&
+      this._grpMembersSig === selSig &&
+      this._grpMembersSnap === snapRef
+    )
+      return this._grpMembersCache;
     const ids = new Set();
-    if (!this.snap) return ids;
-    for (const bid of this.selBuildings) {
-      const subtree = this._subtreeBuildingIds(bid);
-      for (const n of this.snap.nodes || [])
-        if (n.building && subtree.has(n.building)) ids.add(n.id);
+    if (snapRef) {
+      for (const bid of this.selBuildings) {
+        const subtree = this._subtreeBuildingIds(bid, byId);
+        for (const n of snapRef.nodes || [])
+          if (n.building && subtree.has(n.building)) ids.add(n.id);
+      }
     }
+    this._grpMembersCache = ids;
+    this._grpMembersSig = selSig;
+    this._grpMembersSnap = snapRef;
     return ids;
   }
 
@@ -1251,8 +1291,9 @@ export class GraphView {
     });
     this._clearSelectionSets();
     // select the new parent: it's the building that owns nodeIds[0] (if any loose
-    // nodes) or lists children[0] as a child.
-    const made = (this.game.getSnapshot().buildings || []).find((b) =>
+    // nodes) or lists children[0] as a child. Use this.snap — refreshed by the
+    // dispatch listener — instead of a separate getSnapshot() call.
+    const made = (this.snap.buildings || []).find((b) =>
       nodeIds.length
         ? b.nodeIds.includes(nodeIds[0])
         : (b.children || []).includes(children[0]),
@@ -1353,9 +1394,8 @@ export class GraphView {
     this._clearSelectionSets();
     this.selectedBuildingId = null;
     // task 27: a single-selected node/link may also have been removed by the bulk
-    // delete — reconcile against the fresh snapshot so no stale id survives.
-    if (this.game && this.game.getSnapshot)
-      this.reconcileSelection(this.game.getSnapshot());
+    // delete — reconcile against the fresh snapshot (refreshed by dispatch listener).
+    this.reconcileSelection(this.snap);
     if (this.onSelect) this.onSelect(null); // close the slim panel for a deleted group
     this._draw();
   }
@@ -1367,8 +1407,7 @@ export class GraphView {
     if (id == null) return;
     this.game.dispatch({ type: INTENT.RemoveNode, nodeId: id });
     this.selectedId = null;
-    if (this.game && this.game.getSnapshot)
-      this.reconcileSelection(this.game.getSnapshot());
+    this.reconcileSelection(this.snap);
     if (this.onSelect) this.onSelect(null); // close the inspector
     this._draw();
   }
@@ -1385,6 +1424,20 @@ export class GraphView {
     const bar = this.actionBarEl;
     if (!bar) return;
     if (!this._barHasSelection() || this._mode === "paste") {
+      // If the bar is going away while focus is inside it, move focus to a node
+      // (or the SVG canvas) so keyboard users aren't dropped to <body>.
+      try {
+        const a = document.activeElement;
+        if (a && bar.contains && bar.contains(a)) {
+          this._focusFirstNode();
+          if (!this.layerNodes.querySelector("[data-node-id]")) {
+            if (this.svgEl && typeof this.svgEl.focus === "function") {
+              this.svgEl.setAttribute("tabindex", "-1");
+              this.svgEl.focus();
+            }
+          }
+        }
+      } catch {}
       bar.style.display = "none";
       this._barAnchor = null;
       this._barSig = null;
@@ -1455,16 +1508,27 @@ export class GraphView {
     const screen = graphToScreen(this.view, cx, bbox.y);
     // task 10: cache the host rect (it only changes on resize/gesture-end, where
     // we null it) so we don't read-after-write thrash layout on every draw.
-    let hostRect = this._hostRect,
-      barRect = null;
+    let hostRect = this._hostRect;
     try {
       if (!hostRect && this.host.getBoundingClientRect)
         hostRect = this._hostRect = this.host.getBoundingClientRect();
-      if (bar.getBoundingClientRect) barRect = bar.getBoundingClientRect();
     } catch {}
-    if (!hostRect || !barRect || !barRect.width) return; // headless: skip positioning
-    const barW = barRect.width,
-      barH = barRect.height;
+    // task 14: cache the bar's measured size; re-measure only when _barSig changes
+    // (button set changed) since bar dimensions are stable between those points.
+    if (!this._barSize || this._barSizeSig !== this._barSig) {
+      try {
+        if (bar.getBoundingClientRect) {
+          const br = bar.getBoundingClientRect();
+          if (br && br.width) {
+            this._barSize = { w: br.width, h: br.height };
+            this._barSizeSig = this._barSig;
+          }
+        }
+      } catch {}
+    }
+    if (!hostRect || !this._barSize || !this._barSize.w) return; // headless: skip positioning
+    const barW = this._barSize.w,
+      barH = this._barSize.h;
     let left = screen.x - barW / 2;
     left = Math.max(4, Math.min(left, hostRect.width - barW - 4));
     let top = screen.y - barH - 8;
@@ -1482,14 +1546,41 @@ export class GraphView {
   _draw() {
     if (!this.snap) return;
     const v = this.view;
-    // buildings (behind links + nodes; always visible)
-    this._replace(
-      this.layerBuildings,
-      (this.snap.buildings || []).map((b) => this._drawBuilding(b, v)),
-    );
+    // task 22: read performance.now() once and pass to gear builds.
+    const nowMs =
+      typeof performance !== "undefined" && performance.now
+        ? performance.now()
+        : 0;
     // Shared by the links + nodes loops below; declared here now that links run
     // first. null = render everything (Task 4 wires this; also the headless path).
     const vp = this._cullRect();
+    // task 21 (GraphView side): build the buildings Map once per draw and thread it
+    // through _subtreeBuildingIds / _selectionMemberIds / _selectedGroupMembers.
+    const buildingsById = new Map(
+      (this.snap.buildings || []).map((b) => [b.id, b]),
+    );
+    // buildings (behind links + nodes; cull off-screen ones like nodes)
+    const bldgList = this.snap.buildings || [];
+    const bldgEls = [];
+    for (const b of bldgList) {
+      // task 23: cull buildings that are fully outside the viewport, keeping
+      // selected/dragged buildings always visible (mirrors node treatment).
+      if (vp) {
+        const r = this._buildingRect(b);
+        const inView =
+          r.x + r.w >= vp.x0 &&
+          r.x <= vp.x1 &&
+          r.y + r.h >= vp.y0 &&
+          r.y <= vp.y1;
+        const alwaysShow =
+          b.id === this.selectedBuildingId ||
+          this.selBuildings.has(b.id) ||
+          (this._buildingDrag && this._buildingDrag.id === b.id);
+        if (!inView && !alwaysShow) continue;
+      }
+      bldgEls.push(this._drawBuilding(b, v));
+    }
+    this._replace(this.layerBuildings, bldgEls);
     // links (retained; culling: render when either endpoint node renders OR the
     // segment crosses the viewport; the revealed link always renders)
     const linkSeen = new Set();
@@ -1530,7 +1621,12 @@ export class GraphView {
       this._updateLinkEl(entry, l, a, b);
     }
     // detach culled links (keep entries) and delete departed ones entirely
-    const liveLinks = new Set(this.snap.links.map((l) => l.id));
+    // task 13: cache liveLinks keyed on snapshot identity (same pattern as _nodeMap).
+    if (this._liveLinksSnap !== this.snap) {
+      this._liveLinksCache = new Set(this.snap.links.map((l) => l.id));
+      this._liveLinksSnap = this.snap;
+    }
+    const liveLinks = this._liveLinksCache;
     for (const [id, entry] of this._linkEls) {
       if (linkSeen.has(id)) continue;
       if (entry.g.parentNode === this.layerLinks)
@@ -1556,7 +1652,8 @@ export class GraphView {
     }
 
     // nodes (retained: rebuild only on sig change; in-place updates otherwise)
-    this._grpMembers = this._selectedGroupMembers(); // members of any selected group
+    // task 21: pass buildingsById so _selectedGroupMembers reuses the draw-top map.
+    this._grpMembers = this._selectedGroupMembers(buildingsById); // members of any selected group
     const refocus = this._activeNodeId(); // a sig-rebuild still destroys focus
     const tier = lodTier(v.scale);
     const seen = new Set();
@@ -1574,7 +1671,7 @@ export class GraphView {
       const sig = nodeSig(n, nTier, armed, icon);
       let entry = this._nodeEls.get(n.id);
       if (!entry || entry.sig !== sig) {
-        const fresh = this._buildNodeEl(n, nTier, armed, icon);
+        const fresh = this._buildNodeEl(n, nTier, armed, icon, nowMs);
         fresh.sig = sig;
         if (entry && entry.g.parentNode === this.layerNodes)
           swapChild(this.layerNodes, fresh.g, entry.g);
@@ -1595,9 +1692,16 @@ export class GraphView {
     }
     // empty-canvas hint: present exactly when there are no nodes at all
     if (this.snap.nodes.length === 0) {
+      const isNew = !this._hintEl;
       if (!this._hintEl) this._hintEl = this._emptyHint();
       if (this._hintEl.parentNode !== this.layerNodes)
         this.layerNodes.appendChild(this._hintEl);
+      // Task 35: mirror hint text to live region once on first render so screen
+      // readers can announce it (SVG <text> is not reliably in the AT tree).
+      if (isNew && this._opts && this._opts.onEmptyHint)
+        this._opts.onEmptyHint(
+          "No machines yet — open the Build menu to place one. Tab to select · Enter to open · arrows to move",
+        );
     } else if (this._hintEl && this._hintEl.parentNode === this.layerNodes) {
       this.layerNodes.removeChild(this._hintEl);
     }
@@ -1609,7 +1713,7 @@ export class GraphView {
     // task 9: a full draw bakes the live view into every element — record it so the
     // next gesture frame can compute its delta transform against this baseline.
     this._drawnView = { scale: v.scale, tx: v.tx, ty: v.ty };
-    // A redraw landing MID-gesture (e.g. a snapshot from an expedition resolving
+    // A redraw landing MID-gesture (e.g. a snapshot from a siege reclaim
     // during a pan) just rebaked the live view, so any gesture delta still on the
     // layer root is stale — clear it or everything double-transforms.
     if (this.layerRoot && this.layerRoot.removeAttribute)
@@ -1823,7 +1927,9 @@ export class GraphView {
     return svg(
       "text",
       { class: "graph-empty", x: w / 2, y: hh / 2, "text-anchor": "middle" },
-      ["No machines yet — open the Build menu to place one"],
+      [
+        "No machines yet — open the Build menu to place one · Tab to select · Enter to open · arrows to move",
+      ],
     );
   }
 
@@ -1917,7 +2023,7 @@ export class GraphView {
   // are NOT set here; _updateNodeEl applies them every draw. An element is
   // rebuilt only when its structural sig (nodeSig) changes; `tier`/`armed`/`icon`
   // are the sig's structural inputs and arrive here straight from the sig site.
-  _buildNodeEl(n, tier, armed, icon) {
+  _buildNodeEl(n, tier, armed, icon, nowMs = 0) {
     // Badge presence/variant is structural (rebuilds on change via nodeSig), so
     // it's baked in here rather than updated in place — same ladder as the sig.
     const badge = nodeBadge(n);
@@ -1984,12 +2090,8 @@ export class GraphView {
       // animation from 0. Anchor each gear to a shared wall-clock phase via a
       // negative animation-delay so a recreated gear resumes mid-spin — the
       // animation looks continuous across rebuilds. (2.4s = keyframe duration;
-      // guarded for the headless test shim where `performance` is absent.)
-      const nowS =
-        typeof performance !== "undefined" && performance.now
-          ? performance.now() / 1000
-          : 0;
-      wi.style.animationDelay = "-" + (nowS % 2.4).toFixed(3) + "s";
+      // nowMs passed from _draw so all gears in one pass share the same timestamp.)
+      wi.style.animationDelay = "-" + ((nowMs / 1000) % 2.4).toFixed(3) + "s";
       wfo.appendChild(wi);
       g.appendChild(wfo);
     }

@@ -9,9 +9,9 @@
 **IdleKingdom** — a minimalist flat-fantasy **idle/automation game** (Kingdom Inc.-inspired),
 set in the besieged city of **Yensburg**. Core loop: a **node/flow-graph factory** (a DAG, not
 spatial belts) → **rate-based steady-state** simulation → **true idle + offline catch-up**.
-You scale by **leveling nodes** (not copying them). Three currencies (Gold / Research / Renown),
-permanent tiered gear (weapon / armor / accessory), timed deterministic expeditions, and
-reclaiming 6 territories → victory → free-play (no prestige).
+You scale by **leveling nodes** (not copying them). Two currencies (Gold / Research), barracks
+muster troops that generate passive siege power, and reclaiming 6 territories → victory →
+free-play (no prestige).
 
 - **Live:** https://dev.jdayers.com/kingdom/
 - **Repo:** `evilchinesefood/IdleKingdom` (GitHub, **private**). Default branch **`main`** — the project deploys from `main`.
@@ -24,12 +24,12 @@ reclaiming 6 territories → victory → free-play (no prestige).
 - **PascalCase** for ALL files and directories (`GraphView.js`, `Source/Engine/`).
 - **Prettier** before finishing any task. Keep code minimal/clean: short names, few comments (only where the logic isn't self-evident), small single-purpose functions. Don't add type annotations/docstrings/comments to code you didn't change.
 - The **engine is headless and DOM-free** (unit-tested under node). The UI only reads frozen snapshots and dispatches intents — strict one-way data flow.
-- **Render cadence is LOCKED:** render on intents + expedition-resolve + a 2s HUD-only interval. NEVER reintroduce per-frame rendering.
+- **Render cadence is LOCKED:** render on intents + a 2s HUD-only interval. NEVER reintroduce per-frame rendering.
 
 ## Architecture
 
 - **Engine** (`Source/Engine/**`, headless): `GameState` + `RateSolver` (steady-state rates) + Systems + Persistence (behind a `StorageAdapter` seam) + an injectable `Clock`. Save = localStorage now, cloud-ready abstraction. Flow: intents → reducers → new state → a frozen read-model `Snapshot` (`Source/Engine/Snapshot.js`).
-- **UI** (`Source/UI/**`, thin): a hand-rolled `h()`/`patch()` reconciler (`Source/UI/Render/Dom.js`) renders panels from `Snapshot.build` and dispatches intents (`Source/UI/Intents.js`). `App.js` owns mounting, the hash router, and the overlay layer. The factory **canvas** (`GraphView.js` + `GraphInput.js`) is a bespoke hand-rolled SVG (pan/zoom/ports/drag) — out of scope for component swaps; only its chrome/presentation changes.
+- **UI** (`Source/UI/**`, thin): a hand-rolled `h()`/`patch()` reconciler (`Source/UI/Render/Dom.js`) renders panels from `Snapshot.build` and dispatches intents (`Source/Engine/Intents.js`). `App.js` owns mounting, the hash router, and the overlay layer. The factory **canvas** (`GraphView.js` + `GraphInput.js`) is a bespoke hand-rolled SVG (pan/zoom/ports/drag) — out of scope for component swaps; only its chrome/presentation changes.
 - **Selectors** (`Source/UI/Logic/Selectors.js`) — pure, DOM-free, unit-tested.
 - Two format modules: `Source/UI/Render/Format.js` (`formatNumber`/`formatRate`, used by `Hud.js`) and `Source/UI/Format/Format.js` (`fmtNum`/`fmtRate`/`fmtCountdown`/`fmtCost`/`cap`, used by panels; re-exports the Render ones).
 
@@ -49,11 +49,12 @@ The non-canvas UI is built on **Web Awesome v3.7.0** web components with **FA Pr
 - **Size tokens are SHORT form `s`/`m`/`l`.** The long form (`small`/`medium`/`large`) is **deprecated in WA v3.7.0** (console warns). (The cross-phase critique got this backwards — short form is correct.)
 - Icons into WA slots go via a real `slot="start"` attribute on the `<i>` (or a wrapping `<span slot="start">`), never a CSS class.
 - Tab router: drive from `onWaTabShow` (read `event.detail.name`), set `prop:active`, emit NO `wa-tab-panel` (App owns screen mounting). Dialogs close via `onWaHide` + the footer button `onclick` (same `onClose`); App owns add/remove of the dialog vnode (it emits `prop:open:true` while it should show).
-- `fmtCost(amount)` is **text-only** — prepend `icon("gold"/"research"/"renown")` as a sibling vnode.
+- `fmtCost(amount)` is **text-only** — prepend `icon("gold"/"research")` as a sibling vnode.
 
 ## Testing & verification (this is the safety net — always run it)
 
-- **`node Tests/RunAll.js`** — zero-dep registered suite; MUST stay green (currently **281 passed, 0 failed**). Engine + pure-UI-helper tests.
+- **`npm test`** — runs all three gates in sequence: `RunAll.js` (unit suite), `PlaythroughProbe.mjs` (13-step UI probe), `VictoryProbe.mjs` (engine→victory probe).
+- **`node Tests/RunAll.js`** — zero-dep registered suite; MUST stay green (currently **531 passed, 0 failed**). Engine + pure-UI-helper tests.
 - **`node Tests/PlaythroughProbe.mjs`** — standalone 13-step end-to-end probe that drives the REAL UI panels under a minimal DOM shim and fires their real handlers (the strongest automated check). Per-change gate (currently **13/13**). NOT in `RunAll`.
 - **`node Tests/VictoryProbe.mjs`** — scripted engine→victory probe.
 - **CRUCIAL LIMITATION:** the node DOM shim does NOT upgrade `wa-*` custom elements (no shadow DOM, no `wa-change`/`wa-hide` dispatch, no reflected properties). The probe asserts emitted **vnodes / attributes / handlers** only — all real Web Awesome *behavior*, FA glyph rendering, and visual layout are **browser-only** (the human's acceptance pass; hard-reload twice for the SW swap).
@@ -62,7 +63,7 @@ The non-canvas UI is built on **Web Awesome v3.7.0** web components with **FA Pr
 ## Deploy (buildless rsync to the home server)
 
 - **Target:** `johnayers@johndayers.com:/home/johnayers/dev.jdayers.com/kingdom/`. SSH is **password auth only** — pass `-o PreferredAuthentications=password -o PubkeyAuthentication=no` (the SFTP subsystem is blocked; use rsync/scp over ssh). The **Home Server / johndayers.com** password is in your password manager / WSL `~/.claude` memory `server_access.md` — **deliberately not stored in this file**. The deploy toolchain (`sshpass`) is WSL-based; run it from the `/mnt/c/...` path.
-- **Bump `ServiceWorker.js` `CACHE` on every asset-touching deploy** (it's a cache-first SW; the activate handler purges old caches + re-precaches). **Currently `idlekingdom-v10`** → next is `v11`, `v12`, … Any asset that must work offline MUST be listed in `SHELL` (the WA loader, `webawesome.css`, the FA css, `fa-duotone-900.woff2`, and the vendored fonts are already there).
+- **Bump `ServiceWorker.js` `CACHE` on every asset-touching deploy** (it's a cache-first SW; the activate handler purges old caches + re-precaches). The current version lives in `ServiceWorker.js` (`idlekingdom-v58` as of 2026-06-06) — bump to the next number on every deploy. Any asset that must work offline MUST be listed in `SHELL`: as of v58 ALL first-party Engine/UI modules + CSS are precached atomically (`cache.addAll`), vendor/fonts on a tolerant path — new source files must be added to `SHELL_FIRST_PARTY`.
 - **`.htaccess`** (committed at repo root, REQUIRED): `DirectoryIndex Index.html` (the PascalCase entry would otherwise 403), ES-module MIME types, and `AddType font/woff2 .woff2` (the FA webfont renders as boxes without it).
 - **Exclude from rsync** (and NEVER ship `.npmrc` — it holds the FA Pro token): `.git/ docs/ Tests/ node_modules/ package.json package-lock.json .gitignore .npmrc .npmrc.example .omc/ CLAUDE.md AGENTS.md`.
 - Command:
@@ -97,7 +98,7 @@ The non-canvas UI is built on **Web Awesome v3.7.0** web components with **FA Pr
 
 - **MVP** complete (tag `v1.0.0-mvp`).
 - **UI re-platform onto Web Awesome — Phases 1–5 COMPLETE & deployed** (SW `idlekingdom-v10`):
-  P1 foundation (vendored WA/FA, `Icons.js`, `WaTheme.css`, `Dom.js` `onWa*`/`prop:` extensions, all emoji → FA Duotone); P2 HUD/tabs; P3 factory panels + Snapshot derived fields + MAX/STARVED badges + link click-to-reveal (B1); P4 research/expeditions/heroes; P5 dialogs/tooltip/error-flash/legend; + the WA short-size-token fix. All on `main`, pushed to `origin`.
+  P1 foundation (vendored WA/FA, `Icons.js`, `WaTheme.css`, `Dom.js` `onWa*`/`prop:` extensions, all emoji → FA Duotone); P2 HUD/tabs; P3 factory panels + Snapshot derived fields + MAX/STARVED badges + link click-to-reveal (B1); P4 research/war (siege replaced expeditions/heroes in the war rework); P5 dialogs/tooltip/error-flash/legend; + the WA short-size-token fix. All on `main`, pushed to `origin`.
 - **PENDING — the human's:** per-phase **browser acceptance** (WA/FA only render in a real browser) and the **acceptance tags** `ui-p1-foundation` / `ui-p2-hud-tabs` / `ui-p3-factory` / `ui-p4-content-panels` / `ui-p5-modals-tooltips-polish` — **not all applied yet** (gated on sign-off). Don't apply them or claim acceptance without the human's confirmation.
 - **Spec + plans:** `docs/superpowers/specs/` and `docs/superpowers/plans/` (the `2026-06-01-idlekingdom-ui-replatform-*` set is the re-platform; `2026-05-31-*` is the original MVP).
 

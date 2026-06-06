@@ -125,10 +125,8 @@ export function ResearchTree(snap, dispatch) {
     // A locked card must say WHY: unowned prereqs by name + an unreclaimed territory.
     const needs = [];
     if (r.status === "locked") {
-      const def = RESEARCH_NODES[r.id];
-      for (const pr of (def && def.prereqs) || [])
-        if (!ownedIds.has(pr))
-          needs.push((RESEARCH_NODES[pr] || {}).name || pr);
+      for (const pr of r.prereqs || [])
+        if (!ownedIds.has(pr.id)) needs.push(pr.name);
       if (r.requiresTerritory && !r.requiresTerritory.met)
         needs.push("Reclaim " + r.requiresTerritory.name);
     }

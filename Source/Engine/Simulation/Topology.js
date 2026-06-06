@@ -1,3 +1,5 @@
+import { isCrafter } from "../Content/Machines.js";
+
 /** Kahn's algorithm. Returns node ids in topo order. Throws Error("cycle") if a cycle exists. */
 export function topoSort(nodes, links) {
   const ids = nodes.map((n) => n.id);
@@ -46,18 +48,14 @@ function outputsOf(node, content) {
   }
   if (node.kind === "storage")
     return Array.isArray(node.resourceIds) ? node.resourceIds.slice() : [];
-  // barracks is terminal: its troops feed the siege, never the resource graph, so
-  // it emits nothing routable (a barracks-out link can never validate).
+  // barracks is intentionally terminal: troops feed the siege, not the resource graph,
+  // so outputsOf returns [] while acceptsOf includes it (asymmetric by design).
   return []; // market, scholar, barracks are sinks, never producers
 }
 
 /** Resources a node can consume as input given its kind/assignment. */
 function acceptsOf(node, content) {
-  if (
-    node.kind === "smelter" ||
-    node.kind === "workshop" ||
-    node.kind === "barracks"
-  ) {
+  if (isCrafter(node.kind)) {
     const r = content.recipes[node.recipeId];
     return r ? Object.keys(r.inputs) : [];
   }
@@ -68,13 +66,40 @@ function acceptsOf(node, content) {
   return []; // gatherer takes no inputs
 }
 
-/** Port validity: a candidate link from->to carrying resourceId is structurally legal. */
-export function isValidLink(state, content, from, to, resourceId) {
+/** DFS from `start` following existing links, returns true if `target` is reachable. */
+function canReach(links, start, target) {
+  // Build adjacency lazily for this call only — cheaper than full topoSort for sparse checks.
+  const adj = new Map();
+  for (const l of links) {
+    let a = adj.get(l.from);
+    if (!a) {
+      a = [];
+      adj.set(l.from, a);
+    }
+    a.push(l.to);
+  }
+  const visited = new Set();
+  const stack = [start];
+  while (stack.length) {
+    const cur = stack.pop();
+    if (cur === target) return true;
+    if (visited.has(cur)) continue;
+    visited.add(cur);
+    const nexts = adj.get(cur);
+    if (nexts) for (const n of nexts) stack.push(n);
+  }
+  return false;
+}
+
+/** Port validity: a candidate link from->to carrying resourceId is structurally legal.
+ *  Pass an optional prebuilt `byId` Map<id,node> to skip the linear scans. */
+export function isValidLink(state, content, from, to, resourceId, byId) {
   if (from === to) return false;
   const nodes = state.graph.nodes;
   const links = state.graph.links;
-  const fromNode = nodes.find((n) => n.id === from);
-  const toNode = nodes.find((n) => n.id === to);
+  const map = byId || new Map(nodes.map((n) => [n.id, n]));
+  const fromNode = map.get(from);
+  const toNode = map.get(to);
   if (!fromNode || !toNode) return false;
   if (!outputsOf(fromNode, content).includes(resourceId)) return false;
   const accepts = acceptsOf(toNode, content);
@@ -88,5 +113,7 @@ export function isValidLink(state, content, from, to, resourceId) {
     )
   )
     return false;
-  return wouldStayAcyclic(nodes, links, from, to);
+  // Acyclicity: adding from->to creates a cycle iff `from` is already reachable FROM `to`.
+  // DFS from `to` searching for `from` — O(reachable subgraph) vs full topoSort.
+  return !canReach(links, to, from);
 }

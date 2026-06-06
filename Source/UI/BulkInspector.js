@@ -1,8 +1,9 @@
 import { h } from "./Render/Dom.js";
 import { icon } from "./Icons.js";
 import { cap, fmtCost } from "./Format/Format.js";
-import { RESOURCES } from "../Engine/Content/Resources.js";
+import { RESOURCES } from "../Engine/Content/Resources.js"; // intentional shared display table (resource names/icons)
 import { RECIPES } from "../Engine/Content/Recipes.js";
+import { isCrafter } from "../Engine/Content/Machines.js";
 
 // Bulk inspector for a multi-selection of same-kind machines: change the
 // recipe / gathered resource / held types for ALL of them at once, and upgrade
@@ -39,7 +40,7 @@ export function BulkInspector(snap, sel, handlers) {
     ),
   ];
 
-  if (kind === "smelter" || kind === "workshop") {
+  if (isCrafter(kind)) {
     const opts = (snap.buildMenu ? snap.buildMenu.unlockedRecipes : [])
       .filter((r) => RECIPES[r] && RECIPES[r].crafterKind === kind)
       .map((r) =>

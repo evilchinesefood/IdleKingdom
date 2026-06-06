@@ -1,9 +1,21 @@
 import { h } from "./Render/Dom.js";
 import { fmtNum, fmtRate, fmtCost, cap } from "./Format/Format.js";
 import { icon } from "./Icons.js";
-import { RESOURCES } from "../Engine/Content/Resources.js";
+import { RESOURCES } from "../Engine/Content/Resources.js"; // intentional shared display table (resource names/icons)
 import { RECIPES } from "../Engine/Content/Recipes.js";
+import { isCrafter } from "../Engine/Content/Machines.js";
 import { INTENT } from "../Engine/Intents.js";
+
+// Memoize static option vnode lists (recipe / gatherer-raw / storage-resource) per
+// (kind, unlocks signature). Only the option children are cached; the wa-select wrapper
+// is still rebuilt each patch so affordability/value props stay live.
+const _optMemo = new Map(); // key -> vnode[]
+function _cachedOpts(key, build) {
+  if (_optMemo.has(key)) return _optMemo.get(key);
+  const v = build();
+  _optMemo.set(key, v);
+  return v;
+}
 
 export function NodeInspector(snap, dispatch, selectedNodeId) {
   const node = (snap.nodes || []).find((n) => n.id === selectedNodeId);
@@ -60,6 +72,7 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
     h("wa-progress-bar", {
       class: "ni-cap" + (node.starved ? " starved" : ""),
       value: Math.round(pct * 100),
+      label: "Capacity",
     }),
   ];
 
@@ -133,23 +146,26 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
     );
   }
 
-  // Recipe / raw reassignment. Any recipe-driven crafter (smelter, workshop,
-  // barracks) lists the recipes whose crafterKind is its own kind.
-  if (
-    node.kind === "smelter" ||
-    node.kind === "workshop" ||
-    node.kind === "barracks"
-  ) {
-    const opts = (snap.buildMenu ? snap.buildMenu.unlockedRecipes : [])
-      .filter((r) => RECIPES[r] && RECIPES[r].crafterKind === node.kind)
-      .map((r) =>
-        h(
-          "wa-option",
-          { key: "opt-" + r, value: r },
-          h("span", { slot: "start" }, icon(RECIPES[r].output)),
-          RESOURCES[RECIPES[r].output].display,
-        ),
-      );
+  // Recipe / raw reassignment. Any recipe-driven crafter lists the recipes
+  // whose crafterKind is its own kind.
+  if (isCrafter(node.kind)) {
+    const unlockedRecipes = snap.buildMenu
+      ? snap.buildMenu.unlockedRecipes
+      : [];
+    const opts = _cachedOpts(
+      node.kind + "|recipes|" + unlockedRecipes.join(","),
+      () =>
+        unlockedRecipes
+          .filter((r) => RECIPES[r] && RECIPES[r].crafterKind === node.kind)
+          .map((r) =>
+            h(
+              "wa-option",
+              { key: "opt-" + r, value: r },
+              h("span", { slot: "start" }, icon(RECIPES[r].output)),
+              RESOURCES[RECIPES[r].output].display,
+            ),
+          ),
+    );
     rows.push(
       h(
         "wa-select",
@@ -191,16 +207,18 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
     }
   } else if (node.kind === "gatherer") {
     const raws = (snap.buildMenu ? snap.buildMenu.gathererResources : []) || [];
-    const opts = raws
-      .filter((rid) => RESOURCES[rid])
-      .map((rid) =>
-        h(
-          "wa-option",
-          { key: "opt-" + rid, value: rid },
-          h("span", { slot: "start" }, icon(rid)),
-          RESOURCES[rid].display,
+    const opts = _cachedOpts("gatherer|raws|" + raws.join(","), () =>
+      raws
+        .filter((rid) => RESOURCES[rid])
+        .map((rid) =>
+          h(
+            "wa-option",
+            { key: "opt-" + rid, value: rid },
+            h("span", { slot: "start" }, icon(rid)),
+            RESOURCES[rid].display,
+          ),
         ),
-      );
+    );
     rows.push(
       h(
         "wa-select",
@@ -223,16 +241,18 @@ export function NodeInspector(snap, dispatch, selectedNodeId) {
   } else if (node.kind === "storage") {
     // Multi-select of UNLOCKED resources; the room holds up to `level` types.
     const unlocked = (snap.buildMenu && snap.buildMenu.unlockedResources) || [];
-    const opts = unlocked
-      .filter((rid) => RESOURCES[rid])
-      .map((rid) =>
-        h(
-          "wa-option",
-          { key: "opt-" + rid, value: rid },
-          h("span", { slot: "start" }, icon(rid)),
-          RESOURCES[rid].display,
+    const opts = _cachedOpts("storage|unlocked|" + unlocked.join(","), () =>
+      unlocked
+        .filter((rid) => RESOURCES[rid])
+        .map((rid) =>
+          h(
+            "wa-option",
+            { key: "opt-" + rid, value: rid },
+            h("span", { slot: "start" }, icon(rid)),
+            RESOURCES[rid].display,
+          ),
         ),
-      );
+    );
     rows.push(
       h(
         "wa-select",

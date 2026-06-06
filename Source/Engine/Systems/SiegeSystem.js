@@ -1,11 +1,27 @@
 import { reclaim } from "./ProgressionSystem.js";
 
+// Sorted territory list (by order) cached per content object. Content is a
+// module-level singleton so this is effectively a one-time build.
+let _sortedCache = null;
+let _sortedContent = null;
+function sortedTerritories(content) {
+  if (_sortedContent !== content) {
+    _sortedCache = Object.values(content.territories).sort(
+      (a, b) => a.order - b.order,
+    );
+    _sortedContent = content;
+  }
+  return _sortedCache;
+}
+
 /** The single siege target: territories fall strictly in `order`. */
 export function nextTerritory(state, content) {
-  const remaining = Object.values(content.territories)
-    .filter((t) => !state.territories.reclaimed.includes(t.id))
-    .sort((a, b) => a.order - b.order);
-  return remaining.length ? remaining[0].id : null;
+  const sorted = sortedTerritories(content);
+  const reclaimed = state.territories.reclaimed;
+  for (const t of sorted) {
+    if (!reclaimed.includes(t.id)) return t.id;
+  }
+  return null;
 }
 
 /** Spend accumulated siege progress against the next territory (repeatedly —

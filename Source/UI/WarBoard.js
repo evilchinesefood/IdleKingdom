@@ -19,7 +19,7 @@ export function WarBoard(snap) {
   const cards = (snap.territories || []).map((t) => {
     const sieging = t.status === "sieging";
     const pct =
-      sieging && t.siegeCost
+      sieging && t.siegeCost && siege.targetId === t.id
         ? Math.min(100, (siege.progress / t.siegeCost) * 100)
         : 0;
     const header = h(
@@ -40,7 +40,11 @@ export function WarBoard(snap) {
     ];
     if (sieging) {
       children.push(
-        h("wa-progress-bar", { class: "war-progress", value: pct }),
+        h("wa-progress-bar", {
+          class: "war-progress",
+          value: pct,
+          label: "Siege progress",
+        }),
         h(
           "div",
           { class: "war-rate" },

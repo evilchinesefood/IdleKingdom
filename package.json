@@ -2,5 +2,7 @@
   "name": "idlekingdom",
   "private": true,
   "type": "module",
-  "scripts": { "test": "node Tests/RunAll.js" }
+  "scripts": {
+    "test": "node Tests/RunAll.js && node Tests/PlaythroughProbe.mjs && node Tests/VictoryProbe.mjs"
+  }
 }

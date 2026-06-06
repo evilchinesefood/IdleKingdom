@@ -1,5 +1,6 @@
 import { topoSort } from "./Topology.js";
 import { isListed, AUTO_SELL_RATE } from "../Systems/EconomySystem.js";
+import { isCrafter } from "../Content/Machines.js";
 
 /** Capacity per kind (level adds to the relevant base; bonus = productionBonuses[kind] ?? 1.0). */
 export function capacity(node, state, content) {
@@ -10,11 +11,7 @@ export function capacity(node, state, content) {
     1.0;
   if (node.kind === "gatherer")
     return (m.baseOutput + m.rateGain * (node.level - 1)) * bonus;
-  if (
-    node.kind === "smelter" ||
-    node.kind === "workshop" ||
-    node.kind === "barracks"
-  ) {
+  if (isCrafter(node.kind)) {
     const r = content.recipes[node.recipeId];
     if (!r) return 0;
     return (r.baseOut + m.rateGain * (node.level - 1)) * bonus; // level adds to recipe base output
@@ -24,17 +21,13 @@ export function capacity(node, state, content) {
   if (node.kind === "scholar")
     return (m.baseOutput + m.rateGain * (node.level - 1)) * bonus;
   if (node.kind === "storage")
-    return (m.baseOutput + m.rateGain * (node.level - 1)) * bonus; // passthrough rate
+    return m.baseOutput + m.rateGain * (node.level - 1); // passthrough rate (no tuning slot)
   return 0;
 }
 
 /** A consumer link's capacity-limited want for its carried resource (supply-independent). */
 function linkWant(consumer, resourceId, cap, content) {
-  if (
-    consumer.kind === "smelter" ||
-    consumer.kind === "workshop" ||
-    consumer.kind === "barracks"
-  ) {
+  if (isCrafter(consumer.kind)) {
     const r = content.recipes[consumer.recipeId];
     if (!r || !(resourceId in r.inputs)) return 0;
     return cap * r.inputs[resourceId]; // units of resource needed to run at full capacity
@@ -59,6 +52,21 @@ export function solve(state, content) {
   for (const l of links) {
     if (inLinks.has(l.to)) inLinks.get(l.to).push(l);
     if (outLinks.has(l.from)) outLinks.get(l.from).push(l);
+  }
+
+  // Group out-links by (from, resourceId) once so the forward pass looks up the
+  // filtered slice directly instead of allocating a new array per (node, resource).
+  const outLinksByRes = new Map(); // `${nodeId}|${resId}` -> link[]
+  for (const [id, ls] of outLinks) {
+    for (const l of ls) {
+      const k = id + "|" + l.resourceId;
+      let arr = outLinksByRes.get(k);
+      if (!arr) {
+        arr = [];
+        outLinksByRes.set(k, arr);
+      }
+      arr.push(l);
+    }
   }
 
   const availableOut = {}; // nodeId -> {resId: units/s produced}
@@ -106,11 +114,7 @@ export function solve(state, content) {
     if (node.kind === "gatherer") {
       availableOut[id] = node.resourceId ? { [node.resourceId]: cap } : {};
       perNodeDraw[id] = {};
-    } else if (
-      node.kind === "smelter" ||
-      node.kind === "workshop" ||
-      node.kind === "barracks"
-    ) {
+    } else if (isCrafter(node.kind)) {
       const r = content.recipes[node.recipeId];
       if (!r) {
         availableOut[id] = {};
@@ -205,7 +209,7 @@ export function solve(state, content) {
     const outs = availableOut[id];
     for (const resId in outs) {
       const out = outs[resId];
-      const mine = outLinks.get(id).filter((L) => L.resourceId === resId);
+      const mine = outLinksByRes.get(id + "|" + resId) || [];
       // Group by DISTINCT consumer so duplicate links to the same consumer+resource
       // share one demand (counting its remaining once). Normally isValidLink forbids
       // duplicate triples; this keeps mass conserved even if one is forced in.
