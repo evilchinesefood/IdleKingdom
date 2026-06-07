@@ -23,6 +23,10 @@
   </FilesMatch>
   Header set X-Content-Type-Options nosniff
   Header set Referrer-Policy no-referrer
+  # Defense-in-depth CSP (audited: no first-party injection sink exists; this
+  # guards future regressions). script 'unsafe-inline' is required by the inline
+  # <base>-computing script in Index.html; style 'unsafe-inline' by Web Awesome.
+  Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
 </IfModule>
 
 # Deny direct access to dotfiles (.htaccess, .npmrc, .git, etc.) — but never

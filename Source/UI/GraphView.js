@@ -180,6 +180,8 @@ export class GraphView {
 
     this.svgEl = svg("svg", {
       class: "graph-svg",
+      role: "group",
+      "aria-roledescription": "factory graph",
       "aria-label": "Factory graph",
     });
     // All layers live under ONE root <g> so an active pan/zoom gesture can apply a
@@ -310,6 +312,33 @@ export class GraphView {
         this._dynMin = null; // viewport changed -> dynamic zoom floor is stale
       });
       this._ro.observe(this.host);
+    }
+  }
+
+  // Tear down observers, pending draws, and the host-attached action bar. Called
+  // by App._mountScreen when the factory screen unmounts — without this, every
+  // factory remount leaked two live ResizeObservers pinning the detached DOM.
+  destroy() {
+    if (this._ro) this._ro.disconnect();
+    if (this.input && this.input.destroy) this.input.destroy();
+    if (this._rafId && typeof cancelAnimationFrame === "function") {
+      cancelAnimationFrame(this._rafId);
+      this._rafId = null;
+    }
+    if (this.actionBarEl && this.actionBarEl.parentNode)
+      this.actionBarEl.parentNode.removeChild(this.actionBarEl);
+  }
+
+  // Move keyboard focus to a node's <g> (used after a keyboard placement so the
+  // new machine is perceivable + immediately operable without tabbing).
+  focusNode(id) {
+    const entry = this._nodeEls && this._nodeEls.get(id);
+    if (entry && entry.g && typeof entry.g.focus === "function") {
+      try {
+        entry.g.focus();
+      } catch {
+        /* headless shim */
+      }
     }
   }
 
@@ -519,6 +548,16 @@ export class GraphView {
       const a = graphToScreen(v, fp.x + NODE_W, fp.y + NODE_H / 2);
       const b = graphToScreen(v, tp.x, tp.y + NODE_H / 2);
       const { c1, c2 } = linkBezier(a, b);
+      // coarse reject: the cubic lies inside its control-point bbox — skip the
+      // 25-sample walk when the tap is outside it (+tol). Keeps pointerdown
+      // latency flat on link-dense screens.
+      if (
+        sx < Math.min(a.x, b.x, c1.x, c2.x) - tol ||
+        sx > Math.max(a.x, b.x, c1.x, c2.x) + tol ||
+        sy < Math.min(a.y, b.y, c1.y, c2.y) - tol ||
+        sy > Math.max(a.y, b.y, c1.y, c2.y) + tol
+      )
+        continue;
       const steps = 24;
       for (let i = 0; i <= steps; i++) {
         const t = i / steps,
@@ -1663,6 +1702,9 @@ export class GraphView {
     // buildings (behind links + nodes; cull off-screen ones like nodes).
     // At map tier: render rect outlines but drop name labels.
     const bldgList = this.snap.buildings || [];
+    this._childBldgIds = new Set();
+    for (const p of bldgList)
+      for (const c of p.children || []) this._childBldgIds.add(c);
     const bldgEls = [];
     for (const b of bldgList) {
       if (vp) {
@@ -1697,7 +1739,9 @@ export class GraphView {
       this._grpMembers = this._selectedGroupMembers(buildingsById);
       const refocus = this._activeNodeId();
       const indivSeen = new Set();
+      let mapOrd = -1;
       for (const n of this.snap.nodes) {
+        mapOrd++;
         if (!this._nodeAlwaysVisible(n, refocus)) continue;
         indivSeen.add(n.id);
         const armed = !!(this.armedPort && this.armedPort.nodeId === n.id);
@@ -1712,8 +1756,8 @@ export class GraphView {
           this._nodeEls.set(n.id, fresh);
           entry = fresh;
         }
-        if (entry.g.parentNode !== this.layerNodes)
-          this.layerNodes.appendChild(entry.g);
+        entry.g.__ikOrder = mapOrd;
+        this._attachNodeInOrder(entry);
         this._updateNodeEl(entry, n, v);
       }
       // Detach all non-individual retained nodes
@@ -1810,7 +1854,9 @@ export class GraphView {
       this._grpMembers = this._selectedGroupMembers(buildingsById);
       const refocus = this._activeNodeId();
       const seen = new Set();
+      let ord = -1;
       for (const n of this.snap.nodes) {
+        ord++;
         if (
           vp &&
           !this._nodeAlwaysVisible(n, refocus) &&
@@ -1831,8 +1877,8 @@ export class GraphView {
           this._nodeEls.set(n.id, fresh);
           entry = fresh;
         }
-        if (entry.g.parentNode !== this.layerNodes)
-          this.layerNodes.appendChild(entry.g);
+        entry.g.__ikOrder = ord;
+        this._attachNodeInOrder(entry);
         this._updateNodeEl(entry, n, v);
       }
       // detach culled nodes (keep entries) and delete departed ones entirely
@@ -1845,6 +1891,14 @@ export class GraphView {
       }
       if (refocus != null) this._restoreFocus(refocus);
     }
+
+    // expose the machine count to AT (setAttr is cached — no-op when unchanged)
+    const nCount = this.snap.nodes.length;
+    setAttr(
+      this.svgEl,
+      "aria-label",
+      `Factory graph, ${nCount} machine${nCount === 1 ? "" : "s"}`,
+    );
 
     // empty-canvas hint: present exactly when there are no nodes at all
     if (this.snap.nodes.length === 0) {
@@ -2024,9 +2078,13 @@ export class GraphView {
     const a = graphToScreen(v, r.x, r.y);
     let bCls = "building";
     // nested child groups get a subtler outline so the parent reads as the unit.
-    const isChild = (this.snap.buildings || []).some((p) =>
-      (p.children || []).includes(b.id),
-    );
+    // membership Set precomputed once per draw (the per-building .some() scan
+    // made the buildings pass O(B²)).
+    const isChild = this._childBldgIds
+      ? this._childBldgIds.has(b.id)
+      : (this.snap.buildings || []).some((p) =>
+          (p.children || []).includes(b.id),
+        );
     if (isChild) bCls += " nested";
     if (b.id === this.selectedBuildingId) bCls += " selected";
     else if (this.selBuildings.has(b.id)) bCls += " multiselect";
@@ -2443,10 +2501,17 @@ export class GraphView {
       : n.starved
         ? ", low on input"
         : "";
+    // include what the node produces — without it AT users can't tell two
+    // smelters apart (links/topology are invisible to the AT tree)
+    const outRes =
+      n.outputResourceId && this.game && this.game.content
+        ? (this.game.content.resources || {})[n.outputResourceId]
+        : null;
+    const outLabel = outRes ? `, makes ${outRes.display}` : "";
     setAttr(
       entry.g,
       "aria-label",
-      `${cap(n.kind)}, level ${n.level}${stateLabel}`,
+      `${cap(n.kind)}, level ${n.level}${outLabel}${stateLabel}`,
     );
     // Markets/scholars produce currency and barracks produce siege power, not a
     // routable resource — show that at a glance (their effectiveRate is 0 because
@@ -2466,5 +2531,24 @@ export class GraphView {
   _replace(layer, els) {
     while (layer.firstChild) layer.removeChild(layer.firstChild);
     for (const e of els) layer.appendChild(e);
+  }
+
+  // Attach a node <g> keeping DOM (= Tab) order aligned with snapshot order.
+  // Culled nodes re-entering the viewport would otherwise appendChild to the
+  // END of the layer, making keyboard traversal depend on pan history. O(attached
+  // children) and only on re-entry — the gesture fast path never attaches.
+  _attachNodeInOrder(entry) {
+    if (entry.g.parentNode === this.layerNodes) return;
+    const kids = this.layerNodes.childNodes;
+    const myOrd = entry.g.__ikOrder;
+    let ref = null;
+    for (let i = 0; i < kids.length; i++) {
+      const o = kids[i].__ikOrder;
+      if (o !== undefined && o > myOrd) {
+        ref = kids[i];
+        break;
+      }
+    }
+    this.layerNodes.insertBefore(entry.g, ref);
   }
 }

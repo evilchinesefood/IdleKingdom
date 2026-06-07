@@ -37,6 +37,7 @@ function nodeById(state, id) {
 export function descendantBuildingIds(buildings, id, byId) {
   const map = byId || new Map(buildings.map((b) => [b.id, b]));
   const out = new Set();
+  out.add(id); // seed so the cycle guard (not the trailing delete) is the defense
   const walk = (cur) => {
     const b = map.get(cur);
     if (!b || !Array.isArray(b.children)) return;
@@ -584,7 +585,7 @@ export function reduce(state, intent, content) {
     case "RenameBuilding": {
       const b = next.graph.buildings.find((x) => x.id === intent.buildingId);
       if (!b) return reject(state, "No such building");
-      const nm = intent.name.trim();
+      const nm = intent.name.trim().slice(0, 64); // cap: names persist + render every draw
       // reject empty/whitespace and no-op renames so an accepted UNDOABLE intent
       // never pushes a phantom undo entry for a name that didn't actually change.
       if (!nm || nm === b.name) return reject(state, "No name change");

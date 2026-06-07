@@ -4,6 +4,7 @@ export const DEFAULT_PREFS = {
   snapToGrid: true,
   alwaysShowRates: true,
   soundDisabled: false,
+  singleKeyShortcuts: true, // unmodified G/F — disable-able per WCAG 2.1.4
 };
 
 function store(s) {

@@ -35,6 +35,12 @@ export class GraphInput {
     this._bind();
   }
 
+  // Disconnect the resize observer; the pointer/wheel listeners are bound to
+  // the SVG element itself and die with it when the host is cleared.
+  destroy() {
+    if (this._ro) this._ro.disconnect();
+  }
+
   _toGraph(ev) {
     // task 11: use the cached rect during an active gesture; measure fresh otherwise.
     const r = this._gestureRect || this.el.getBoundingClientRect();

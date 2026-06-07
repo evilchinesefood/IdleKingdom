@@ -23,6 +23,7 @@ describe("Prefs", () => {
       snapToGrid: false,
       alwaysShowRates: true,
       soundDisabled: false,
+      singleKeyShortcuts: true,
     });
   });
   it("merges partial/unknown stored prefs over defaults", () => {

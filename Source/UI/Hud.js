@@ -100,7 +100,15 @@ export class Hud {
           "aria-expanded": this.el.classList.contains("menu-open")
             ? "true"
             : "false",
-          onclick: () => this.el.classList.toggle("menu-open"),
+          // aria-expanded is also set imperatively here: the toggle doesn't
+          // re-render, so the render-time value above would go stale until
+          // the next HUD render.
+          onclick: (e) => {
+            const open = this.el.classList.toggle("menu-open");
+            const btn = e && e.currentTarget;
+            if (btn && btn.setAttribute)
+              btn.setAttribute("aria-expanded", open ? "true" : "false");
+          },
         },
         [icon("menu", { noTone: true })],
       ),

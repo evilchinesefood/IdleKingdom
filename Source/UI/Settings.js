@@ -32,6 +32,7 @@ export function Settings(prefs, handlers) {
       toggleRow("snapToGrid", "Snap nodes to grid"),
       toggleRow("alwaysShowRates", "Always show rates"),
       toggleRow("soundDisabled", "Disable sounds"),
+      toggleRow("singleKeyShortcuts", "Single-key shortcuts (G, F)"),
     ]),
     h(
       "div",

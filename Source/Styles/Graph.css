@@ -18,23 +18,32 @@
   cursor: move;
 }
 /* Keyboard focus ring — the global :focus-visible outline doesn't render on an
-   SVG <g>, so light up the node box instead. */
+   SVG <g>, so light up the node box instead. Long-dash + thicker than the solid
+   selection stroke so "where Tab is" reads differently from "what's inspected"
+   (multiselect uses short 4 3 dashes — also distinct). */
 .node-card:focus {
   outline: none;
 }
 .node-card:focus .node-box {
   stroke: var(--gold);
-  stroke-width: 3;
+  stroke-width: 4;
+  stroke-dasharray: 10 4;
 }
 .node-card .node-box {
   fill: var(--panel);
   stroke: var(--iron);
   stroke-width: 2;
-  rx: 8;
+  /* rx lives on the rect ATTRIBUTE (GraphView._buildNodeEl) — Safari doesn't
+     support rx as a CSS geometry property, so don't set it here. */
 }
 .node-card.selected .node-box {
   stroke: var(--gold);
   stroke-width: 3;
+}
+/* focused AND selected: the solid selection treatment wins */
+.node-card.selected:focus .node-box {
+  stroke-width: 3;
+  stroke-dasharray: none;
 }
 /* Multi-selection highlight: a clear gold outline (distinct from single-select fill). */
 .node-card.multiselect .node-box {
@@ -125,6 +134,10 @@
 }
 .node-badge-box.off {
   fill: #d8d2c6;
+  /* #d8d2c6 on the panel (#fffdf6) is ~1.15:1 — the OFF state was nearly
+     invisible as a shape; the ink-soft stroke makes it perceivable. */
+  stroke: var(--ink-soft);
+  stroke-width: 1;
 }
 .node-badge-text {
   fill: var(--panel);

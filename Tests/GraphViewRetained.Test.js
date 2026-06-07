@@ -128,6 +128,18 @@ function makeEl(tag) {
       c.parentNode = null;
       return c;
     },
+    insertBefore(c, ref) {
+      if (c.parentNode) c.parentNode.removeChild(c);
+      c.parentNode = this;
+      if (!ref) {
+        this.childNodes.push(c);
+      } else {
+        const i = this.childNodes.indexOf(ref);
+        if (i < 0) this.childNodes.push(c);
+        else this.childNodes.splice(i, 0, c);
+      }
+      return c;
+    },
     replaceChild(fresh, old) {
       const i = this.childNodes.indexOf(old);
       if (i < 0) throw new Error("replaceChild: old not found");
@@ -488,6 +500,28 @@ describe("GraphView viewport culling", () => {
     expect(detached.parentNode === gv.layerNodes).toBe(true);
   });
 
+  it("a culled node re-enters at its snapshot position, not the end (stable Tab order — deep-review #8)", () => {
+    // three nodes: b sits far away; a and c are on-screen
+    const snap = (bx) => ({
+      nodes: [
+        nrow("a", { pos: { x: 100, y: 100 } }),
+        nrow("b", { pos: { x: bx, y: 100 } }),
+        nrow("c", { pos: { x: 300, y: 100 } }),
+      ],
+      links: [],
+      buildings: [],
+    });
+    const gv = mount(snap(5000));
+    gv._hostRect = { width: 800, height: 600 };
+    gv.render(snap(5000)); // b culled (off-viewport)
+    expect(gv._nodeEls.get("b").g.parentNode).toBe(null);
+    gv.render(snap(200)); // b moves on-screen -> re-attaches
+    const order = gv.layerNodes.childNodes
+      .map((el) => el.getAttribute && el.getAttribute("data-node-id"))
+      .filter(Boolean);
+    expect(order).toEqual(["a", "b", "c"]); // NOT ["a","c","b"]
+  });
+
   it("measures + caches the host rect; a zero rect is NOT cached (render-all)", () => {
     const snap = {
       nodes: [nrow("in"), nrow("out", { pos: { x: 5000, y: 5000 } })],
@@ -564,11 +598,15 @@ describe("GraphView single-machine action bar (headless mount)", () => {
   });
 });
 
-// Task 35: SVG carries aria-label="Factory graph"
+// Task 35 + deep-review #16: SVG carries group semantics + a live machine count.
 describe("GraphView accessibility — SVG label", () => {
-  it("svgEl has aria-label='Factory graph'", () => {
+  it("svgEl carries role=group, a roledescription, and the machine count", () => {
     const gv = mount({ nodes: [], links: [], buildings: [] });
-    expect(gv.svgEl.getAttribute("aria-label")).toBe("Factory graph");
+    expect(gv.svgEl.getAttribute("role")).toBe("group");
+    expect(gv.svgEl.getAttribute("aria-roledescription")).toBe("factory graph");
+    expect(gv.svgEl.getAttribute("aria-label")).toBe(
+      "Factory graph, 0 machines",
+    );
   });
 });
 

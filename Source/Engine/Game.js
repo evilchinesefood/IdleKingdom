@@ -9,9 +9,12 @@ import { NewGame } from "./GameState.js";
 
 // Structural/spatial edits the player expects Ctrl+Z to reverse. Time/economy
 // intents (Sell) are deliberately excluded — rewinding them would thrash live
-// currencies/timers. Research is excluded too: it's a progression commitment
-// (it grants unlocks that other intents already depend on), so undoing it
-// would desync downstream state.
+// currencies/timers. Research is excluded too: it's a progression commitment.
+// NOTE: no UNDOABLE intent mutates unlocks (only BuyResearch/BuyTuning/siege
+// reclaim do), so undo entries hold graph only — unlocks are monotonic and the
+// live value is always authoritative. Restoring a stale unlocks snapshot here
+// would silently revert purchases made after the edit (and keep the currency
+// spent) — keep unlocks OUT of history.
 const UNDOABLE = new Set([
   "PlaceNode",
   "ConnectLink",
@@ -61,7 +64,7 @@ export class Game {
     this.storage = null;
     this.listeners = new Set();
     this._pendingError = null;
-    this._undo = []; // history of {type, graph, unlocks, currencyDelta}, oldest→newest
+    this._undo = []; // history of {type, graph, currencyDelta}, oldest→newest
     this._redo = [];
     this._histLimit = 50;
   }
@@ -87,6 +90,16 @@ export class Game {
       this._ensureSolved();
     } catch (err) {
       console.warn("[Game] bootstrap failed; starting new game", err);
+      // Preserve the failing blob for manual recovery — the next autosave
+      // overwrites SAVE_KEY with the fresh NewGame, so without this backup a
+      // recoverable corruption becomes permanent loss.
+      if (raw != null) {
+        try {
+          storage.set("idlekingdom-save-backup-bootfail", raw);
+        } catch {
+          /* best-effort */
+        }
+      }
       this.state = NewGame(this.clock);
       delete this.state._solved;
       summary = applyOffline(this.state, this.content, this.clock.now());
@@ -116,13 +129,12 @@ export class Game {
     this._redo.length = 0;
     if (intent && UNDOABLE.has(intent.type)) {
       // prev is detached after this dispatch: reduce cloned it into out.state, ticks
-      // mutate the clone (this.state) — safe to hold prev.graph/prev.unlocks by
-      // reference (zero-clone dispatch); undo() clones at restore time. (redo entries
+      // mutate the clone (this.state) — safe to hold prev.graph by reference
+      // (zero-clone dispatch); undo() clones at restore time. (redo entries
       // CAN'T do this — they snapshot the LIVE this.state, which keeps mutating.)
       this._undo.push({
         type: intent.type,
         graph: prev.graph,
-        unlocks: prev.unlocks,
         currencyDelta: {
           gold: out.state.currencies.gold - prev.currencies.gold,
           research: out.state.currencies.research - prev.currencies.research,
@@ -154,16 +166,15 @@ export class Game {
     this._redo.push({
       type: entry.type,
       graph: clonePart(this.state.graph),
-      unlocks: clonePart(this.state.unlocks),
       currencyDelta: entry.currencyDelta,
     });
     if (this._redo.length > this._histLimit) this._redo.shift();
     // restore the pre-action structure; reverse the action's currency delta on
-    // top of LIVE currencies (keeps accrued gold/research, refunds the cost)
+    // top of LIVE currencies (keeps accrued gold/research, refunds the cost).
+    // unlocks are NOT restored — they're monotonic and live-authoritative.
     const restored = clonePart(entry.graph);
     mergeLiveStockpiles(restored, this.state.graph);
     this.state.graph = restored;
-    this.state.unlocks = clonePart(entry.unlocks);
     this.state.currencies.gold -= entry.currencyDelta.gold;
     this.state.currencies.research -= entry.currencyDelta.research;
     delete this.state._solved;
@@ -178,14 +189,12 @@ export class Game {
     this._undo.push({
       type: entry.type,
       graph: clonePart(this.state.graph),
-      unlocks: clonePart(this.state.unlocks),
       currencyDelta: entry.currencyDelta,
     });
     if (this._undo.length > this._histLimit) this._undo.shift();
     const restored = clonePart(entry.graph);
     mergeLiveStockpiles(restored, this.state.graph);
     this.state.graph = restored;
-    this.state.unlocks = clonePart(entry.unlocks);
     this.state.currencies.gold += entry.currencyDelta.gold;
     this.state.currencies.research += entry.currencyDelta.research;
     delete this.state._solved;
@@ -199,8 +208,8 @@ export class Game {
     applyTick(this.state, solved, dtSeconds);
     const fell = tryAdvanceSiege(this.state, this.content);
     if (fell.length) {
-      // reclaim mutated unlocks outside the intent system — stale history would desync on undo
-      this.clearHistory();
+      // reclaim mutates unlocks, but history holds graph only (never unlocks),
+      // so the undo stack stays valid — no clearHistory needed.
       delete this.state._solved; // reclaim unlocks change rates
       this._ensureSolved();
       this._emit(); // discrete event (reward/reclaim/victory) — render it now

@@ -62,6 +62,9 @@ export function validate(state, content) {
   if (!c || !Number.isFinite(c.gold) || !Number.isFinite(c.research))
     return false;
   if (!state.siege || !Number.isFinite(state.siege.progress)) return false;
+  if (!state.unlocks || typeof state.unlocks !== "object") return false;
+  if (!state.territories || !Array.isArray(state.territories.reclaimed))
+    return false;
   const g = state.graph;
   if (!g || !Array.isArray(g.nodes) || !Array.isArray(g.links)) return false;
   const nodeIds = new Set();

@@ -887,6 +887,11 @@ wa-button.res-buy {
   color: var(--ink-soft);
   margin-top: 0.5rem;
 }
+/* The Victory dialog blocks wa-hide (acknowledged-only, see Victory.js) — hide
+   WA's header × so users aren't shown a control that silently no-ops. */
+wa-dialog#Victory::part(close-button) {
+  display: none;
+}
 /* Settings modal rows a touch larger to match the bigger dialog. */
 .settings-row {
   font-size: 1.05rem;
@@ -979,6 +984,7 @@ wa-button.res-buy {
   .ni-recipe,
   .tut-skip,
   .os-close,
+  .sel-act,
   .victory-close {
     min-height: 44px;
     min-width: 44px;
