@@ -14,6 +14,7 @@ import { INTENT } from "../Engine/Intents.js";
 const _detailMemo = new Map();
 function _cachedDetail(key, build) {
   if (_detailMemo.has(key)) return _detailMemo.get(key);
+  if (_detailMemo.size > 50) _detailMemo.clear(); // bound: unlock sigs grow monotonically
   const v = build();
   _detailMemo.set(key, v);
   return v;
@@ -57,19 +58,22 @@ function detailForKind(kind, bm, dispatch, ui) {
         for (const rid of v.resourceIds) {
           const res = RESOURCES[rid];
           if (!res) continue;
+          const lbl = `${v.label}: ${res.display}`;
           detail.push(
             placeBtn({
               key: "bm-place-gatherer-" + rid,
               iconId: rid,
-              label: `${v.label}: ${res.display}`,
+              label: lbl,
               locked: !unlocked.has(rid),
-              onclick: () =>
-                dispatch({
+              onclick: (e) => {
+                const r = dispatch({
                   type: INTENT.PlaceNode,
                   kind: "gatherer",
                   resourceId: rid,
                   pos: ui.spawnPos(),
-                }),
+                });
+                if (r && r.ok && ui.onPlaced) ui.onPlaced(lbl, e);
+              },
             }),
           );
         }
@@ -87,13 +91,16 @@ function detailForKind(kind, bm, dispatch, ui) {
             iconId: recipe.output,
             label: out.display,
             locked: !unlocked.has(r),
-            onclick: () =>
-              dispatch({
+            onclick: (e) => {
+              const res = dispatch({
                 type: INTENT.PlaceNode,
                 kind,
                 recipeId: r,
                 pos: ui.spawnPos(),
-              }),
+              });
+              if (res && res.ok && ui.onPlaced)
+                ui.onPlaced(cap(kind) + ": " + out.display, e);
+            },
           }),
         );
       }
@@ -104,8 +111,14 @@ function detailForKind(kind, bm, dispatch, ui) {
           iconId: kind,
           label: cap(kind),
           locked: false,
-          onclick: () =>
-            dispatch({ type: INTENT.PlaceNode, kind, pos: ui.spawnPos() }),
+          onclick: (e) => {
+            const r = dispatch({
+              type: INTENT.PlaceNode,
+              kind,
+              pos: ui.spawnPos(),
+            });
+            if (r && r.ok && ui.onPlaced) ui.onPlaced(cap(kind), e);
+          },
         }),
       );
     }

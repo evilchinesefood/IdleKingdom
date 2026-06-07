@@ -126,10 +126,10 @@ describe("Game facade", () => {
     expect(g.getState()._solved !== undefined).toBe(true);
   });
 
-  it("a passive siege reclaim clears the undo/redo history (reclaim mutates unlocks outside the intent system)", () => {
+  it("a passive siege reclaim keeps undo history valid — history holds graph only, never unlocks (deep-review C1)", () => {
     const g = makeGame(new FakeClock(0));
     g.bootstrap(new MemoryStorageAdapter()); // empty graph -> no siege accrual on its own
-    // an UNDOABLE intent records an undo entry capturing pre-reclaim unlocks
+    // an UNDOABLE intent records an undo entry (graph only)
     const r = g.dispatch({
       type: "PlaceNode",
       kind: "gatherer",
@@ -152,15 +152,12 @@ describe("Game facade", () => {
       true,
     );
 
-    // the reclaim mutated unlocks, so the stale undo/redo history is wiped:
-    // undo()/redo() are dead no-ops (a pre-reclaim snapshot would desync them)
-    expect(g.canUndo()).toBe(false);
-    expect(g.canRedo()).toBe(false);
-    expect(g.undo().ok).toBe(false);
-    expect(g.redo().ok).toBe(false);
-
-    // and the reclaim-granted content survives (undo could not roll it back):
-    // the gatehouse gatherer production bonus (x1.1) + the reclaimed entry persist
+    // history survives the reclaim: entries hold graph only, so the unlocks
+    // the reclaim granted can never be rolled back by undo
+    expect(g.canUndo()).toBe(true);
+    expect(g.undo().ok).toBe(true);
+    expect(g.getState().graph.nodes.length).toBe(0); // the edit was reverted...
+    // ...but the reclaim-granted content survives the undo:
     expect(g.getState().unlocks.productionBonuses.gatherer).toBeCloseTo(
       1.1,
       1e-9,
@@ -168,6 +165,9 @@ describe("Game facade", () => {
     expect(g.getState().territories.reclaimed.includes("t_gatehouse")).toBe(
       true,
     );
+    // and redo replays the edit cleanly
+    expect(g.redo().ok).toBe(true);
+    expect(g.getState().graph.nodes.length).toBe(1);
   });
 
   it("bootstrap recovers from a poisoned cyclic save instead of throwing (task 2/3)", () => {

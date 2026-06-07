@@ -23,10 +23,26 @@
         var base = parts.join("/") + "/";
         if (base.charAt(0) !== "/") base = "/" + base;
         document.write('<base href="' + base + '">');
+        // Web Awesome resolves its asset base from the FIRST [data-webawesome]
+        // element against location.href (NOT document.baseURI), so a trailing-slash
+        // deep route (/kingdom/factory/) would 404 every lazy WA chunk. Write an
+        // absolute path here; it precedes (and overrides) the loader tag's attr.
+        document.write(
+          '<meta data-webawesome="' + base + 'Source/Vendor/WebAwesome/">',
+        );
       })();
     </script>
-    <link rel="icon" type="image/png" href="./Source/Assets/Icon.png" />
-    <link rel="apple-touch-icon" href="./Source/Assets/Icon.png" />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="192x192"
+      href="./Source/Assets/Icon192.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="192x192"
+      href="./Source/Assets/Icon192.png"
+    />
     <link rel="manifest" href="./Manifest.webmanifest" />
     <!-- Web Awesome v3.7.0 (vendored, buildless) -->
     <link

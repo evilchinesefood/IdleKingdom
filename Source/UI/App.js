@@ -126,6 +126,17 @@ class AppInstance {
         this.graphView && this.graphView.centerGraphPos
           ? this.graphView.centerGraphPos()
           : { x: 300, y: 320 },
+      // Placement feedback: announce to the live region (SR users get no other
+      // signal — focus stays in the popover), and on a KEYBOARD activation
+      // (click detail 0) move focus to the new node so it's immediately operable.
+      onPlaced: (label, ev) => {
+        if (this.liveEl) this.liveEl.textContent = "Placed " + label;
+        if (ev && ev.detail === 0 && this.graphView && this.lastSnap) {
+          const nodes = this.lastSnap.nodes || [];
+          const last = nodes[nodes.length - 1];
+          if (last) this.graphView.focusNode(last.id);
+        }
+      },
     };
 
     this.pendingOfflineSummary = null;
@@ -139,7 +150,7 @@ class AppInstance {
   start() {
     this._applyPrefs();
     this.router.onChange(() => this._mountScreen());
-    this.game.onSnapshot((snap) => this._onSnapshot(snap));
+    this._unsubSnap = this.game.onSnapshot((snap) => this._onSnapshot(snap));
     document.addEventListener("keydown", (e) => this._handleGlobalKey(e), true);
     if (typeof document !== "undefined") {
       document.addEventListener(
@@ -275,6 +286,7 @@ class AppInstance {
     }
 
     if (k === "g") {
+      if (!this.prefs.singleKeyShortcuts) return;
       const gv = this.graphView;
       if (gv && gv.selNodes.size + gv.selBuildings.size >= 2) {
         gv._groupSelection();
@@ -286,6 +298,7 @@ class AppInstance {
     }
 
     if (k === "f") {
+      if (!this.prefs.singleKeyShortcuts) return;
       if (this.graphView) {
         // Move focus off a focused HUD control (e.g. the active nav tab) so the
         // keypress doesn't paint a focus ring on it — F means "look at the map".
@@ -435,6 +448,7 @@ class AppInstance {
     this._flushPendingRename(); // commit a half-typed name before leaving the factory
     Sound.play("click"); // tab/route switch
     this.activeScreen = route;
+    if (this.graphView) this.graphView.destroy(); // disconnect observers before detach
     this.screenEl.innerHTML = "";
     this.graphView = null;
     this.buildBarEl = null;
@@ -531,18 +545,16 @@ class AppInstance {
       }
     }
 
-    // Territories: detect reclaim count increase.
-    const reclaimedNow = (snap.territories || []).filter(
+    // Territories: detect reclaim count increase (territories are order-sorted,
+    // so the new ones are the tail). A long offline window can fell several at
+    // once — announce them all in one message.
+    const reclaimed = (snap.territories || []).filter(
       (t) => t.status === "reclaimed",
-    ).length;
-    if (reclaimedNow > prev.reclaimedCount) {
-      const newOnes = (snap.territories || []).filter(
-        (t) => t.status === "reclaimed",
-      );
-      // Announce the last newly-reclaimed territory name.
-      const newest = newOnes[reclaimedNow - 1];
-      if (newest) msgs.push("Territory reclaimed: " + newest.name);
-      prev.reclaimedCount = reclaimedNow;
+    );
+    if (reclaimed.length > prev.reclaimedCount) {
+      const names = reclaimed.slice(prev.reclaimedCount).map((t) => t.name);
+      msgs.push("Territory reclaimed: " + names.join(", "));
+      prev.reclaimedCount = reclaimed.length;
     }
 
     // Victory.
@@ -571,6 +583,10 @@ class AppInstance {
   // the reconciler is keyed and Dom.js skips re-asserting value/open on a focused
   // control, so an open wa-select / mid-click button is preserved.
   refreshHud() {
+    // Nothing to show while the tab is hidden — skip the full snapshot build
+    // (the rAF tick loop pauses when hidden, but setInterval does not).
+    // visibilitychange in Main.js calls this again on return.
+    if (typeof document !== "undefined" && document.hidden) return;
     const snap = this.game.getSnapshot();
     this.lastSnap = snap;
     this.hud.render(snap);

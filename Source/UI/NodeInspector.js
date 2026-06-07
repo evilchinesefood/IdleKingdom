@@ -12,6 +12,7 @@ import { INTENT } from "../Engine/Intents.js";
 const _optMemo = new Map(); // key -> vnode[]
 function _cachedOpts(key, build) {
   if (_optMemo.has(key)) return _optMemo.get(key);
+  if (_optMemo.size > 50) _optMemo.clear(); // bound: unlock sigs grow monotonically
   const v = build();
   _optMemo.set(key, v);
   return v;

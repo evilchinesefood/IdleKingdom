@@ -19,6 +19,9 @@ function fmt(n) {
   return (Math.round(n * 100) / 100).toString();
 }
 
+// Shared frozen empty stockpile — most nodes have none; avoids a throwaway {} per node per build.
+const EMPTY_STOCKPILE = Object.freeze({});
+
 // ---------------------------------------------------------------------------
 // Memoization for sub-arrays that only change on unlock/reclaim/structural events.
 // Stored on the module so the cache persists across calls within a session.
@@ -83,6 +86,7 @@ function _territoriesKey(state) {
 
 function _buildingsCostKey(state) {
   const bl = state.graph.buildings || [];
+  if (bl.length === 0) return "0"; // nothing to key — skip the O(nodes) walk
   // Key on building count + each building's id + nodeIds length + node levels
   // (copyCost depends on levels). Cheap string that changes on any structural edit.
   return (
@@ -214,7 +218,7 @@ export function build(state, solved, content, lastError = null) {
       working,
       draw: drawMap,
       surplus: (solved.surplusRate && solved.surplusRate[node.id]) || {},
-      stockpile: { ...node.stockpile },
+      stockpile: node.stockpile ? { ...node.stockpile } : EMPTY_STOCKPILE,
       upgradeCost: cost,
       canAfford: state.currencies.gold >= cost,
       building: nodeBuilding[node.id] || null,

@@ -234,4 +234,29 @@ describe("Undo/redo — preserves LIVE stockpiles (task 1)", () => {
     game.undo(); // un-delete: the resurrected node keeps its snapshot stock
     expect(stock(game, sid)).toBeCloseTo(snapStock, 1e-6);
   });
+
+  it("undo after BuyResearch keeps the purchase — unlocks are not in history (deep-review C1)", () => {
+    const game = newGame(1e6);
+    game.getState().currencies.research = 1e6;
+    delete game.getState()._solved;
+    game.dispatch({
+      type: INTENT.PlaceNode,
+      kind: "gatherer",
+      resourceId: "iron_ore",
+      pos: { x: 0, y: 0 },
+    });
+    const r = game.dispatch({
+      type: INTENT.BuyResearch,
+      nodeId: "res_scholar",
+    });
+    expect(r.ok).toBe(true);
+    const researchAfterBuy = game.getState().currencies.research;
+    const ownedAfterBuy = game.getState().unlocks.researchOwned.slice();
+    game.undo(); // undoes the PlaceNode ONLY — the later purchase must survive
+    expect(game.getState().graph.nodes.length).toBe(0);
+    expect(game.getState().unlocks.researchOwned).toEqual(ownedAfterBuy);
+    expect(game.getState().currencies.research).toBe(researchAfterBuy);
+    game.redo(); // and redo must not resurrect a stale unlocks snapshot either
+    expect(game.getState().unlocks.researchOwned).toEqual(ownedAfterBuy);
+  });
 });

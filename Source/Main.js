@@ -19,7 +19,8 @@ if (offlineSummary && offlineSummary.appliedMs > 60_000)
 
 // Passive display refresh: gold/research counters tick every 2s WITHOUT rebuilding
 // the interactive panels. User actions (intents) render immediately via Game._emit —
-// this is what keeps buttons and dropdowns clickable.
+// this is what keeps buttons and dropdowns clickable. (refreshHud no-ops while the
+// tab is hidden — the visibilitychange handler below catches the display up.)
 setInterval(() => App.refreshHud(), 2000);
 
 // --- Autosave (debounced ~1s; interval ~10s; visibility/pagehide immediate) ---
@@ -60,6 +61,7 @@ function requestSave(immediate) {
 setInterval(() => requestSave(false), 10_000);
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) requestSave(true);
+  else App.refreshHud(); // catch the display up after the hidden-tab skip
 });
 window.addEventListener("pagehide", () => requestSave(true));
 window.addEventListener("beforeunload", () => requestSave(true));

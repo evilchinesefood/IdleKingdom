@@ -531,3 +531,42 @@ describe("migrate10to11 — war rework", () => {
     expect(pb.scholar).toBe(1.0);
   });
 });
+
+describe("deserialize normalize — repairs solver-required gaps (deep-review C2)", () => {
+  it("a save missing unlocks.marketListings/titheRate is repaired, not discarded", async () => {
+    const { content } = await import("../Source/Engine/Content/Content.js");
+    const clock = new FakeClock(0);
+    const state = seededState(clock);
+    state.currencies.gold = 999999; // marker: real progress must survive
+    const blob = JSON.parse(serialize(state));
+    delete blob.unlocks.marketListings;
+    delete blob.unlocks.titheRate;
+    delete blob.unlocks.productionBonuses;
+    const back = deserialize(JSON.stringify(blob), clock, content);
+    expect(back.currencies.gold).toBe(999999); // NOT a NewGame fallback
+    expect(Array.isArray(back.unlocks.marketListings)).toBe(true);
+    expect(back.unlocks.titheRate).toBe(0);
+    expect(typeof back.unlocks.productionBonuses).toBe("object");
+  });
+
+  it("non-finite lastSeen/savedAt clamp to now (zero offline) instead of NaN", () => {
+    const clock = new FakeClock(5000);
+    const state = seededState(clock);
+    const blob = JSON.parse(serialize(state));
+    blob.lastSeen = "x";
+    delete blob.savedAt;
+    const back = deserialize(JSON.stringify(blob), clock);
+    expect(back.lastSeen).toBe(5000);
+    expect(back.savedAt).toBe(5000);
+  });
+
+  it("territories.reclaimed of wrong type is repaired to []", () => {
+    const clock = new FakeClock(0);
+    const state = seededState(clock);
+    const blob = JSON.parse(serialize(state));
+    blob.territories.reclaimed = null;
+    const back = deserialize(JSON.stringify(blob), clock);
+    expect(back.territories.reclaimed).toEqual([]);
+    expect(back.graph.nodes.length).toBe(3); // save survived
+  });
+});

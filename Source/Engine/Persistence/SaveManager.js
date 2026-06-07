@@ -5,7 +5,10 @@ export const SAVE_VERSION = 11;
 export const SAVE_KEY = "idlekingdom.save";
 
 /** Strips the _solved cache and meta._saveStatus (live HUD wiring), stamps
- *  savedAt + lastSeen, JSON.stringify. Does not mutate the live state. */
+ *  savedAt + lastSeen, JSON.stringify. Contract: only TOP-LEVEL fields may be
+ *  (re)assigned on the spread copy — graph/unlocks/currencies/etc. are LIVE
+ *  references shared with the running game, never write into them here (meta
+ *  is special-cased below for exactly that reason). */
 export function serialize(state, nowMs) {
   const { _solved, ...rest } = state;
   const now = typeof nowMs === "number" ? nowMs : state.savedAt;
@@ -63,20 +66,43 @@ export function deserialize(json, clock, content, storage) {
       if (blob.version !== version + 1) break; // each hop must advance exactly +1
       version = blob.version;
     }
+    // Non-destructive normalize (no version bump), run BEFORE validate so a save
+    // with a missing subtree field is repaired rather than discarded. Default-fill
+    // every field the solver/systems read unguarded (marketListings.includes,
+    // titheRate math, researchOwned.push, productionBonuses Object.values) — a
+    // shape-valid blob missing one of these used to pass validate, throw mid-solve,
+    // and silently cost the whole save via the bootstrap NewGame fallback.
+    if (blob.unlocks && typeof blob.unlocks === "object") {
+      const u = blob.unlocks;
+      const arrays = [
+        "gathererResources",
+        "marketListings",
+        "researchOwned",
+        "machinesUnlocked",
+        "recipesUnlocked",
+      ];
+      for (const k of arrays) if (!Array.isArray(u[k])) u[k] = [];
+      if (!u.tuningRanks || typeof u.tuningRanks !== "object")
+        u.tuningRanks = {};
+      if (!u.productionBonuses || typeof u.productionBonuses !== "object")
+        u.productionBonuses = {};
+      if (!Number.isFinite(u.titheRate)) u.titheRate = 0;
+    }
+    if (
+      blob.territories &&
+      typeof blob.territories === "object" &&
+      !Array.isArray(blob.territories.reclaimed)
+    )
+      blob.territories.reclaimed = [];
+    // Non-finite timestamps would NaN the offline window — clamp to "just now"
+    // (zero offline progress, nothing lost).
+    const nowMs = clock ? clock.now() : 0;
+    if (!Number.isFinite(blob.savedAt)) blob.savedAt = nowMs;
+    if (!Number.isFinite(blob.lastSeen)) blob.lastSeen = nowMs;
     if (!validate(blob, content)) {
       console.warn("[SaveManager] save failed validation; starting new game");
       return NewGame(clock);
     }
-    // Non-destructive normalize (no version bump): default-fill fields that older
-    // saves and migrations never set so runtime code needn't rely on `|| []` guards.
-    if (blob.unlocks && !Array.isArray(blob.unlocks.gathererResources))
-      blob.unlocks.gathererResources = [];
-    if (
-      blob.unlocks &&
-      (!blob.unlocks.tuningRanks ||
-        typeof blob.unlocks.tuningRanks !== "object")
-    )
-      blob.unlocks.tuningRanks = {};
     return blob;
   } catch (err) {
     console.warn("[SaveManager] save migration failed; starting new game", err);
