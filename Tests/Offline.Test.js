@@ -25,7 +25,7 @@ describe("Offline.applyOffline within cap", () => {
     expect(summary.clamped).toBe(false);
     expect(summary.gained.gold).toBeCloseTo(3600, 1e-6);
     expect(summary.gained.research).toBeCloseTo(180, 1e-6);
-    expect(state.currencies.gold).toBeCloseTo(25.0 + 3600, 1e-6); // seed 25 + gained
+    expect(state.currencies.gold).toBeCloseTo(50.0 + 3600, 1e-6); // seed 50 + gained
     expect(state.lastSeen).toBe(now);
   });
 });

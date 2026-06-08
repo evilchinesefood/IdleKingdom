@@ -442,11 +442,11 @@ game.bootstrap(new MemoryStorageAdapter());
 
 // ============================================================================
 // STEP 1 — build the Mine -> Smelt -> Market chain from an empty start, then
-//          assert it produces ~2.0 gold/s and the HUD reflects gold ~25
+//          assert it produces ~2.0 gold/s and the HUD reflects gold ~50
 // ============================================================================
 step(
   1,
-  "Build Mine->Smelt->Market via PlaceNode+ConnectLink; chain produces ~2.0 gold/s; HUD gold ~25",
+  "Build Mine->Smelt->Market via PlaceNode+ConnectLink; chain produces ~2.0 gold/s; HUD gold ~50",
   () => {
     // Brand-new game starts EMPTY — the player builds everything.
     const empty = snap(game);
@@ -478,22 +478,22 @@ step(
       `expected 2 seed links, got ${s0.links.length}`,
     );
 
-    // HUD renders gold ~25 (Snapshot.build is source; HUD reflects it)
+    // HUD renders gold ~50 (Snapshot.build is source; HUD reflects it)
     const router = { current: "factory" };
     const hudEl = new FakeEl("header");
     const hud = new Hud(hudEl, router);
     hud.render(s0);
     // Check the structured gold currency cell (text concatenation would abut the rate).
     assert(
-      s0.currencyStrings.gold === "25",
-      `snapshot gold string ${s0.currencyStrings.gold}, expected 25`,
+      s0.currencyStrings.gold === "50",
+      `snapshot gold string ${s0.currencyStrings.gold}, expected 50`,
     );
     const goldCell = hudEl.querySelectorAll(".hud-cur")[0];
     assert(goldCell, "HUD rendered no gold currency cell");
     const goldValText = goldCell.querySelector(".val").text;
     assert(
-      goldValText.includes("25"),
-      `HUD gold cell "${goldValText}" did not show 25`,
+      goldValText.includes("50"),
+      `HUD gold cell "${goldValText}" did not show 50`,
     );
     // HUD must render multiple currency cells + tabs (regression: "first child only" bug).
     // The war rework dropped Renown -> two currencies remain: Gold + Research.

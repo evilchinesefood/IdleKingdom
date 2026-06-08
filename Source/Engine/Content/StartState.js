@@ -1,9 +1,9 @@
 /** NewGame seed: EMPTY graph — the player builds everything from scratch.
- *  25 starting gold (placing nodes is free; gold is for upgrades). iron_bar is
+ *  50 starting gold (placing nodes is free; gold is for upgrades). iron_bar is
  *  listed so the first Mine -> Smelt -> Market chain sells immediately once built.
  *  Brand-new game has siege.progress === 0. */
 export const START_STATE = {
-  currencies: { gold: 25.0, research: 0.0 },
+  currencies: { gold: 50.0, research: 0.0 },
   graph: {
     nodes: [],
     links: [],
