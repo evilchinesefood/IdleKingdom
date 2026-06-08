@@ -94,3 +94,21 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./ServiceWorker.js").catch(() => {});
   });
 }
+
+// --- Dev console hooks: IK.gold(n) / IK.research(n) add currency, re-render the
+// HUD, and force-save. Negative removes; defaults to 1000. IK.game is the live
+// instance for poking. Type `IK` in the console to see the API. ---
+function grant(key, amount = 1000) {
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return NaN;
+  const c = game.getState().currencies;
+  c[key] = Math.max(0, c[key] + n);
+  game.emitSnapshotForFrame();
+  doSave();
+  return c[key];
+}
+window.IK = {
+  game,
+  gold: (n) => grant("gold", n),
+  research: (n) => grant("research", n),
+};
