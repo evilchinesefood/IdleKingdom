@@ -24,7 +24,7 @@ describe("Snapshot", () => {
     const solved = solve(s, content);
     const snap = build(s, solved, content);
     expect(Object.isFrozen(snap)).toBe(true);
-    expect(snap.currencies.gold).toBeCloseTo(25, 1e-9);
+    expect(snap.currencies.gold).toBeCloseTo(50, 1e-9);
     // seed steady state: goldRate 2.0, researchRate 0.10 (§7 baseline)
     expect(snap.rates.goldRate).toBeCloseTo(2.0, 1e-9);
     expect(snap.rates.researchRate).toBeCloseTo(0.1, 1e-9);

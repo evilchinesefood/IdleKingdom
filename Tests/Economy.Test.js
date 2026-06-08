@@ -51,12 +51,12 @@ describe("EconomySystem", () => {
 
   it("canUpgrade reflects gold on hand; applyUpgrade spends + increments level", () => {
     const s = seededState(new FakeClock(0));
-    // seed has 25 gold; miner L1 next cost = 15*1.15 = 17.25
+    // seed has 50 gold; miner L1 next cost = 15*1.15 = 17.25
     expect(canUpgrade(s, content, "n_miner_0")).toBe(true);
     applyUpgrade(s, content, "n_miner_0");
     const miner = s.graph.nodes.find((n) => n.id === "n_miner_0");
     expect(miner.level).toBe(2);
-    expect(s.currencies.gold).toBeCloseTo(25 - 15 * Math.pow(1.15, 1), 1e-9);
+    expect(s.currencies.gold).toBeCloseTo(50 - 15 * Math.pow(1.15, 1), 1e-9);
     expect(s._solved).toBe(undefined);
   });
 

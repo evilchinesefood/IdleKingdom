@@ -43,7 +43,7 @@ describe("Game facade", () => {
     const summary = g.bootstrap(new MemoryStorageAdapter());
     expect(summary !== null && typeof summary === "object").toBe(true);
     expect(typeof summary.appliedMs === "number").toBe(true);
-    expect(g.getState().currencies.gold).toBeCloseTo(25, 1e-9);
+    expect(g.getState().currencies.gold).toBeCloseTo(50, 1e-9);
   });
 
   it("dispatch routes a legal intent and returns ok; rejects an illegal one", () => {
@@ -204,7 +204,7 @@ describe("Game facade", () => {
     const summary = g.bootstrap(storage);
     expect(summary !== null && typeof summary === "object").toBe(true);
     expect(g.getState().graph.nodes.length).toBe(0); // fell back to NewGame
-    expect(g.getState().currencies.gold).toBeCloseTo(25, 1e-9);
+    expect(g.getState().currencies.gold).toBeCloseTo(50, 1e-9);
   });
 
   it("bootstrap try/catch falls back to NewGame if boot solve throws (task 2 defense)", () => {

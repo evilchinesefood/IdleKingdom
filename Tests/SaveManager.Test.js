@@ -36,7 +36,7 @@ describe("SaveManager.serialize", () => {
     expect(typeof blob.savedAt).toBe("number");
     expect(typeof blob.lastSeen).toBe("number");
     expect(blob._solved).toBe(undefined);
-    expect(blob.currencies.gold).toBe(25.0);
+    expect(blob.currencies.gold).toBe(50.0);
   });
 
   it("strips meta._saveStatus from the persisted blob (task 25)", () => {
@@ -309,7 +309,7 @@ describe("SaveManager.deserialize", () => {
     const clock = new FakeClock(9000);
     const state = deserialize("{not valid json", clock);
     expect(state.version).toBe(SAVE_VERSION);
-    expect(state.currencies.gold).toBe(25.0);
+    expect(state.currencies.gold).toBe(50.0);
   });
 
   it("falls back to NewGame when validate fails (missing currencies)", () => {
@@ -320,7 +320,7 @@ describe("SaveManager.deserialize", () => {
     });
     const state = deserialize(broken, clock);
     expect(state.version).toBe(SAVE_VERSION);
-    expect(state.currencies.gold).toBe(25.0);
+    expect(state.currencies.gold).toBe(50.0);
   });
 
   it("content-aware deserialize rejects a cyclic graph -> NewGame (task 3)", async () => {
@@ -402,7 +402,7 @@ describe("SaveManager.deserialize", () => {
     }
     expect(warned).toBe(true);
     expect(state.version).toBe(SAVE_VERSION); // fresh NewGame, not the v12 blob
-    expect(state.currencies.gold).toBe(25.0);
+    expect(state.currencies.gold).toBe(50.0);
     // raw blob copied verbatim to the versioned backup key
     expect(storage.get("idlekingdom-save-backup-v12")).toBe(raw);
     // the original live key is untouched (next autosave overwrites it)
@@ -422,7 +422,7 @@ describe("SaveManager.deserialize", () => {
       console.warn = orig;
     }
     expect(state.version).toBe(SAVE_VERSION);
-    expect(state.currencies.gold).toBe(25.0);
+    expect(state.currencies.gold).toBe(50.0);
   });
 
   it("canonical-ID guard: NewGame has only r_iron_bar, no available field", () => {

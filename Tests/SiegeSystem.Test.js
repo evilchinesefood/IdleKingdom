@@ -33,8 +33,8 @@ describe("SiegeSystem", () => {
     expect(s.siege.progress).toBeCloseTo(10, 1e-9);
     // gatehouse unlock applied (productionBonus gatherer 1.1)
     expect(s.unlocks.productionBonuses.gatherer).toBeCloseTo(1.1, 1e-9);
-    // rewards granted (gold 50, research 20 on top of start 25/0)
-    expect(s.currencies.gold).toBeCloseTo(75, 1e-9);
+    // rewards granted (gold 50, research 20 on top of start 50/0)
+    expect(s.currencies.gold).toBeCloseTo(100, 1e-9);
     expect(s.currencies.research).toBeCloseTo(20, 1e-9);
   });
 

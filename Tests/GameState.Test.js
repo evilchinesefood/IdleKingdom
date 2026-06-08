@@ -40,9 +40,9 @@ describe("GameState.NewGame", () => {
     expect("expeditions" in g).toBe(false);
   });
 
-  it("starts with 25 gold and zero research (no renown)", () => {
+  it("starts with 50 gold and zero research (no renown)", () => {
     const g = NewGame(new FakeClock(0));
-    expect(g.currencies.gold).toBe(25.0);
+    expect(g.currencies.gold).toBe(50.0);
     expect(g.currencies.research).toBe(0.0);
     expect("renown" in g.currencies).toBe(false);
   });
@@ -59,7 +59,7 @@ describe("GameState.NewGame", () => {
     a.currencies.gold = 999;
     a.unlocks.recipesUnlocked.push("r_steel");
     a.graph.nodes.push({ id: "x", kind: "gatherer" });
-    expect(b.currencies.gold).toBe(25.0);
+    expect(b.currencies.gold).toBe(50.0);
     expect(b.unlocks.recipesUnlocked).toEqual(["r_iron_bar"]);
     expect(b.graph.nodes.length).toBe(0);
   });
@@ -70,7 +70,7 @@ describe("GameState.clone", () => {
     const g = NewGame(new FakeClock(0));
     const c = clone(g);
     c.currencies.gold = 999;
-    expect(g.currencies.gold).toBe(25.0);
+    expect(g.currencies.gold).toBe(50.0);
   });
 
   it("strips the non-persisted _solved cache", () => {
