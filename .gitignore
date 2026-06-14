@@ -21,3 +21,8 @@ node_modules/
 # Ignored so a stray `git add -A` can't re-track them.
 docs/
 fixes.md
+
+# Commercial Fonticons assets (Font Awesome Pro / Web Awesome) — licensed, not
+# redistributable. Kept locally for rsync deploy; never commit to a public repo.
+Source/Vendor/FontAwesome/
+Source/Vendor/WebAwesome/
